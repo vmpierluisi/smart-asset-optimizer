@@ -1,9 +1,11 @@
-
 import { useState } from 'react';
 import yahooFinance from 'yahoo-finance2';
 import { create, all } from 'mathjs';
 
 const math = create(all);
+
+// TODO: Replace this with your Alpha Vantage API key from https://www.alphavantage.co/support/#api-key
+const ALPHA_VANTAGE_API_KEY = 'REPLACE_WITH_YOUR_API_KEY';
 
 // Ensure URLSearchParams is available
 if (typeof URLSearchParams === 'undefined') {
