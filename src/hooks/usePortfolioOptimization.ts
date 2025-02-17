@@ -1,25 +1,10 @@
+
 import { useState } from 'react';
-import yahooFinance from 'yahoo-finance2';
 import { create, all } from 'mathjs';
 
 const math = create(all);
 
-// TODO: Replace this with your Alpha Vantage API key from https://www.alphavantage.co/support/#api-key
-const ALPHA_VANTAGE_API_KEY = 'REPLACE_WITH_YOUR_API_KEY';
-
-// Ensure URLSearchParams is available
-if (typeof URLSearchParams === 'undefined') {
-  (window as any).URLSearchParams = class URLSearchParams {
-    constructor(params: any) {
-      this.params = params;
-    }
-    toString() {
-      return Object.entries(this.params)
-        .map(([key, value]) => `${key}=${value}`)
-        .join('&');
-    }
-  };
-}
+const ALPHA_VANTAGE_API_KEY = '8NMNG3M6153UL6N7';
 
 interface OptimizationResults {
   weights: { [key: string]: number };
@@ -44,20 +29,33 @@ export const usePortfolioOptimization = () => {
 
   const fetchStockData = async (symbol: string, startDate: Date, endDate: Date) => {
     try {
-      // Add error handling for browser environment
-      if (typeof window !== 'undefined' && !window.process) {
-        window.process = { env: {} } as any;
+      const response = await fetch(
+        `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}&outputsize=full`
+      );
+      
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
       }
 
-      const data = await yahooFinance.historical(symbol, {
-        period1: startDate,
-        period2: endDate,
-        interval: '1d' // Adding explicit interval
-      });
-      return data.map(item => ({
-        date: new Date(item.date),
-        close: item.close,
-      }));
+      const data = await response.json();
+      const timeSeriesData = data['Time Series (Daily)'];
+      
+      if (!timeSeriesData) {
+        throw new Error('No data received from Alpha Vantage');
+      }
+
+      const filteredData = Object.entries(timeSeriesData)
+        .filter(([date]) => {
+          const currentDate = new Date(date);
+          return currentDate >= startDate && currentDate <= endDate;
+        })
+        .map(([date, values]: [string, any]) => ({
+          date: new Date(date),
+          close: parseFloat(values['4. close']),
+        }))
+        .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+      return filteredData;
     } catch (error) {
       console.error(`Error fetching data for ${symbol}:`, error);
       throw error;
