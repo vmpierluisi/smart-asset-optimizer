@@ -118,28 +118,28 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
             <AxisLeft scale={yScale} left={margin.left} />
             <AxisBottom scale={xScale} top={height - margin.bottom} />
             
-            <AreaClosed<HistoricalData>
+            <AreaClosed
               data={results.historicalData}
-              x={(d) => xScale(d.date)}
-              y={(d) => yScale(d.value)}
+              x={(d: HistoricalData) => xScale(d.date)}
+              y={(d: HistoricalData) => yScale(d.value)}
               yScale={yScale}
               curve={curveMonotoneX}
               fill="rgba(5, 150, 105, 0.1)"
             />
             
-            <Line<HistoricalData>
+            <Line
               data={results.historicalData}
-              x={(d) => xScale(d.date)}
-              y={(d) => yScale(d.value)}
+              x={(d: HistoricalData) => xScale(d.date)}
+              y={(d: HistoricalData) => yScale(d.value)}
               stroke="#059669"
               strokeWidth={2}
               curve={curveMonotoneX}
             />
 
-            <Line<HistoricalData>
+            <Line
               data={results.historicalData}
-              x={(d) => xScale(d.date)}
-              y={(d) => yScale(d.benchmark)}
+              x={(d: HistoricalData) => xScale(d.date)}
+              y={(d: HistoricalData) => yScale(d.benchmark)}
               stroke="#64748B"
               strokeWidth={2}
               strokeDasharray="4,4"
