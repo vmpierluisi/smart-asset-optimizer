@@ -28,6 +28,11 @@ export const usePortfolioOptimization = () => {
 
   const fetchStockData = async (symbol: string, startDate: Date, endDate: Date) => {
     try {
+      // Add error handling for browser environment
+      if (typeof window !== 'undefined' && !window.process) {
+        window.process = { env: {} } as any;
+      }
+
       const data = await yahooFinance.historical(symbol, {
         period1: startDate,
         period2: endDate,
@@ -80,7 +85,7 @@ export const usePortfolioOptimization = () => {
         })
       ));
 
-      // Equal weights for simplicity (for now)
+      // Equal weights for simplicity
       const weights = stocks.map(() => 1 / stocks.length);
 
       // Calculate portfolio metrics
@@ -129,6 +134,7 @@ export const usePortfolioOptimization = () => {
       });
     } catch (err) {
       setError(err as Error);
+      console.error('Portfolio optimization error:', err);
     } finally {
       setIsLoading(false);
     }
