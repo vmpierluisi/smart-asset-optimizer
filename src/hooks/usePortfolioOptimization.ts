@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { create, all } from 'mathjs';
 
@@ -29,19 +28,26 @@ export const usePortfolioOptimization = () => {
 
   const fetchStockData = async (symbol: string, startDate: Date, endDate: Date) => {
     try {
-      const response = await fetch(
-        `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}&outputsize=full`
-      );
+      const apiUrl = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}&outputsize=full`;
+      console.log(`Fetching data for ${symbol}...`);
+
+      const response = await fetch(apiUrl);
+      const data = await response.json();
       
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
+      console.log(`Alpha Vantage response for ${symbol}:`, data);
+
+      if (data['Error Message']) {
+        throw new Error(`Alpha Vantage error: ${data['Error Message']}`);
       }
 
-      const data = await response.json();
+      if (data['Note']) {
+        throw new Error(`API limit reached: ${data['Note']}`);
+      }
+
       const timeSeriesData = data['Time Series (Daily)'];
       
       if (!timeSeriesData) {
-        throw new Error('No data received from Alpha Vantage');
+        throw new Error(`No data received from Alpha Vantage for symbol ${symbol}. Please verify the symbol is correct (e.g., "AAPL" for Apple).`);
       }
 
       const filteredData = Object.entries(timeSeriesData)
@@ -55,6 +61,11 @@ export const usePortfolioOptimization = () => {
         }))
         .sort((a, b) => a.date.getTime() - b.date.getTime());
 
+      if (filteredData.length === 0) {
+        throw new Error(`No data found for ${symbol} in the specified date range`);
+      }
+
+      console.log(`Successfully fetched ${filteredData.length} data points for ${symbol}`);
       return filteredData;
     } catch (error) {
       console.error(`Error fetching data for ${symbol}:`, error);
@@ -79,17 +90,21 @@ export const usePortfolioOptimization = () => {
     setError(null);
 
     try {
-      // Fetch historical data for all stocks
+      const fetchWithDelay = async (symbol: string, index: number) => {
+        if (index > 0) {
+          await new Promise(resolve => setTimeout(resolve, 15000));
+        }
+        return await fetchStockData(symbol, dateRange.start, dateRange.end);
+      };
+
       const stocksData = await Promise.all(
-        stocks.map(symbol => fetchStockData(symbol, dateRange.start, dateRange.end))
+        stocks.map((symbol, index) => fetchWithDelay(symbol, index))
       );
 
-      // Calculate returns
       const returns = stocksData.map(data => 
         calculateReturns(data.map(d => d.close))
       );
 
-      // Calculate mean returns and covariance matrix
       const meanReturns = returns.map(r => Number(math.mean(r)));
       
       const covMatrix = math.matrix(returns.map(r1 => 
@@ -100,21 +115,17 @@ export const usePortfolioOptimization = () => {
         })
       ));
 
-      // Equal weights for simplicity
       const weights = stocks.map(() => 1 / stocks.length);
 
-      // Calculate portfolio metrics
       const portfolioReturn = Number(math.multiply(weights, meanReturns));
       const portfolioVariance = Number(
         math.multiply(math.multiply(weights, covMatrix), weights)
       );
       const portfolioVolatility = Math.sqrt(portfolioVariance);
 
-      // Calculate VaR and ES (simplified)
       const var95 = -1.645 * portfolioVolatility;
       const es95 = -1.962 * portfolioVolatility;
 
-      // Calculate allocations
       const allocations = Object.fromEntries(
         stocks.map((symbol, i) => [
           symbol,
@@ -122,7 +133,6 @@ export const usePortfolioOptimization = () => {
         ])
       );
 
-      // Generate historical portfolio value data
       const historicalData = stocksData[0].map((_, i) => {
         const date = stocksData[0][i].date;
         const value = stocks.reduce((sum, _, j) => 
@@ -148,8 +158,9 @@ export const usePortfolioOptimization = () => {
         historicalData,
       });
     } catch (err) {
-      setError(err as Error);
-      console.error('Portfolio optimization error:', err);
+      const error = err as Error;
+      setError(error);
+      console.error('Portfolio optimization error:', error);
     } finally {
       setIsLoading(false);
     }

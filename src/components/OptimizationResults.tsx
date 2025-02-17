@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { AreaClosed, Line } from '@visx/shape';
+import { AreaClosed, Line, LinePath } from '@visx/shape';
 import { curveMonotoneX } from '@visx/curve';
 import { scaleTime, scaleLinear } from '@visx/scale';
 import { AxisLeft, AxisBottom } from '@visx/axis';
@@ -40,7 +39,7 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
   const margin = { top: 20, right: 20, bottom: 40, left: 60 };
 
   // Create scales
-  const xScale = scaleTime({
+  const xScale = scaleTime<number>({
     domain: [
       Math.min(...results.historicalData.map(d => d.date.getTime())),
       Math.max(...results.historicalData.map(d => d.date.getTime())),
@@ -48,7 +47,7 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
     range: [margin.left, width - margin.right],
   });
 
-  const yScale = scaleLinear({
+  const yScale = scaleLinear<number>({
     domain: [
       Math.min(...results.historicalData.map(d => Math.min(d.value, d.benchmark))),
       Math.max(...results.historicalData.map(d => Math.max(d.value, d.benchmark))),
@@ -118,28 +117,19 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
             <AxisLeft scale={yScale} left={margin.left} />
             <AxisBottom scale={xScale} top={height - margin.bottom} />
             
-            <AreaClosed
+            <LinePath
               data={results.historicalData}
-              x={(d: HistoricalData) => xScale(d.date)}
-              y={(d: HistoricalData) => yScale(d.value)}
-              yScale={yScale}
-              curve={curveMonotoneX}
-              fill="rgba(5, 150, 105, 0.1)"
-            />
-            
-            <Line
-              data={results.historicalData}
-              x={(d: HistoricalData) => xScale(d.date)}
-              y={(d: HistoricalData) => yScale(d.value)}
+              x={d => xScale(d.date)}
+              y={d => yScale(d.value)}
               stroke="#059669"
               strokeWidth={2}
               curve={curveMonotoneX}
             />
-
-            <Line
+            
+            <LinePath
               data={results.historicalData}
-              x={(d: HistoricalData) => xScale(d.date)}
-              y={(d: HistoricalData) => yScale(d.benchmark)}
+              x={d => xScale(d.date)}
+              y={d => yScale(d.benchmark)}
               stroke="#64748B"
               strokeWidth={2}
               strokeDasharray="4,4"
