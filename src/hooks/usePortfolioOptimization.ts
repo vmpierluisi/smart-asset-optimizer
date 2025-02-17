@@ -70,28 +70,25 @@ export const usePortfolioOptimization = () => {
       );
 
       // Calculate mean returns and covariance matrix
-      const meanReturns = returns.map(r => 
-        math.mean(r)
-      );
+      const meanReturns = returns.map(r => math.number(math.mean(r)));
       
       const covMatrix = math.matrix(returns.map(r1 => 
-        returns.map(r2 => math.multiply(
-          math.subtract(r1, math.mean(r1)),
-          math.subtract(r2, math.mean(r2))
-        ) / (r1.length - 1))
+        returns.map(r2 => {
+          const diff1 = math.subtract(r1, math.mean(r1));
+          const diff2 = math.subtract(r2, math.mean(r2));
+          return math.number(math.mean(math.dotMultiply(diff1, diff2)));
+        })
       ));
 
-      // Perform optimization (simplified for this example)
-      // In a real implementation, you would use a quadratic programming solver
-      const weights = stocks.map((_, i) => 1 / stocks.length);
+      // Equal weights for simplicity (for now)
+      const weights = stocks.map(() => 1 / stocks.length);
 
       // Calculate portfolio metrics
-      const portfolioReturn = math.multiply(weights, meanReturns);
-      const portfolioVariance = math.multiply(
-        math.multiply(weights, covMatrix),
-        weights
+      const portfolioReturn = math.number(math.multiply(weights, meanReturns));
+      const portfolioVariance = math.number(
+        math.multiply(math.multiply(weights, covMatrix), weights)
       );
-      const portfolioVolatility = math.sqrt(portfolioVariance);
+      const portfolioVolatility = Math.sqrt(portfolioVariance);
 
       // Calculate VaR and ES (simplified)
       const var95 = -1.645 * portfolioVolatility;

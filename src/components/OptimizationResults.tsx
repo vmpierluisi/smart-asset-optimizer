@@ -1,11 +1,17 @@
 
 import React from 'react';
-import { AreaClosed, Line, Bar } from '@visx/shape';
+import { AreaClosed, Line } from '@visx/shape';
 import { curveMonotoneX } from '@visx/curve';
 import { scaleTime, scaleLinear } from '@visx/scale';
 import { AxisLeft, AxisBottom } from '@visx/axis';
 import { GridRows, GridColumns } from '@visx/grid';
 import { Group } from '@visx/group';
+
+interface HistoricalData {
+  date: Date;
+  value: number;
+  benchmark: number;
+}
 
 interface OptimizationResultsProps {
   results: {
@@ -17,11 +23,7 @@ interface OptimizationResultsProps {
       var: number;
       es: number;
     };
-    historicalData: {
-      date: Date;
-      value: number;
-      benchmark: number;
-    }[];
+    historicalData: HistoricalData[];
   };
 }
 
@@ -116,28 +118,28 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
             <AxisLeft scale={yScale} left={margin.left} />
             <AxisBottom scale={xScale} top={height - margin.bottom} />
             
-            <AreaClosed
+            <AreaClosed<HistoricalData>
               data={results.historicalData}
-              x={d => xScale(d.date)}
-              y={d => yScale(d.value)}
+              x={(d) => xScale(d.date)}
+              y={(d) => yScale(d.value)}
               yScale={yScale}
               curve={curveMonotoneX}
               fill="rgba(5, 150, 105, 0.1)"
             />
             
-            <Line
+            <Line<HistoricalData>
               data={results.historicalData}
-              x={d => xScale(d.date)}
-              y={d => yScale(d.value)}
+              x={(d) => xScale(d.date)}
+              y={(d) => yScale(d.value)}
               stroke="#059669"
               strokeWidth={2}
               curve={curveMonotoneX}
             />
 
-            <Line
+            <Line<HistoricalData>
               data={results.historicalData}
-              x={d => xScale(d.date)}
-              y={d => yScale(d.benchmark)}
+              x={(d) => xScale(d.date)}
+              y={(d) => yScale(d.benchmark)}
               stroke="#64748B"
               strokeWidth={2}
               strokeDasharray="4,4"
