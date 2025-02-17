@@ -9,6 +9,18 @@ interface DateRangeSelectorProps {
 }
 
 export const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({ value, onChange }) => {
+  const handleStartDateChange = (date: Date | null) => {
+    if (date) {
+      onChange({ ...value, start: date });
+    }
+  };
+
+  const handleEndDateChange = (date: Date | null) => {
+    if (date) {
+      onChange({ ...value, end: date });
+    }
+  };
+
   return (
     <div className="space-y-4">
       <label className="block text-sm font-medium text-gray-700">
@@ -18,7 +30,7 @@ export const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({ value, onC
         <div>
           <DatePicker
             selected={value.start}
-            onChange={(date) => date && onChange({ ...value, start: date })}
+            onChange={handleStartDateChange}
             className="input-field w-full"
             maxDate={value.end}
             placeholderText="Start Date"
@@ -27,7 +39,7 @@ export const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({ value, onC
         <div>
           <DatePicker
             selected={value.end}
-            onChange={(date) => date && onChange({ ...value, end: date })}
+            onChange={handleEndDateChange}
             className="input-field w-full"
             minDate={value.start}
             maxDate={new Date()}

@@ -5,6 +5,20 @@ import { create, all } from 'mathjs';
 
 const math = create(all);
 
+// Ensure URLSearchParams is available
+if (typeof URLSearchParams === 'undefined') {
+  (window as any).URLSearchParams = class URLSearchParams {
+    constructor(params: any) {
+      this.params = params;
+    }
+    toString() {
+      return Object.entries(this.params)
+        .map(([key, value]) => `${key}=${value}`)
+        .join('&');
+    }
+  };
+}
+
 interface OptimizationResults {
   weights: { [key: string]: number };
   allocations: { [key: string]: number };
@@ -36,6 +50,7 @@ export const usePortfolioOptimization = () => {
       const data = await yahooFinance.historical(symbol, {
         period1: startDate,
         period2: endDate,
+        interval: '1d' // Adding explicit interval
       });
       return data.map(item => ({
         date: new Date(item.date),
@@ -75,13 +90,13 @@ export const usePortfolioOptimization = () => {
       );
 
       // Calculate mean returns and covariance matrix
-      const meanReturns = returns.map(r => math.number(math.mean(r)));
+      const meanReturns = returns.map(r => Number(math.mean(r)));
       
       const covMatrix = math.matrix(returns.map(r1 => 
         returns.map(r2 => {
           const diff1 = math.subtract(r1, math.mean(r1));
           const diff2 = math.subtract(r2, math.mean(r2));
-          return math.number(math.mean(math.dotMultiply(diff1, diff2)));
+          return Number(math.mean(math.dotMultiply(diff1, diff2)));
         })
       ));
 
@@ -89,8 +104,8 @@ export const usePortfolioOptimization = () => {
       const weights = stocks.map(() => 1 / stocks.length);
 
       // Calculate portfolio metrics
-      const portfolioReturn = math.number(math.multiply(weights, meanReturns));
-      const portfolioVariance = math.number(
+      const portfolioReturn = Number(math.multiply(weights, meanReturns));
+      const portfolioVariance = Number(
         math.multiply(math.multiply(weights, covMatrix), weights)
       );
       const portfolioVolatility = Math.sqrt(portfolioVariance);
