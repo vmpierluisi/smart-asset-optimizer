@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { LinePath } from '@visx/shape';
 import { curveMonotoneX } from '@visx/curve';
@@ -9,6 +8,7 @@ import { Group } from '@visx/group';
 import { Tooltip, defaultStyles } from '@visx/tooltip';
 import { localPoint } from '@visx/event';
 import { bisector } from 'd3-array';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 
 interface HistoricalData {
   date: Date;
@@ -30,6 +30,11 @@ interface OptimizationResultsProps {
   };
 }
 
+const COLORS = [
+  '#059669', '#0EA5E9', '#8B5CF6', '#EC4899', '#F59E0B',
+  '#10B981', '#3B82F6', '#6366F1', '#D946EF', '#F97316'
+];
+
 const bisectDate = bisector<HistoricalData, Date>((d) => d.date).left;
 
 export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ results }) => {
@@ -42,6 +47,15 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
   
   const formatPercent = (value: number) =>
     new Intl.NumberFormat('en-US', { style: 'percent', minimumFractionDigits: 2 }).format(value);
+
+  // Prepare data for pie chart
+  const pieData = useMemo(() => {
+    return Object.entries(results.allocations).map(([symbol, amount]) => ({
+      name: symbol,
+      value: amount,
+      weight: results.weights[symbol]
+    }));
+  }, [results.allocations, results.weights]);
 
   // Chart dimensions
   const width = 600;
@@ -86,6 +100,20 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
     [xScale, yScale, results.historicalData]
   );
 
+  const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-white p-2 border border-gray-200 rounded shadow-sm">
+          <p className="font-medium">{data.name}</p>
+          <p className="text-emerald-600">{formatCurrency(data.value)}</p>
+          <p className="text-gray-600">{formatPercent(data.weight)}</p>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-2 gap-4">
@@ -112,15 +140,35 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
         </div>
 
         <div className="p-4 bg-white rounded-lg shadow-sm">
-          <h3 className="text-lg font-semibold mb-4">Optimal Allocations</h3>
-          <div className="space-y-2">
-            {Object.entries(results.allocations).map(([symbol, amount]) => (
-              <div key={symbol} className="flex justify-between">
-                <span className="text-gray-600">{symbol}:</span>
-                <div className="flex gap-4">
-                  <span className="font-mono">{formatPercent(results.weights[symbol])}</span>
-                  <span className="font-mono">{formatCurrency(amount)}</span>
-                </div>
+          <h3 className="text-lg font-semibold mb-4">Portfolio Allocation</h3>
+          <div className="h-[200px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  dataKey="value"
+                >
+                  {pieData.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <RechartsTooltip content={<CustomTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-4 text-sm space-y-1">
+            {pieData.map((entry, index) => (
+              <div key={entry.name} className="flex items-center">
+                <div
+                  className="w-3 h-3 rounded-full mr-2"
+                  style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                />
+                <span>{entry.name}</span>
               </div>
             ))}
           </div>
@@ -128,7 +176,10 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
       </div>
 
       <div className="p-4 bg-white rounded-lg shadow-sm">
-        <h3 className="text-lg font-semibold mb-4">Portfolio Performance</h3>
+        <h3 className="text-lg font-semibold mb-4">Portfolio Performance vs Equal-Weight Portfolio</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          The benchmark represents an equal-weighted portfolio of the same stocks, rebalanced daily.
+        </p>
         <div style={{ position: 'relative' }}>
           <svg width={width} height={height}>
             <Group>
