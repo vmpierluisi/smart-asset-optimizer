@@ -115,72 +115,13 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
   };
 
   return (
-    <div className="space-y-8 max-w-full">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="p-6 bg-white rounded-lg shadow-sm">
-          <h3 className="text-lg font-semibold mb-4">Portfolio Metrics</h3>
-          <div className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-gray-600">Expected Return:</span>
-              <span className="font-mono">{formatPercent(results.metrics.expectedReturn)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Volatility:</span>
-              <span className="font-mono">{formatPercent(results.metrics.volatility)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Value at Risk (95%):</span>
-              <span className="font-mono">{formatPercent(results.metrics.var)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600">Expected Shortfall:</span>
-              <span className="font-mono">{formatPercent(results.metrics.es)}</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-6 bg-white rounded-lg shadow-sm">
-          <h3 className="text-lg font-semibold mb-4">Portfolio Allocation</h3>
-          <div className="h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={2}
-                  dataKey="value"
-                >
-                  {pieData.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <RechartsTooltip content={<CustomTooltip />} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-            {pieData.map((entry, index) => (
-              <div key={entry.name} className="flex items-center">
-                <div
-                  className="w-3 h-3 rounded-full mr-2 flex-shrink-0"
-                  style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                />
-                <span className="truncate">{entry.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      <div className="p-6 bg-white rounded-lg shadow-sm">
-        <h3 className="text-lg font-semibold mb-4">Portfolio Performance vs S&P500</h3>
+    <div className="space-y-6 p-4">
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <h3 className="text-xl font-semibold mb-2">Portfolio Performance</h3>
         <p className="text-sm text-gray-600 mb-4">
-          The benchmark represents the S&P500 index (SPY), normalized to the initial portfolio value.
+          Comparing your optimized portfolio against the S&P500 benchmark
         </p>
-        <div ref={containerRef} className="w-full" style={{ position: 'relative' }}>
+        <div ref={containerRef} className="w-full h-[400px]" style={{ position: 'relative' }}>
           <svg width={width} height={height}>
             <Group>
               <GridRows
@@ -290,6 +231,79 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
               </div>
             </Tooltip>
           )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <h3 className="text-lg font-semibold mb-4">Key Metrics</h3>
+          <div className="space-y-4">
+            <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
+              <span className="text-gray-600">Expected Return</span>
+              <span className="font-mono text-emerald-600 font-medium">
+                {formatPercent(results.metrics.expectedReturn)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
+              <span className="text-gray-600">Volatility</span>
+              <span className="font-mono text-emerald-600 font-medium">
+                {formatPercent(results.metrics.volatility)}
+              </span>
+            </div>
+            <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
+              <span className="text-gray-600">Value at Risk (95%)</span>
+              <span className="font-mono text-red-600 font-medium">
+                {formatPercent(results.metrics.var)}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <h3 className="text-lg font-semibold mb-4">Asset Allocation</h3>
+          <div className="h-[200px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={pieData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={2}
+                  dataKey="value"
+                >
+                  {pieData.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <RechartsTooltip content={<CustomTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+            {pieData.map((entry, index) => (
+              <div key={entry.name} className="flex items-center">
+                <div
+                  className="w-3 h-3 rounded-full mr-2 flex-shrink-0"
+                  style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                />
+                <span className="truncate">{entry.name}: {formatPercent(entry.value)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm p-6">
+          <h3 className="text-lg font-semibold mb-4">Portfolio Details</h3>
+          <div className="space-y-4">
+            {Object.entries(results.allocations).map(([symbol, amount]) => (
+              <div key={symbol} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                <span className="font-medium">{symbol}</span>
+                <span className="font-mono text-gray-700">{formatCurrency(amount)}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>
