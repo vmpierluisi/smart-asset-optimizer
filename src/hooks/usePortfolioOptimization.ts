@@ -90,15 +90,8 @@ export const usePortfolioOptimization = () => {
     setError(null);
 
     try {
-      const fetchWithDelay = async (symbol: string, index: number) => {
-        if (index > 0) {
-          await new Promise(resolve => setTimeout(resolve, 15000));
-        }
-        return await fetchStockData(symbol, dateRange.start, dateRange.end);
-      };
-
       const stocksData = await Promise.all(
-        stocks.map((symbol, index) => fetchWithDelay(symbol, index))
+        stocks.map(symbol => fetchStockData(symbol, dateRange.start, dateRange.end))
       );
 
       const returns = stocksData.map(data => 
