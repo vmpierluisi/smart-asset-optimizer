@@ -9,7 +9,7 @@ import { Tooltip, defaultStyles } from '@visx/tooltip';
 import { localPoint } from '@visx/event';
 import { bisector } from 'd3-array';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
-import { useResizeObserver } from '@visx/responsive';
+import { useResizeObserver } from '../hooks/useResizeObserver';
 
 interface HistoricalData {
   date: Date;
