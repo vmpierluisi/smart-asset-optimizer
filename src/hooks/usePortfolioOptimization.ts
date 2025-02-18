@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { create, all } from 'mathjs';
 
@@ -90,9 +91,13 @@ export const usePortfolioOptimization = () => {
     setError(null);
 
     try {
+      // Fetch data for all stocks and S&P500 (SPY)
       const stocksData = await Promise.all(
         stocks.map(symbol => fetchStockData(symbol, dateRange.start, dateRange.end))
       );
+      
+      // Fetch S&P500 data
+      const spyData = await fetchStockData('SPY', dateRange.start, dateRange.end);
 
       const returns = stocksData.map(data => 
         calculateReturns(data.map(d => d.close))
@@ -126,6 +131,8 @@ export const usePortfolioOptimization = () => {
         ])
       );
 
+      // Calculate historical portfolio values and normalize SPY data
+      const initialSpyValue = spyData[0].close;
       const historicalData = stocksData[0].map((_, i) => {
         const date = stocksData[0][i].date;
         const value = stocks.reduce((sum, _, j) => 
@@ -135,7 +142,7 @@ export const usePortfolioOptimization = () => {
         return {
           date,
           value,
-          benchmark: stocksData[0][i].close / stocksData[0][0].close * portfolioValue,
+          benchmark: spyData[i].close / initialSpyValue * portfolioValue, // Normalize SPY to portfolio value
         };
       });
 

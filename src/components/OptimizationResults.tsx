@@ -48,7 +48,6 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
   const formatPercent = (value: number) =>
     new Intl.NumberFormat('en-US', { style: 'percent', minimumFractionDigits: 2 }).format(value);
 
-  // Prepare data for pie chart
   const pieData = useMemo(() => {
     return Object.entries(results.allocations).map(([symbol, amount]) => ({
       name: symbol,
@@ -57,12 +56,10 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
     }));
   }, [results.allocations, results.weights]);
 
-  // Chart dimensions
   const width = 600;
   const height = 300;
   const margin = { top: 20, right: 20, bottom: 50, left: 60 };
 
-  // Create scales
   const xScale = useMemo(
     () => scaleTime<number>({
       domain: [
@@ -176,9 +173,9 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
       </div>
 
       <div className="p-4 bg-white rounded-lg shadow-sm">
-        <h3 className="text-lg font-semibold mb-4">Portfolio Performance vs Equal-Weight Portfolio</h3>
+        <h3 className="text-lg font-semibold mb-4">Portfolio Performance vs S&P500</h3>
         <p className="text-sm text-gray-600 mb-4">
-          The benchmark represents an equal-weighted portfolio of the same stocks, rebalanced daily.
+          The benchmark represents the S&P500 index (SPY), normalized to the initial portfolio value.
         </p>
         <div style={{ position: 'relative' }}>
           <svg width={width} height={height}>
@@ -243,7 +240,6 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
                 curve={curveMonotoneX}
               />
 
-              {/* Legend */}
               <Group transform={`translate(${width - 120}, ${margin.top})`}>
                 <text x={15} y={0} dy="1em" fontSize={12} fill="#059669">Portfolio</text>
                 <line x1={0} y1={12} x2={10} y2={12} stroke="#059669" strokeWidth={2} />
@@ -252,7 +248,6 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
                 <line x1={0} y1={32} x2={10} y2={32} stroke="#64748B" strokeWidth={2} strokeDasharray="4,4" />
               </Group>
 
-              {/* Tooltip overlay */}
               <rect
                 width={width - margin.left - margin.right}
                 height={height - margin.top - margin.bottom}
