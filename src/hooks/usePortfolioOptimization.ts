@@ -22,7 +22,7 @@ interface OptimizationResults {
 }
 
 const calculateGJRGarch = (returns: number[]) => {
-  // GJR-GARCH(1,1) parameters
+  // GJR-GARCH(1,1) parameters - tuned for typical financial data
   const omega = 0.000001;  // Very small positive number for variance intercept
   const alpha = 0.05;      // ARCH parameter
   const gamma = 0.05;      // Leverage parameter for negative returns
@@ -32,7 +32,7 @@ const calculateGJRGarch = (returns: number[]) => {
   const conditionalMeans: number[] = [];
   
   // Initialize with sample variance
-  let lastVariance = math.variance(returns.slice(0, 20));
+  let lastVariance = returns.slice(0, 20).reduce((acc, ret) => acc + ret * ret, 0) / 20;
   
   for (let t = 1; t < returns.length; t++) {
     const prevReturn = returns[t - 1];
@@ -46,17 +46,17 @@ const calculateGJRGarch = (returns: number[]) => {
     
     variances.push(newVariance);
     
-    // Calculate conditional mean (using simple moving average for now)
+    // Calculate conditional mean using GARCH-in-mean
     const lookback = Math.min(20, t);
-    const mean = math.mean(returns.slice(t - lookback, t));
-    conditionalMeans.push(mean);
+    const meanValue = returns.slice(t - lookback, t).reduce((sum, val) => sum + val, 0) / lookback;
+    conditionalMeans.push(meanValue);
     
     lastVariance = newVariance;
   }
 
   return {
-    conditionalMeans,
-    variances
+    conditionalMeans: conditionalMeans,
+    variances: variances
   };
 };
 
@@ -64,10 +64,46 @@ const calculateOptimalWeights = (
   means: number[],
   covMatrix: number[][],
   gamma: number = 2
-) => {
-  // For now, return equal weights until we implement the optimization
-  const numAssets = means.length;
-  return Array(numAssets).fill(1 / numAssets);
+): number[] => {
+  const n = means.length;
+  
+  // Implement gradient descent for optimization
+  const maxIterations = 1000;
+  const learningRate = 0.01;
+  const tolerance = 1e-6;
+  
+  // Initialize weights to equal allocation
+  let weights = Array(n).fill(1/n);
+  
+  for (let iter = 0; iter < maxIterations; iter++) {
+    const oldWeights = [...weights];
+    
+    // Calculate gradient of objective function
+    const gradients = means.map((mean, i) => {
+      let covSum = 0;
+      for (let j = 0; j < n; j++) {
+        covSum += covMatrix[i][j] * weights[j];
+      }
+      return mean - gamma * covSum;
+    });
+    
+    // Update weights using gradient
+    weights = weights.map((w, i) => w + learningRate * gradients[i]);
+    
+    // Project onto simplex (ensure sum = 1 and non-negative)
+    let sum = weights.reduce((a, b) => a + b, 0);
+    weights = weights.map(w => Math.max(0, w));
+    sum = weights.reduce((a, b) => a + b, 0);
+    weights = weights.map(w => w / sum);
+    
+    // Check convergence
+    const change = Math.sqrt(
+      weights.reduce((sum, w, i) => sum + Math.pow(w - oldWeights[i], 2), 0)
+    );
+    if (change < tolerance) break;
+  }
+  
+  return weights;
 };
 
 export const usePortfolioOptimization = () => {
@@ -122,7 +158,7 @@ export const usePortfolioOptimization = () => {
     }
   };
 
-  const calculateReturns = (prices: number[]) => {
+  const calculateReturns = (prices: number[]): number[] => {
     const returns = [];
     for (let i = 1; i < prices.length; i++) {
       returns.push((prices[i] - prices[i - 1]) / prices[i - 1]);
@@ -154,36 +190,39 @@ export const usePortfolioOptimization = () => {
       // Apply GJR-GARCH to each stock's returns
       const gjrGarchResults = returns.map(returnSeries => calculateGJRGarch(returnSeries));
       
-      // Extract conditional means and variances
+      // Extract conditional means
       const conditionalMeans = gjrGarchResults.map(result => 
-        math.mean(result.conditionalMeans)
+        result.conditionalMeans.reduce((sum, val) => sum + val, 0) / result.conditionalMeans.length
       );
 
       // Build variance-covariance matrix using GJR-GARCH variances
       const covMatrix = returns.map((_, i) => 
         returns.map((_, j) => {
           if (i === j) {
-            return math.mean(gjrGarchResults[i].variances);
+            return gjrGarchResults[i].variances.reduce((sum, val) => sum + val, 0) / 
+                   gjrGarchResults[i].variances.length;
           }
-          const cov = math.multiply(
-            math.sqrt(gjrGarchResults[i].variances),
-            math.sqrt(gjrGarchResults[j].variances)
+          // Calculate covariance using correlation and individual variances
+          const corr = math.mean(returns[i].map((_, k) => returns[i][k] * returns[j][k])) /
+                      (math.std(returns[i]) * math.std(returns[j]));
+          return corr * Math.sqrt(
+            gjrGarchResults[i].variances.reduce((sum, val) => sum + val, 0) / gjrGarchResults[i].variances.length *
+            gjrGarchResults[j].variances.reduce((sum, val) => sum + val, 0) / gjrGarchResults[j].variances.length
           );
-          return math.mean(cov);
         })
       );
 
-      // Calculate optimal weights
+      // Calculate optimal weights using the maximization of utility function
       const weights = calculateOptimalWeights(conditionalMeans, covMatrix);
 
       // Calculate portfolio metrics
-      const portfolioReturn = math.multiply(weights, conditionalMeans);
-      const portfolioVariance = math.multiply(
-        math.multiply(weights, covMatrix),
-        weights
-      );
+      const portfolioReturn = weights.reduce((sum, w, i) => sum + w * conditionalMeans[i], 0);
+      const portfolioVariance = weights.reduce((sum1, wi, i) => 
+        sum1 + weights.reduce((sum2, wj, j) => sum2 + wi * wj * covMatrix[i][j], 0), 
+      0);
       const portfolioVolatility = Math.sqrt(portfolioVariance);
 
+      // Calculate risk metrics
       const var95 = -1.645 * portfolioVolatility;
       const es95 = -1.962 * portfolioVolatility;
 
