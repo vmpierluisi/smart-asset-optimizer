@@ -63,7 +63,7 @@ const calculateGJRGarch = (returns: number[]) => {
 const calculateOptimalWeights = (
   means: number[],
   covMatrix: number[][],
-  gamma: number = 2
+  gamma: number
 ): number[] => {
   const n = means.length;
   
@@ -169,42 +169,38 @@ export const usePortfolioOptimization = () => {
   const optimizePortfolio = async (
     stocks: string[],
     dateRange: { start: Date; end: Date },
-    portfolioValue: number
+    portfolioValue: number,
+    riskAversion: number
   ) => {
     setIsLoading(true);
     setError(null);
 
     try {
-      // Fetch data for all stocks and S&P500 (SPY)
       const stocksData = await Promise.all(
         stocks.map(symbol => fetchStockData(symbol, dateRange.start, dateRange.end))
       );
       
       const spyData = await fetchStockData('SPY', dateRange.start, dateRange.end);
 
-      // Calculate returns for each stock
       const returns = stocksData.map(data => 
         calculateReturns(data.map(d => d.close))
       );
 
-      // Apply GJR-GARCH to each stock's returns
       const gjrGarchResults = returns.map(returnSeries => calculateGJRGarch(returnSeries));
       
-      // Extract conditional means
       const conditionalMeans = gjrGarchResults.map(result => 
         result.conditionalMeans.reduce((sum, val) => sum + val, 0) / result.conditionalMeans.length
       );
 
-      // Build variance-covariance matrix using GJR-GARCH variances
       const covMatrix = returns.map((_, i) => 
         returns.map((_, j) => {
           if (i === j) {
             return gjrGarchResults[i].variances.reduce((sum, val) => sum + val, 0) / 
                    gjrGarchResults[i].variances.length;
           }
-          // Calculate covariance using correlation and individual variances
-          const corr = math.mean(returns[i].map((_, k) => returns[i][k] * returns[j][k])) /
-                      (math.std(returns[i]) * math.std(returns[j]));
+          const corr = returns[i].reduce((sum, _, k) => sum + returns[i][k] * returns[j][k], 0) /
+                      (Math.sqrt(returns[i].reduce((sum, val) => sum + val * val, 0)) * 
+                       Math.sqrt(returns[j].reduce((sum, val) => sum + val * val, 0)));
           return corr * Math.sqrt(
             gjrGarchResults[i].variances.reduce((sum, val) => sum + val, 0) / gjrGarchResults[i].variances.length *
             gjrGarchResults[j].variances.reduce((sum, val) => sum + val, 0) / gjrGarchResults[j].variances.length
@@ -212,17 +208,14 @@ export const usePortfolioOptimization = () => {
         })
       );
 
-      // Calculate optimal weights using the maximization of utility function
-      const weights = calculateOptimalWeights(conditionalMeans, covMatrix);
+      const weights = calculateOptimalWeights(conditionalMeans, covMatrix, riskAversion);
 
-      // Calculate portfolio metrics
       const portfolioReturn = weights.reduce((sum, w, i) => sum + w * conditionalMeans[i], 0);
       const portfolioVariance = weights.reduce((sum1, wi, i) => 
         sum1 + weights.reduce((sum2, wj, j) => sum2 + wi * wj * covMatrix[i][j], 0), 
       0);
       const portfolioVolatility = Math.sqrt(portfolioVariance);
 
-      // Calculate risk metrics
       const var95 = -1.645 * portfolioVolatility;
       const es95 = -1.962 * portfolioVolatility;
 
@@ -233,7 +226,6 @@ export const usePortfolioOptimization = () => {
         ])
       );
 
-      // Calculate historical portfolio values
       const initialSpyValue = spyData[0].close;
       const historicalData = stocksData[0].map((_, i) => {
         const date = stocksData[0][i].date;

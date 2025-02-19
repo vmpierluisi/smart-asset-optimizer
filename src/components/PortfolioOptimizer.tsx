@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { StockInput } from './StockInput';
 import { DateRangeSelector } from './DateRangeSelector';
 import { PortfolioValueInput } from './PortfolioValueInput';
+import { RiskAversionInput } from './RiskAversionInput';
 import { OptimizationResults } from './OptimizationResults';
 import { usePortfolioOptimization } from '../hooks/usePortfolioOptimization';
 
@@ -13,6 +14,7 @@ export const PortfolioOptimizer: React.FC = () => {
     end: new Date(),
   });
   const [portfolioValue, setPortfolioValue] = useState<number>(10000);
+  const [riskAversion, setRiskAversion] = useState<number>(2);
 
   const { optimizePortfolio, isLoading, error, results } = usePortfolioOptimization();
 
@@ -21,7 +23,7 @@ export const PortfolioOptimizer: React.FC = () => {
       alert("Please select at least 2 stocks");
       return;
     }
-    await optimizePortfolio(stocks, dateRange, portfolioValue);
+    await optimizePortfolio(stocks, dateRange, portfolioValue, riskAversion);
   };
 
   return (
@@ -32,13 +34,14 @@ export const PortfolioOptimizer: React.FC = () => {
           <p className="text-lg text-gray-600">Optimize your portfolio using modern portfolio theory</p>
         </header>
 
-        {/* Input Section - Now at the top */}
+        {/* Input Section */}
         <div className="glassmorphism p-6 rounded-xl">
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             <StockInput stocks={stocks} onChange={setStocks} />
             <DateRangeSelector value={dateRange} onChange={setDateRange} />
             <div className="space-y-6">
               <PortfolioValueInput value={portfolioValue} onChange={setPortfolioValue} />
+              <RiskAversionInput value={riskAversion} onChange={setRiskAversion} />
               <button
                 onClick={handleOptimize}
                 disabled={isLoading}
@@ -50,7 +53,7 @@ export const PortfolioOptimizer: React.FC = () => {
           </div>
         </div>
 
-        {/* Results Section - Below the inputs */}
+        {/* Results Section */}
         {error && (
           <div className="text-red-500 p-4 bg-red-50 rounded-xl">
             Error: {error.message}
