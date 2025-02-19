@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { create, all } from 'mathjs';
 
@@ -21,6 +20,55 @@ interface OptimizationResults {
     benchmark: number;
   }[];
 }
+
+const calculateGJRGarch = (returns: number[]) => {
+  // GJR-GARCH(1,1) parameters
+  const omega = 0.000001;  // Very small positive number for variance intercept
+  const alpha = 0.05;      // ARCH parameter
+  const gamma = 0.05;      // Leverage parameter for negative returns
+  const beta = 0.85;       // GARCH parameter
+
+  const variances: number[] = [];
+  const conditionalMeans: number[] = [];
+  
+  // Initialize with sample variance
+  let lastVariance = math.variance(returns.slice(0, 20));
+  
+  for (let t = 1; t < returns.length; t++) {
+    const prevReturn = returns[t - 1];
+    const leverage = prevReturn < 0 ? 1 : 0;
+    
+    // Update variance using GJR-GARCH formula
+    const newVariance = omega + 
+                       alpha * Math.pow(prevReturn, 2) +
+                       gamma * leverage * Math.pow(prevReturn, 2) +
+                       beta * lastVariance;
+    
+    variances.push(newVariance);
+    
+    // Calculate conditional mean (using simple moving average for now)
+    const lookback = Math.min(20, t);
+    const mean = math.mean(returns.slice(t - lookback, t));
+    conditionalMeans.push(mean);
+    
+    lastVariance = newVariance;
+  }
+
+  return {
+    conditionalMeans,
+    variances
+  };
+};
+
+const calculateOptimalWeights = (
+  means: number[],
+  covMatrix: number[][],
+  gamma: number = 2
+) => {
+  // For now, return equal weights until we implement the optimization
+  const numAssets = means.length;
+  return Array(numAssets).fill(1 / numAssets);
+};
 
 export const usePortfolioOptimization = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -96,28 +144,43 @@ export const usePortfolioOptimization = () => {
         stocks.map(symbol => fetchStockData(symbol, dateRange.start, dateRange.end))
       );
       
-      // Fetch S&P500 data
       const spyData = await fetchStockData('SPY', dateRange.start, dateRange.end);
 
+      // Calculate returns for each stock
       const returns = stocksData.map(data => 
         calculateReturns(data.map(d => d.close))
       );
 
-      const meanReturns = returns.map(r => Number(math.mean(r)));
+      // Apply GJR-GARCH to each stock's returns
+      const gjrGarchResults = returns.map(returnSeries => calculateGJRGarch(returnSeries));
       
-      const covMatrix = math.matrix(returns.map(r1 => 
-        returns.map(r2 => {
-          const diff1 = math.subtract(r1, math.mean(r1));
-          const diff2 = math.subtract(r2, math.mean(r2));
-          return Number(math.mean(math.dotMultiply(diff1, diff2)));
+      // Extract conditional means and variances
+      const conditionalMeans = gjrGarchResults.map(result => 
+        math.mean(result.conditionalMeans)
+      );
+
+      // Build variance-covariance matrix using GJR-GARCH variances
+      const covMatrix = returns.map((_, i) => 
+        returns.map((_, j) => {
+          if (i === j) {
+            return math.mean(gjrGarchResults[i].variances);
+          }
+          const cov = math.multiply(
+            math.sqrt(gjrGarchResults[i].variances),
+            math.sqrt(gjrGarchResults[j].variances)
+          );
+          return math.mean(cov);
         })
-      ));
+      );
 
-      const weights = stocks.map(() => 1 / stocks.length);
+      // Calculate optimal weights
+      const weights = calculateOptimalWeights(conditionalMeans, covMatrix);
 
-      const portfolioReturn = Number(math.multiply(weights, meanReturns));
-      const portfolioVariance = Number(
-        math.multiply(math.multiply(weights, covMatrix), weights)
+      // Calculate portfolio metrics
+      const portfolioReturn = math.multiply(weights, conditionalMeans);
+      const portfolioVariance = math.multiply(
+        math.multiply(weights, covMatrix),
+        weights
       );
       const portfolioVolatility = Math.sqrt(portfolioVariance);
 
@@ -131,7 +194,7 @@ export const usePortfolioOptimization = () => {
         ])
       );
 
-      // Calculate historical portfolio values and normalize SPY data
+      // Calculate historical portfolio values
       const initialSpyValue = spyData[0].close;
       const historicalData = stocksData[0].map((_, i) => {
         const date = stocksData[0][i].date;
@@ -142,7 +205,7 @@ export const usePortfolioOptimization = () => {
         return {
           date,
           value,
-          benchmark: spyData[i].close / initialSpyValue * portfolioValue, // Normalize SPY to portfolio value
+          benchmark: spyData[i].close / initialSpyValue * portfolioValue,
         };
       });
 
