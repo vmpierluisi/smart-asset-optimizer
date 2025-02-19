@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { LinePath } from '@visx/shape';
 import { curveMonotoneX } from '@visx/curve';
@@ -115,7 +116,8 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
   };
 
   return (
-    <div className="space-y-6 p-4">
+    <div className="space-y-6 p-4 max-w-4xl mx-auto">
+      {/* Main Chart Section */}
       <div className="bg-white rounded-xl shadow-sm p-6">
         <h3 className="text-xl font-semibold mb-2">Portfolio Performance</h3>
         <p className="text-sm text-gray-600 mb-4">
@@ -234,34 +236,42 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold mb-4">Key Metrics</h3>
-          <div className="space-y-4">
-            <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-              <span className="text-gray-600">Expected Return</span>
-              <span className="font-mono text-emerald-600 font-medium">
-                {formatPercent(results.metrics.expectedReturn)}
-              </span>
-            </div>
-            <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-              <span className="text-gray-600">Volatility</span>
-              <span className="font-mono text-emerald-600 font-medium">
-                {formatPercent(results.metrics.volatility)}
-              </span>
-            </div>
-            <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-              <span className="text-gray-600">Value at Risk (95%)</span>
-              <span className="font-mono text-red-600 font-medium">
-                {formatPercent(results.metrics.var)}
-              </span>
-            </div>
+      {/* Key Metrics Card */}
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <h3 className="text-lg font-semibold mb-4">Key Metrics</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
+            <span className="text-gray-600">Expected Return</span>
+            <span className="font-mono text-emerald-600 font-medium">
+              {formatPercent(results.metrics.expectedReturn)}
+            </span>
+          </div>
+          <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
+            <span className="text-gray-600">Volatility</span>
+            <span className="font-mono text-emerald-600 font-medium">
+              {formatPercent(results.metrics.volatility)}
+            </span>
+          </div>
+          <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
+            <span className="text-gray-600">Value at Risk (95%)</span>
+            <span className="font-mono text-red-600 font-medium">
+              {formatPercent(results.metrics.var)}
+            </span>
+          </div>
+          <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
+            <span className="text-gray-600">Expected Shortfall</span>
+            <span className="font-mono text-red-600 font-medium">
+              {formatPercent(results.metrics.es)}
+            </span>
           </div>
         </div>
+      </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold mb-4">Asset Allocation</h3>
-          <div className="h-[200px]">
+      {/* Asset Allocation Card */}
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <h3 className="text-lg font-semibold mb-4">Asset Allocation</h3>
+        <div className="grid md:grid-cols-2 gap-6 items-center">
+          <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -269,7 +279,7 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
-                  outerRadius={80}
+                  outerRadius={100}
                   paddingAngle={2}
                   dataKey="value"
                 >
@@ -281,29 +291,33 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+          <div className="grid grid-cols-1 gap-2 text-sm">
             {pieData.map((entry, index) => (
-              <div key={entry.name} className="flex items-center">
-                <div
-                  className="w-3 h-3 rounded-full mr-2 flex-shrink-0"
-                  style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                />
-                <span className="truncate">{entry.name}: {formatPercent(entry.value)}</span>
+              <div key={entry.name} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                <div className="flex items-center">
+                  <div
+                    className="w-3 h-3 rounded-full mr-2 flex-shrink-0"
+                    style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                  />
+                  <span>{entry.name}</span>
+                </div>
+                <span className="font-mono">{formatPercent(entry.value)}</span>
               </div>
             ))}
           </div>
         </div>
+      </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-6">
-          <h3 className="text-lg font-semibold mb-4">Portfolio Details</h3>
-          <div className="space-y-4">
-            {Object.entries(results.allocations).map(([symbol, amount]) => (
-              <div key={symbol} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                <span className="font-medium">{symbol}</span>
-                <span className="font-mono text-gray-700">{formatCurrency(amount)}</span>
-              </div>
-            ))}
-          </div>
+      {/* Portfolio Details Card */}
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <h3 className="text-lg font-semibold mb-4">Portfolio Details</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {Object.entries(results.allocations).map(([symbol, amount]) => (
+            <div key={symbol} className="flex justify-between items-center p-3 bg-gray-50 rounded">
+              <span className="font-medium">{symbol}</span>
+              <span className="font-mono text-gray-700">{formatCurrency(amount)}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>
