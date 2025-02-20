@@ -1,6 +1,7 @@
 
 import { useState } from 'react';
 import { create, all } from 'mathjs';
+import { toast } from "@/hooks/use-toast";
 
 const math = create(all);
 
@@ -157,12 +158,31 @@ export const usePortfolioOptimization = () => {
       const response = await fetch(apiUrl);
       const data = await response.json();
 
+      if (data['Note']) {
+        toast({
+          title: "API Limit Reached",
+          description: "The Alpha Vantage API limit has been reached. Please try again in a minute.",
+          variant: "destructive",
+        });
+        throw new Error(`API limit reached: ${data['Note']}`);
+      }
+
       if (data['Error Message']) {
+        toast({
+          title: "Error",
+          description: `Error fetching data for ${symbol}: ${data['Error Message']}`,
+          variant: "destructive",
+        });
         throw new Error(`Alpha Vantage error: ${data['Error Message']}`);
       }
 
       const timeSeriesData = data['Time Series (Daily)'];
       if (!timeSeriesData) {
+        toast({
+          title: "No Data",
+          description: `No data received for ${symbol}. Please try again.`,
+          variant: "destructive",
+        });
         throw new Error(`No data received for symbol ${symbol}`);
       }
 
