@@ -23,14 +23,13 @@ interface OptimizationResults {
 }
 
 const calculateGJRGarch = (returns: number[]) => {
-  // Implement GARCH parameter estimation using Maximum Likelihood Estimation
   const n = returns.length;
   const sigmas: number[] = [];
   const means: number[] = [];
   
   // Initial estimates
-  let sigma2 = math.variance(returns);
-  let lastReturn = 0;
+  const variance = math.variance(returns);
+  let sigma2 = typeof variance === 'number' ? variance : 0.01;
   let lastSigma2 = sigma2;
 
   // MLE optimization for GARCH parameters
@@ -89,9 +88,10 @@ const calculateGJRGarch = (returns: number[]) => {
     
     sigmas.push(Math.sqrt(sigma2));
     
-    // Calculate conditional mean using GARCH-in-mean
-    const mean = math.mean(returns.slice(Math.max(0, t-20), t));
-    means.push(mean);
+    // Calculate conditional mean
+    const slicedReturns = returns.slice(Math.max(0, t-20), t);
+    const meanValue = slicedReturns.reduce((sum, val) => sum + val, 0) / slicedReturns.length;
+    means.push(meanValue);
     
     lastSigma2 = sigma2;
   }
@@ -109,13 +109,12 @@ const calculateOptimalWeights = (
 ): number[] => {
   const n = means.length;
   
-  // Implement constrained optimization using gradient descent
+  // Initialize weights to equal allocation
+  let weights = Array(n).fill(1/n);
+  
   const maxIterations = 1000;
   const learningRate = 0.01;
   const tolerance = 1e-6;
-  
-  // Initialize weights to equal allocation
-  let weights = Array(n).fill(1/n);
   
   for (let iter = 0; iter < maxIterations; iter++) {
     const oldWeights = [...weights];
@@ -132,7 +131,7 @@ const calculateOptimalWeights = (
     // Update weights using projected gradient descent
     weights = weights.map((w, i) => w + learningRate * gradients[i]);
     
-    // Project onto simplex (ensure sum = 1 and non-negative)
+    // Project onto simplex
     weights = weights.map(w => Math.max(0, w));
     const sum = weights.reduce((a, b) => a + b, 0);
     weights = weights.map(w => w / sum);
@@ -155,28 +154,19 @@ export const usePortfolioOptimization = () => {
   const fetchStockData = async (symbol: string, startDate: Date, endDate: Date) => {
     try {
       const apiUrl = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}&outputsize=full`;
-      console.log(`Fetching data for ${symbol}...`);
-
       const response = await fetch(apiUrl);
       const data = await response.json();
-      
-      console.log(`Alpha Vantage response for ${symbol}:`, data);
 
       if (data['Error Message']) {
         throw new Error(`Alpha Vantage error: ${data['Error Message']}`);
       }
 
-      if (data['Note']) {
-        throw new Error(`API limit reached: ${data['Note']}`);
-      }
-
       const timeSeriesData = data['Time Series (Daily)'];
-      
       if (!timeSeriesData) {
-        throw new Error(`No data received from Alpha Vantage for symbol ${symbol}`);
+        throw new Error(`No data received for symbol ${symbol}`);
       }
 
-      const filteredData = Object.entries(timeSeriesData)
+      return Object.entries(timeSeriesData)
         .filter(([date]) => {
           const currentDate = new Date(date);
           return currentDate >= startDate && currentDate <= endDate;
@@ -186,8 +176,6 @@ export const usePortfolioOptimization = () => {
           close: parseFloat(values['4. close']),
         }))
         .sort((a, b) => a.date.getTime() - b.date.getTime());
-
-      return filteredData;
     } catch (error) {
       console.error(`Error fetching data for ${symbol}:`, error);
       throw error;
@@ -224,20 +212,24 @@ export const usePortfolioOptimization = () => {
       // Fit GJR-GARCH models
       const gjrGarchResults = returns.map(returnSeries => calculateGJRGarch(returnSeries));
       
-      // Extract conditional means and calculate covariance matrix
+      // Extract conditional means
       const conditionalMeans = gjrGarchResults.map(result => 
         result.conditionalMeans[result.conditionalMeans.length - 1]
       );
 
-      // Calculate covariance matrix using returns and GARCH variances
-      const covMatrix = returns.map((_, i) => 
-        returns.map((_, j) => {
+      // Calculate covariance matrix
+      const covMatrix = returns.map((returnSeries1, i) => 
+        returns.map((returnSeries2, j) => {
           if (i === j) {
             return gjrGarchResults[i].variances[gjrGarchResults[i].variances.length - 1];
           }
-          const corr = math.mean(returns[i].map((_, k) => returns[i][k] * returns[j][k])) /
-                      (math.std(returns[i]) * math.std(returns[j]));
-          return corr * Math.sqrt(
+          const correlation = returnSeries1.reduce((sum, _, k) => 
+            sum + returnSeries1[k] * returnSeries2[k], 0
+          ) / Math.sqrt(
+            returnSeries1.reduce((sum, r) => sum + r * r, 0) *
+            returnSeries2.reduce((sum, r) => sum + r * r, 0)
+          );
+          return correlation * Math.sqrt(
             gjrGarchResults[i].variances[gjrGarchResults[i].variances.length - 1] *
             gjrGarchResults[j].variances[gjrGarchResults[j].variances.length - 1]
           );
@@ -255,13 +247,16 @@ export const usePortfolioOptimization = () => {
       );
       const portfolioVolatility = Math.sqrt(portfolioVariance);
 
-      // Calculate risk metrics using historical simulation
+      // Calculate risk metrics
       const portfolioReturns = returns[0].map((_, t) => 
         weights.reduce((sum, w, i) => sum + w * returns[i][t], 0)
       );
       
-      const var95 = math.quantileSeq(portfolioReturns, 0.05);
-      const es95 = math.mean(portfolioReturns.filter(r => r < var95));
+      const sortedReturns = [...portfolioReturns].sort((a, b) => a - b);
+      const var95 = sortedReturns[Math.floor(sortedReturns.length * 0.05)];
+      const es95 = sortedReturns
+        .filter(r => r <= var95)
+        .reduce((sum, r) => sum + r, 0) / sortedReturns.filter(r => r <= var95).length;
 
       const allocations = Object.fromEntries(
         stocks.map((symbol, i) => [
