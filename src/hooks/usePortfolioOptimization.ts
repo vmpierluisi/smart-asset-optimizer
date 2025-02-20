@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { create, all } from 'mathjs';
 import { toast } from "@/hooks/use-toast";
@@ -70,30 +71,40 @@ const calculateGJRGarch = (returns: number[]) => {
     return { omega, alpha, beta, gamma };
   };
 
-  const params = optimizeGARCH();
-  
-  for (let t = 1; t < n; t++) {
-    const r = returns[t-1];
-    const leverage = r < 0 ? 1 : 0;
+  try {
+    const params = optimizeGARCH();
     
-    sigma2 = params.omega + 
-             params.alpha * r * r + 
-             params.gamma * leverage * r * r + 
-             params.beta * lastSigma2;
-    
-    sigmas.push(Math.sqrt(sigma2));
-    
-    const slicedReturns = returns.slice(Math.max(0, t-20), t);
-    const meanValue = slicedReturns.reduce((sum, val) => sum + val, 0) / slicedReturns.length;
-    means.push(meanValue);
-    
-    lastSigma2 = sigma2;
-  }
+    for (let t = 1; t < n; t++) {
+      const r = returns[t-1];
+      const leverage = r < 0 ? 1 : 0;
+      
+      sigma2 = params.omega + 
+               params.alpha * r * r + 
+               params.gamma * leverage * r * r + 
+               params.beta * lastSigma2;
+      
+      sigmas.push(Math.sqrt(sigma2));
+      
+      const slicedReturns = returns.slice(Math.max(0, t-20), t);
+      const meanValue = slicedReturns.reduce((sum, val) => sum + val, 0) / slicedReturns.length;
+      means.push(meanValue);
+      
+      lastSigma2 = sigma2;
+    }
 
-  return {
-    conditionalMeans: means,
-    variances: sigmas.map(s => s * s)
-  };
+    return {
+      conditionalMeans: means,
+      variances: sigmas.map(s => s * s)
+    };
+  } catch (error) {
+    console.error('Error in GJR-GARCH calculation:', error);
+    toast({
+      title: "Calculation Error",
+      description: "Error in volatility calculation. Please try again with different parameters.",
+      variant: "destructive",
+    });
+    throw error;
+  }
 };
 
 const calculateOptimalWeights = (
@@ -101,38 +112,51 @@ const calculateOptimalWeights = (
   covMatrix: number[][],
   gamma: number
 ): number[] => {
-  const n = means.length;
-  
-  let weights = Array(n).fill(1/n);
-  
-  const maxIterations = 1000;
-  const learningRate = 0.01;
-  const tolerance = 1e-6;
-  
-  for (let iter = 0; iter < maxIterations; iter++) {
-    const oldWeights = [...weights];
+  try {
+    const n = means.length;
+    let weights = Array(n).fill(1/n);
     
-    const gradients = means.map((mean, i) => {
-      let covSum = 0;
-      for (let j = 0; j < n; j++) {
-        covSum += covMatrix[i][j] * weights[j];
+    const maxIterations = 1000;
+    const learningRate = 0.01;
+    const tolerance = 1e-6;
+    
+    for (let iter = 0; iter < maxIterations; iter++) {
+      const oldWeights = [...weights];
+      
+      const gradients = means.map((mean, i) => {
+        let covSum = 0;
+        for (let j = 0; j < n; j++) {
+          covSum += covMatrix[i][j] * weights[j];
+        }
+        return mean - gamma * covSum;
+      });
+      
+      weights = weights.map((w, i) => w + learningRate * gradients[i]);
+      
+      weights = weights.map(w => Math.max(0, w));
+      const sum = weights.reduce((a, b) => a + b, 0);
+      if (sum === 0) {
+        weights = Array(n).fill(1/n); // Reset to equal weights if sum is zero
+      } else {
+        weights = weights.map(w => w / sum);
       }
-      return mean - gamma * covSum;
+      
+      const change = Math.sqrt(
+        weights.reduce((sum, w, i) => sum + Math.pow(w - oldWeights[i], 2), 0)
+      );
+      if (change < tolerance) break;
+    }
+    
+    return weights;
+  } catch (error) {
+    console.error('Error in optimal weights calculation:', error);
+    toast({
+      title: "Optimization Error",
+      description: "Error in portfolio optimization. Please try again with different parameters.",
+      variant: "destructive",
     });
-    
-    weights = weights.map((w, i) => w + learningRate * gradients[i]);
-    
-    weights = weights.map(w => Math.max(0, w));
-    const sum = weights.reduce((a, b) => a + b, 0);
-    weights = weights.map(w => w / sum);
-    
-    const change = Math.sqrt(
-      weights.reduce((sum, w, i) => sum + Math.pow(w - oldWeights[i], 2), 0)
-    );
-    if (change < tolerance) break;
+    throw error;
   }
-  
-  return weights;
 };
 
 export const usePortfolioOptimization = () => {
@@ -207,12 +231,22 @@ export const usePortfolioOptimization = () => {
   };
 
   const calculateReturns = (prices: number[]): number[] => {
-    const returns = prices.slice(1).map((price, i) => 
-      (price - prices[i]) / prices[i]
-    );
-    if (returns.some(r => isNaN(r))) {
-      console.error('NaN detected in returns calculation. Prices:', prices);
-      throw new Error('Invalid price data detected');
+    if (prices.length < 2) {
+      throw new Error('Not enough price data to calculate returns');
+    }
+
+    const returns = [];
+    for (let i = 1; i < prices.length; i++) {
+      const return_i = (prices[i] - prices[i-1]) / prices[i-1];
+      if (isNaN(return_i)) {
+        console.error('NaN detected in return calculation:', {
+          current: prices[i],
+          previous: prices[i-1],
+          index: i
+        });
+        throw new Error('Invalid return calculation detected');
+      }
+      returns.push(return_i);
     }
     return returns;
   };
@@ -227,10 +261,12 @@ export const usePortfolioOptimization = () => {
     setError(null);
 
     try {
-      console.log('Starting portfolio optimization with stocks:', stocks);
-      console.log('Date range:', dateRange);
-      console.log('Portfolio value:', portfolioValue);
-      console.log('Risk aversion:', riskAversion);
+      console.log('Starting portfolio optimization with:', {
+        stocks,
+        dateRange,
+        portfolioValue,
+        riskAversion
+      });
 
       const stocksData = await Promise.all(
         stocks.map(symbol => fetchStockData(symbol, dateRange.start, dateRange.end))
@@ -240,16 +276,11 @@ export const usePortfolioOptimization = () => {
 
       const returns = stocksData.map(data => {
         const prices = data.map(d => d.close);
-        console.log('Processing returns for prices:', prices);
+        console.log('Calculating returns for prices:', prices);
         return calculateReturns(prices);
       });
 
       if (returns.some(r => r.length === 0)) {
-        toast({
-          title: "Invalid Data",
-          description: "Not enough price data to calculate returns.",
-          variant: "destructive",
-        });
         throw new Error('Not enough price data to calculate returns');
       }
 
@@ -279,6 +310,8 @@ export const usePortfolioOptimization = () => {
 
       const weights = calculateOptimalWeights(conditionalMeans, covMatrix, riskAversion);
 
+      console.log('Calculated weights:', weights);
+
       const portfolioReturn = weights.reduce((sum, w, i) => sum + w * conditionalMeans[i], 0);
       const portfolioVariance = weights.reduce((sum1, wi, i) => 
         sum1 + weights.reduce((sum2, wj, j) => sum2 + wi * wj * covMatrix[i][j], 0),
@@ -302,6 +335,13 @@ export const usePortfolioOptimization = () => {
           weights[i] * portfolioValue
         ])
       );
+
+      console.log('Portfolio metrics:', {
+        expectedReturn: portfolioReturn,
+        volatility: portfolioVolatility,
+        var: var95,
+        es: es95
+      });
 
       const initialSpyValue = spyData[0].close;
       const historicalData = stocksData[0].map((_, i) => {
@@ -327,16 +367,6 @@ export const usePortfolioOptimization = () => {
           es: es95,
         },
         historicalData,
-      });
-
-      console.log('Optimization results:', {
-        weights: Object.fromEntries(stocks.map((symbol, i) => [symbol, weights[i]])),
-        metrics: {
-          expectedReturn: portfolioReturn,
-          volatility: portfolioVolatility,
-          var: var95,
-          es: es95,
-        }
       });
 
     } catch (err) {
