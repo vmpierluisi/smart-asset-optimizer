@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { create, all } from 'mathjs';
 import { toast } from "@/hooks/use-toast";
@@ -28,12 +27,10 @@ const calculateGJRGarch = (returns: number[]) => {
   const sigmas: number[] = [];
   const means: number[] = [];
   
-  // Initial estimates
   const variance = math.variance(returns);
   let sigma2 = typeof variance === 'number' ? variance : 0.01;
   let lastSigma2 = sigma2;
 
-  // MLE optimization for GARCH parameters
   const optimizeGARCH = () => {
     let omega = 0.00001;
     let alpha = 0.05;
@@ -54,7 +51,6 @@ const calculateGJRGarch = (returns: number[]) => {
         
         sigma2 = omega + alpha * prevR * prevR + gamma * leverage * prevR * prevR + beta * lastSigma2;
         
-        // Update gradients
         const dsigma2 = -0.5/sigma2 + 0.5 * r * r/(sigma2 * sigma2);
         dOmega += dsigma2;
         dAlpha += dsigma2 * prevR * prevR;
@@ -65,7 +61,6 @@ const calculateGJRGarch = (returns: number[]) => {
         lastSigma2 = sigma2;
       }
       
-      // Update parameters
       omega = Math.max(0.000001, omega + learningRate * dOmega);
       alpha = Math.max(0, Math.min(1, alpha + learningRate * dAlpha));
       beta = Math.max(0, Math.min(1, beta + learningRate * dBeta));
@@ -77,7 +72,6 @@ const calculateGJRGarch = (returns: number[]) => {
 
   const params = optimizeGARCH();
   
-  // Calculate conditional variances and means using estimated parameters
   for (let t = 1; t < n; t++) {
     const r = returns[t-1];
     const leverage = r < 0 ? 1 : 0;
@@ -89,7 +83,6 @@ const calculateGJRGarch = (returns: number[]) => {
     
     sigmas.push(Math.sqrt(sigma2));
     
-    // Calculate conditional mean
     const slicedReturns = returns.slice(Math.max(0, t-20), t);
     const meanValue = slicedReturns.reduce((sum, val) => sum + val, 0) / slicedReturns.length;
     means.push(meanValue);
@@ -110,7 +103,6 @@ const calculateOptimalWeights = (
 ): number[] => {
   const n = means.length;
   
-  // Initialize weights to equal allocation
   let weights = Array(n).fill(1/n);
   
   const maxIterations = 1000;
@@ -120,7 +112,6 @@ const calculateOptimalWeights = (
   for (let iter = 0; iter < maxIterations; iter++) {
     const oldWeights = [...weights];
     
-    // Calculate utility function gradient
     const gradients = means.map((mean, i) => {
       let covSum = 0;
       for (let j = 0; j < n; j++) {
@@ -129,15 +120,12 @@ const calculateOptimalWeights = (
       return mean - gamma * covSum;
     });
     
-    // Update weights using projected gradient descent
     weights = weights.map((w, i) => w + learningRate * gradients[i]);
     
-    // Project onto simplex
     weights = weights.map(w => Math.max(0, w));
     const sum = weights.reduce((a, b) => a + b, 0);
     weights = weights.map(w => w / sum);
     
-    // Check convergence
     const change = Math.sqrt(
       weights.reduce((sum, w, i) => sum + Math.pow(w - oldWeights[i], 2), 0)
     );
@@ -155,8 +143,12 @@ export const usePortfolioOptimization = () => {
   const fetchStockData = async (symbol: string, startDate: Date, endDate: Date) => {
     try {
       const apiUrl = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}&outputsize=full`;
+      console.log(`Fetching data for ${symbol}...`);
+
       const response = await fetch(apiUrl);
       const data = await response.json();
+      
+      console.log(`Alpha Vantage response for ${symbol}:`, data);
 
       if (data['Note']) {
         toast({
@@ -183,10 +175,10 @@ export const usePortfolioOptimization = () => {
           description: `No data received for ${symbol}. Please try again.`,
           variant: "destructive",
         });
-        throw new Error(`No data received for symbol ${symbol}`);
+        throw new Error(`No data received from Alpha Vantage for symbol ${symbol}`);
       }
 
-      return Object.entries(timeSeriesData)
+      const filteredData = Object.entries(timeSeriesData)
         .filter(([date]) => {
           const currentDate = new Date(date);
           return currentDate >= startDate && currentDate <= endDate;
@@ -196,6 +188,18 @@ export const usePortfolioOptimization = () => {
           close: parseFloat(values['4. close']),
         }))
         .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+      if (filteredData.length === 0) {
+        toast({
+          title: "No Data in Date Range",
+          description: `No data available for ${symbol} in the selected date range.`,
+          variant: "destructive",
+        });
+        throw new Error(`No data available for ${symbol} in the selected date range`);
+      }
+
+      console.log(`Processed data for ${symbol}:`, filteredData);
+      return filteredData;
     } catch (error) {
       console.error(`Error fetching data for ${symbol}:`, error);
       throw error;
@@ -203,9 +207,14 @@ export const usePortfolioOptimization = () => {
   };
 
   const calculateReturns = (prices: number[]): number[] => {
-    return prices.slice(1).map((price, i) => 
+    const returns = prices.slice(1).map((price, i) => 
       (price - prices[i]) / prices[i]
     );
+    if (returns.some(r => isNaN(r))) {
+      console.error('NaN detected in returns calculation. Prices:', prices);
+      throw new Error('Invalid price data detected');
+    }
+    return returns;
   };
 
   const optimizePortfolio = async (
@@ -218,26 +227,38 @@ export const usePortfolioOptimization = () => {
     setError(null);
 
     try {
+      console.log('Starting portfolio optimization with stocks:', stocks);
+      console.log('Date range:', dateRange);
+      console.log('Portfolio value:', portfolioValue);
+      console.log('Risk aversion:', riskAversion);
+
       const stocksData = await Promise.all(
         stocks.map(symbol => fetchStockData(symbol, dateRange.start, dateRange.end))
       );
       
       const spyData = await fetchStockData('SPY', dateRange.start, dateRange.end);
 
-      // Calculate returns
-      const returns = stocksData.map(data => 
-        calculateReturns(data.map(d => d.close))
-      );
+      const returns = stocksData.map(data => {
+        const prices = data.map(d => d.close);
+        console.log('Processing returns for prices:', prices);
+        return calculateReturns(prices);
+      });
 
-      // Fit GJR-GARCH models
+      if (returns.some(r => r.length === 0)) {
+        toast({
+          title: "Invalid Data",
+          description: "Not enough price data to calculate returns.",
+          variant: "destructive",
+        });
+        throw new Error('Not enough price data to calculate returns');
+      }
+
       const gjrGarchResults = returns.map(returnSeries => calculateGJRGarch(returnSeries));
       
-      // Extract conditional means
       const conditionalMeans = gjrGarchResults.map(result => 
         result.conditionalMeans[result.conditionalMeans.length - 1]
       );
 
-      // Calculate covariance matrix
       const covMatrix = returns.map((returnSeries1, i) => 
         returns.map((returnSeries2, j) => {
           if (i === j) {
@@ -256,10 +277,8 @@ export const usePortfolioOptimization = () => {
         })
       );
 
-      // Optimize portfolio weights
       const weights = calculateOptimalWeights(conditionalMeans, covMatrix, riskAversion);
 
-      // Calculate portfolio metrics
       const portfolioReturn = weights.reduce((sum, w, i) => sum + w * conditionalMeans[i], 0);
       const portfolioVariance = weights.reduce((sum1, wi, i) => 
         sum1 + weights.reduce((sum2, wj, j) => sum2 + wi * wj * covMatrix[i][j], 0),
@@ -267,7 +286,6 @@ export const usePortfolioOptimization = () => {
       );
       const portfolioVolatility = Math.sqrt(portfolioVariance);
 
-      // Calculate risk metrics
       const portfolioReturns = returns[0].map((_, t) => 
         weights.reduce((sum, w, i) => sum + w * returns[i][t], 0)
       );
@@ -285,7 +303,6 @@ export const usePortfolioOptimization = () => {
         ])
       );
 
-      // Calculate historical performance
       const initialSpyValue = spyData[0].close;
       const historicalData = stocksData[0].map((_, i) => {
         const date = stocksData[0][i].date;
@@ -311,10 +328,26 @@ export const usePortfolioOptimization = () => {
         },
         historicalData,
       });
+
+      console.log('Optimization results:', {
+        weights: Object.fromEntries(stocks.map((symbol, i) => [symbol, weights[i]])),
+        metrics: {
+          expectedReturn: portfolioReturn,
+          volatility: portfolioVolatility,
+          var: var95,
+          es: es95,
+        }
+      });
+
     } catch (err) {
       const error = err as Error;
       setError(error);
       console.error('Portfolio optimization error:', error);
+      toast({
+        title: "Optimization Error",
+        description: error.message,
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
