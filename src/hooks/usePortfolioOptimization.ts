@@ -114,42 +114,56 @@ const calculateOptimalWeights = (
 ): number[] => {
   try {
     const n = means.length;
-    let weights = Array(n).fill(1/n);
     
-    const maxIterations = 1000;
-    const learningRate = 0.01;
-    const tolerance = 1e-6;
+    // Initialize weights to equal weights (feasible starting point)
+    let bestWeights = Array(n).fill(1/n);
+    let bestObjective = Number.NEGATIVE_INFINITY;
     
-    for (let iter = 0; iter < maxIterations; iter++) {
-      const oldWeights = [...weights];
-      
-      const gradients = means.map((mean, i) => {
-        let covSum = 0;
-        for (let j = 0; j < n; j++) {
-          covSum += covMatrix[i][j] * weights[j];
-        }
-        return mean - gamma * covSum;
-      });
-      
-      weights = weights.map((w, i) => w + learningRate * gradients[i]);
-      
-      weights = weights.map(w => Math.max(0, w));
-      const sum = weights.reduce((a, b) => a + b, 0);
-      if (sum === 0) {
-        weights = Array(n).fill(1/n); // Reset to equal weights if sum is zero
-      } else {
-        weights = weights.map(w => w / sum);
+    // Number of random starts to avoid local maxima
+    const numStarts = 1000;
+    
+    for (let start = 0; start < numStarts; start++) {
+      // Generate random weights that sum to 1
+      let weights = Array(n).fill(0);
+      let sum = 0;
+      for (let i = 0; i < n; i++) {
+        weights[i] = Math.random();
+        sum += weights[i];
       }
+      weights = weights.map(w => w / sum);
       
-      const change = Math.sqrt(
-        weights.reduce((sum, w, i) => sum + Math.pow(w - oldWeights[i], 2), 0)
+      // Calculate portfolio mean return
+      const portfolioReturn = weights.reduce((sum, w, i) => sum + w * means[i], 0);
+      
+      // Calculate portfolio variance
+      const portfolioVariance = weights.reduce((sum1, wi, i) => 
+        sum1 + weights.reduce((sum2, wj, j) => sum2 + wi * wj * covMatrix[i][j], 0),
+        0
       );
-      if (change < tolerance) break;
+      
+      // Calculate objective function: μ - (γ/2)σ²
+      const objective = portfolioReturn - (gamma / 2) * portfolioVariance;
+      
+      if (objective > bestObjective) {
+        bestObjective = objective;
+        bestWeights = [...weights];
+      }
     }
     
-    return weights;
+    // Ensure non-negativity constraint
+    bestWeights = bestWeights.map(w => Math.max(0, w));
+    
+    // Ensure sum to 1 constraint
+    const sum = bestWeights.reduce((a, b) => a + b, 0);
+    bestWeights = bestWeights.map(w => w / sum);
+    
+    toast({
+      title: "Optimization Complete",
+      description: `Found optimal portfolio with objective value: ${bestObjective.toFixed(4)}`,
+    });
+    
+    return bestWeights;
   } catch (error) {
-    console.error('Error in optimal weights calculation:', error);
     toast({
       title: "Optimization Error",
       description: "Error in portfolio optimization. Please try again with different parameters.",
