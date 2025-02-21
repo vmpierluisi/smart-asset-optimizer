@@ -167,12 +167,13 @@ export const usePortfolioOptimization = () => {
   const fetchStockData = async (symbol: string, startDate: Date, endDate: Date) => {
     try {
       const apiUrl = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}&outputsize=full`;
-      console.log(`Fetching data for ${symbol}...`);
+      toast({
+        title: "Fetching Data",
+        description: `Fetching data for ${symbol}...`,
+      });
 
       const response = await fetch(apiUrl);
       const data = await response.json();
-      
-      console.log(`Alpha Vantage response for ${symbol}:`, data);
 
       if (data['Note']) {
         toast({
@@ -222,10 +223,18 @@ export const usePortfolioOptimization = () => {
         throw new Error(`No data available for ${symbol} in the selected date range`);
       }
 
-      console.log(`Processed data for ${symbol}:`, filteredData);
+      toast({
+        title: "Data Fetched",
+        description: `Successfully fetched data for ${symbol}`,
+      });
+      
       return filteredData;
     } catch (error) {
-      console.error(`Error fetching data for ${symbol}:`, error);
+      toast({
+        title: "Error",
+        description: `Error fetching data for ${symbol}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive",
+      });
       throw error;
     }
   };
@@ -239,10 +248,10 @@ export const usePortfolioOptimization = () => {
     for (let i = 1; i < prices.length; i++) {
       const return_i = (prices[i] - prices[i-1]) / prices[i-1];
       if (isNaN(return_i)) {
-        console.error('NaN detected in return calculation:', {
-          current: prices[i],
-          previous: prices[i-1],
-          index: i
+        toast({
+          title: "Calculation Error",
+          description: "Invalid return calculation detected",
+          variant: "destructive",
         });
         throw new Error('Invalid return calculation detected');
       }
@@ -261,11 +270,9 @@ export const usePortfolioOptimization = () => {
     setError(null);
 
     try {
-      console.log('Starting portfolio optimization with:', {
-        stocks,
-        dateRange,
-        portfolioValue,
-        riskAversion
+      toast({
+        title: "Starting Optimization",
+        description: "Beginning portfolio optimization process...",
       });
 
       const stocksData = await Promise.all(
@@ -274,9 +281,13 @@ export const usePortfolioOptimization = () => {
       
       const spyData = await fetchStockData('SPY', dateRange.start, dateRange.end);
 
+      toast({
+        title: "Processing Data",
+        description: "Calculating returns and optimizing weights...",
+      });
+
       const returns = stocksData.map(data => {
         const prices = data.map(d => d.close);
-        console.log('Calculating returns for prices:', prices);
         return calculateReturns(prices);
       });
 
@@ -310,8 +321,6 @@ export const usePortfolioOptimization = () => {
 
       const weights = calculateOptimalWeights(conditionalMeans, covMatrix, riskAversion);
 
-      console.log('Calculated weights:', weights);
-
       const portfolioReturn = weights.reduce((sum, w, i) => sum + w * conditionalMeans[i], 0);
       const portfolioVariance = weights.reduce((sum1, wi, i) => 
         sum1 + weights.reduce((sum2, wj, j) => sum2 + wi * wj * covMatrix[i][j], 0),
@@ -336,11 +345,9 @@ export const usePortfolioOptimization = () => {
         ])
       );
 
-      console.log('Portfolio metrics:', {
-        expectedReturn: portfolioReturn,
-        volatility: portfolioVolatility,
-        var: var95,
-        es: es95
+      toast({
+        title: "Optimization Complete",
+        description: "Portfolio optimization finished successfully!",
       });
 
       const initialSpyValue = spyData[0].close;
@@ -372,7 +379,6 @@ export const usePortfolioOptimization = () => {
     } catch (err) {
       const error = err as Error;
       setError(error);
-      console.error('Portfolio optimization error:', error);
       toast({
         title: "Optimization Error",
         description: error.message,
