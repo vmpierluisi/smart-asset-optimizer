@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { create, all } from 'mathjs';
 import { toast } from "@/hooks/use-toast";
@@ -28,15 +27,17 @@ const calculateGJRGarch = (returns: number[]) => {
   const sigmas: number[] = [];
   const means: number[] = [];
   
+  // Initialize with sample variance
   const variance = math.variance(returns);
   let sigma2 = typeof variance === 'number' ? variance : 0.01;
   let lastSigma2 = sigma2;
 
   const optimizeGARCH = () => {
-    let omega = 0.00001;
-    let alpha = 0.05;
-    let beta = 0.85;
-    let gamma = 0.05;
+    // Conservative initial parameters for stability
+    let omega = 0.00001;  // Small positive constant
+    let alpha = 0.05;     // ARCH effect
+    let beta = 0.85;      // GARCH persistence
+    let gamma = 0.05;     // Leverage effect
 
     const maxIter = 100;
     const learningRate = 0.01;
@@ -50,8 +51,11 @@ const calculateGJRGarch = (returns: number[]) => {
         const prevR = returns[t-1];
         const leverage = prevR < 0 ? 1 : 0;
         
+        // Update conditional variance
         sigma2 = omega + alpha * prevR * prevR + gamma * leverage * prevR * prevR + beta * lastSigma2;
+        sigma2 = Math.max(sigma2, 1e-6); // Ensure positive variance
         
+        // Calculate gradients for likelihood optimization
         const dsigma2 = -0.5/sigma2 + 0.5 * r * r/(sigma2 * sigma2);
         dOmega += dsigma2;
         dAlpha += dsigma2 * prevR * prevR;
@@ -62,10 +66,20 @@ const calculateGJRGarch = (returns: number[]) => {
         lastSigma2 = sigma2;
       }
       
+      // Update parameters with constraints
       omega = Math.max(0.000001, omega + learningRate * dOmega);
-      alpha = Math.max(0, Math.min(1, alpha + learningRate * dAlpha));
-      beta = Math.max(0, Math.min(1, beta + learningRate * dBeta));
-      gamma = Math.max(0, Math.min(1, gamma + learningRate * dGamma));
+      alpha = Math.max(0, Math.min(0.3, alpha + learningRate * dAlpha));
+      beta = Math.max(0.6, Math.min(0.99, beta + learningRate * dBeta));
+      gamma = Math.max(0, Math.min(0.2, gamma + learningRate * dGamma));
+      
+      // Ensure persistence < 1 for stationarity
+      const persistence = alpha + beta + 0.5 * gamma;
+      if (persistence >= 1) {
+        const scale = 0.99 / persistence;
+        alpha *= scale;
+        beta *= scale;
+        gamma *= scale;
+      }
     }
     
     return { omega, alpha, beta, gamma };
@@ -78,13 +92,18 @@ const calculateGJRGarch = (returns: number[]) => {
       const r = returns[t-1];
       const leverage = r < 0 ? 1 : 0;
       
-      sigma2 = params.omega + 
-               params.alpha * r * r + 
-               params.gamma * leverage * r * r + 
-               params.beta * lastSigma2;
+      // Calculate conditional variance with parameter constraints
+      sigma2 = Math.max(
+        1e-6,
+        params.omega + 
+        params.alpha * r * r + 
+        params.gamma * leverage * r * r + 
+        params.beta * lastSigma2
+      );
       
       sigmas.push(Math.sqrt(sigma2));
       
+      // Calculate rolling mean with a 20-day window
       const slicedReturns = returns.slice(Math.max(0, t-20), t);
       const meanValue = slicedReturns.reduce((sum, val) => sum + val, 0) / slicedReturns.length;
       means.push(meanValue);
@@ -94,7 +113,7 @@ const calculateGJRGarch = (returns: number[]) => {
 
     return {
       conditionalMeans: means,
-      variances: sigmas.map(s => s * s)
+      variances: sigmas.map(s => Math.min(s * s, 1)) // Cap maximum variance at 100%
     };
   } catch (error) {
     console.error('Error in GJR-GARCH calculation:', error);
@@ -334,6 +353,12 @@ export const usePortfolioOptimization = () => {
       );
 
       const weights = calculateOptimalWeights(conditionalMeans, covMatrix, riskAversion);
+    
+      // Calculate allocations separately from weights
+      const allocations = stocks.reduce((acc, symbol, i) => {
+        acc[symbol] = weights[i] * portfolioValue;
+        return acc;
+      }, {} as { [key: string]: number });
 
       const portfolioReturn = weights.reduce((sum, w, i) => sum + w * conditionalMeans[i], 0);
       const portfolioVariance = weights.reduce((sum1, wi, i) => 
@@ -352,12 +377,11 @@ export const usePortfolioOptimization = () => {
         .filter(r => r <= var95)
         .reduce((sum, r) => sum + r, 0) / sortedReturns.filter(r => r <= var95).length;
 
-      const allocations = Object.fromEntries(
-        stocks.map((symbol, i) => [
-          symbol,
-          weights[i] * portfolioValue
-        ])
-      );
+      // Store weights separately from allocations
+      const weightsBySymbol = stocks.reduce((acc, symbol, i) => {
+        acc[symbol] = weights[i];
+        return acc;
+      }, {} as { [key: string]: number });
 
       toast({
         title: "Optimization Complete",
@@ -379,8 +403,8 @@ export const usePortfolioOptimization = () => {
       });
 
       setResults({
-        weights: Object.fromEntries(stocks.map((symbol, i) => [symbol, weights[i]])),
-        allocations,
+        weights: weightsBySymbol,        // Percentage weights (summing to 1)
+        allocations: allocations,        // Dollar amounts
         metrics: {
           expectedReturn: portfolioReturn,
           volatility: portfolioVolatility,

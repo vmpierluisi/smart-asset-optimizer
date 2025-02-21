@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { LinePath } from '@visx/shape';
 import { curveMonotoneX } from '@visx/curve';
@@ -53,12 +52,12 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
     new Intl.NumberFormat('en-US', { style: 'percent', minimumFractionDigits: 2 }).format(value);
 
   const pieData = useMemo(() => {
-    return Object.entries(results.allocations).map(([symbol, amount]) => ({
+    return Object.entries(results.weights).map(([symbol, weight]) => ({
       name: symbol,
-      value: amount,
-      weight: results.weights[symbol]
+      value: weight,
+      amount: results.allocations[symbol]
     }));
-  }, [results.allocations, results.weights]);
+  }, [results.weights, results.allocations]);
 
   const margin = { top: 20, right: 20, bottom: 50, left: 60 };
   const width = dimensions?.width ?? 600;
@@ -107,8 +106,8 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
       return (
         <div className="bg-white p-2 border border-gray-200 rounded shadow-sm">
           <p className="font-medium">{data.name}</p>
-          <p className="text-emerald-600">{formatCurrency(data.value)}</p>
-          <p className="text-gray-600">{formatPercent(data.weight)}</p>
+          <p className="text-emerald-600">{formatPercent(data.value)}</p>
+          <p className="text-gray-600">{formatCurrency(data.amount)}</p>
         </div>
       );
     }
@@ -270,41 +269,22 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
       {/* Asset Allocation Card */}
       <div className="bg-white rounded-xl shadow-sm p-6">
         <h3 className="text-lg font-semibold mb-4">Asset Allocation</h3>
-        <div className="grid md:grid-cols-2 gap-6 items-center">
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={2}
-                  dataKey="value"
-                >
-                  {pieData.map((_, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <RechartsTooltip content={<CustomTooltip />} />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="grid grid-cols-1 gap-2 text-sm">
-            {pieData.map((entry, index) => (
-              <div key={entry.name} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                <div className="flex items-center">
-                  <div
-                    className="w-3 h-3 rounded-full mr-2 flex-shrink-0"
-                    style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                  />
-                  <span>{entry.name}</span>
-                </div>
-                <span className="font-mono">{formatPercent(entry.value)}</span>
+        <div className="grid md:grid-cols-2 gap-2 text-sm">
+          {pieData.map((entry, index) => (
+            <div key={entry.name} className="flex items-center justify-between p-3 bg-gray-50 rounded">
+              <div className="flex items-center">
+                <div
+                  className="w-3 h-3 rounded-full mr-2 flex-shrink-0"
+                  style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                />
+                <span>{entry.name}</span>
               </div>
-            ))}
-          </div>
+              <div className="text-right">
+                <div className="font-mono text-emerald-600">{formatPercent(entry.value)}</div>
+                <div className="font-mono text-gray-600 text-xs">{formatCurrency(entry.amount)}</div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
