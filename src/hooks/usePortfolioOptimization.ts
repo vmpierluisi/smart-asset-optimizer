@@ -406,10 +406,10 @@ export const usePortfolioOptimization = () => {
         weights: weightsBySymbol,        // Percentage weights (summing to 1)
         allocations: allocations,        // Dollar amounts
         metrics: {
-          expectedReturn: portfolioReturn,                    // Keep as percentage
-          volatility: portfolioVolatility * portfolioValue,  // Convert to dollar amount
-          var: var95 * portfolioValue,                      // Convert to dollar amount
-          es: es95 * portfolioValue,                        // Convert to dollar amount
+          expectedReturn: portfolioReturn,
+          volatility: portfolioVolatility,  // Keep as percentage
+          var: var95 * portfolioValue,     // Convert to dollar amount
+          es: es95 * portfolioValue,       // Convert to dollar amount
         },
         historicalData,
       });
