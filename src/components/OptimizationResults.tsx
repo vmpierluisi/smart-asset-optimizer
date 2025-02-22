@@ -248,19 +248,19 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
           <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
             <span className="text-gray-600">Volatility</span>
             <span className="font-mono text-emerald-600 font-medium">
-              {formatPercent(results.metrics.volatility)}
+              {formatCurrency(results.metrics.volatility)}
             </span>
           </div>
           <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
             <span className="text-gray-600">Value at Risk (95%)</span>
             <span className="font-mono text-red-600 font-medium">
-              {formatPercent(results.metrics.var)}
+              {formatCurrency(Math.abs(results.metrics.var))}
             </span>
           </div>
           <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
             <span className="text-gray-600">Expected Shortfall</span>
             <span className="font-mono text-red-600 font-medium">
-              {formatPercent(results.metrics.es)}
+              {formatCurrency(Math.abs(results.metrics.es))}
             </span>
           </div>
         </div>
