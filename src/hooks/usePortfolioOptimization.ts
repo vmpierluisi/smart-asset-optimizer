@@ -407,7 +407,7 @@ export const usePortfolioOptimization = () => {
         allocations: allocations,        // Dollar amounts
         metrics: {
           expectedReturn: portfolioReturn,
-          volatility: portfolioVolatility,  // Keep as percentage
+          volatility: portfolioVolatility * 100,  // Multiply by 100 to get dollar amount
           var: var95 * portfolioValue,     // Convert to dollar amount
           es: es95 * portfolioValue,       // Convert to dollar amount
         },
