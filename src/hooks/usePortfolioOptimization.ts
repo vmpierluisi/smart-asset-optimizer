@@ -360,22 +360,22 @@ export const usePortfolioOptimization = () => {
         return acc;
       }, {} as { [key: string]: number });
 
-      // Calculate portfolio return as percentage
+      // Calculate portfolio return (as percentage)
       const portfolioReturn = weights.reduce((sum, w, i) => sum + w * conditionalMeans[i], 0);
 
-      // Calculate portfolio volatility in dollar terms
+      // Calculate portfolio variance and volatility (as percentage)
       const portfolioVariance = weights.reduce((sum1, wi, i) => 
         sum1 + weights.reduce((sum2, wj, j) => sum2 + wi * wj * covMatrix[i][j], 0),
         0
       );
-      const portfolioVolatility = Math.sqrt(portfolioVariance) * portfolioValue;
+      const portfolioVolatility = Math.sqrt(portfolioVariance);
 
-      // Calculate portfolio returns in dollar terms
+      // Calculate portfolio returns (as percentage)
       const portfolioReturns = returns[0].map((_, t) => 
-        weights.reduce((sum, w, i) => sum + w * returns[i][t], 0) * portfolioValue
+        weights.reduce((sum, w, i) => sum + w * returns[i][t], 0)
       );
       
-      // Calculate VaR and ES in dollar terms
+      // Calculate VaR and ES (as percentage)
       const sortedReturns = [...portfolioReturns].sort((a, b) => a - b);
       const var95 = sortedReturns[Math.floor(sortedReturns.length * 0.05)];
       const es95 = sortedReturns
@@ -412,10 +412,10 @@ export const usePortfolioOptimization = () => {
         weights: weightsBySymbol,
         allocations: allocations,
         metrics: {
-          expectedReturn: portfolioReturn,
-          volatility: portfolioVolatility,
-          var: var95,
-          es: es95,
+          expectedReturn: portfolioReturn,                    // Keep as percentage
+          volatility: portfolioVolatility * portfolioValue,  // Convert to dollar amount
+          var: var95 * portfolioValue,                      // Convert to dollar amount
+          es: es95 * portfolioValue,                        // Convert to dollar amount
         },
         historicalData,
       });
