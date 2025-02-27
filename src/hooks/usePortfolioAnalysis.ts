@@ -57,18 +57,45 @@ export const usePortfolioAnalysis = () => {
         body: JSON.stringify(processedData),
       });
 
+      // Check if the response is valid before parsing JSON
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to analyze portfolio');
+        // Try to parse error message first, but handle the case if it fails
+        try {
+          const errorData = await response.text();
+          let errorMessage = 'Failed to analyze portfolio';
+          
+          try {
+            // Only parse as JSON if it looks like JSON
+            if (errorData.trim().startsWith('{')) {
+              const errorJson = JSON.parse(errorData);
+              errorMessage = errorJson.error || errorMessage;
+            } else {
+              errorMessage = errorData || errorMessage;
+            }
+          } catch (parseError) {
+            // If parsing fails, use the raw text
+            errorMessage = errorData || errorMessage;
+          }
+          
+          throw new Error(errorMessage);
+        } catch (textError) {
+          throw new Error('Failed to analyze portfolio: Unable to retrieve error details');
+        }
       }
 
-      const data = await response.json();
-      setAnalysis(data.analysis);
-      
-      toast({
-        title: "Analysis Complete",
-        description: "AI portfolio analysis is ready!",
-      });
+      // Try to parse the successful response
+      try {
+        const responseText = await response.text();
+        const data = JSON.parse(responseText);
+        setAnalysis(data.analysis);
+        
+        toast({
+          title: "Analysis Complete",
+          description: "AI portfolio analysis is ready!",
+        });
+      } catch (parseError) {
+        throw new Error('Error parsing response: Invalid JSON response from server');
+      }
     } catch (err) {
       const error = err as Error;
       setError(error);
