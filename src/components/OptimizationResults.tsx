@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import { LinePath } from '@visx/shape';
 import { curveMonotoneX } from '@visx/curve';
@@ -10,6 +11,7 @@ import { localPoint } from '@visx/event';
 import { bisector } from 'd3-array';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { useResizeObserver } from '../hooks/useResizeObserver';
+import { PortfolioAnalysis } from './PortfolioAnalysis';
 
 interface HistoricalData {
   date: Date;
@@ -234,6 +236,9 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
           )}
         </div>
       </div>
+
+      {/* Portfolio Analysis Card */}
+      <PortfolioAnalysis results={results} />
 
       {/* Key Metrics Card */}
       <div className="bg-white rounded-xl shadow-sm p-6">
