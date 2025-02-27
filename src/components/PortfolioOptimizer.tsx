@@ -6,10 +6,6 @@ import { PortfolioValueInput } from './PortfolioValueInput';
 import { RiskAversionInput } from './RiskAversionInput';
 import { OptimizationResults } from './OptimizationResults';
 import { usePortfolioOptimization } from '../hooks/usePortfolioOptimization';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { toast } from "@/hooks/use-toast";
 
 export const PortfolioOptimizer: React.FC = () => {
   const [stocks, setStocks] = useState<string[]>([]);
@@ -19,8 +15,6 @@ export const PortfolioOptimizer: React.FC = () => {
   });
   const [portfolioValue, setPortfolioValue] = useState<number>(10000);
   const [riskAversion, setRiskAversion] = useState<number>(2);
-  const [openAIKey, setOpenAIKey] = useState<string>("");
-  const [open, setOpen] = useState(false);
 
   const { optimizePortfolio, isLoading, error, results } = usePortfolioOptimization();
 
@@ -32,57 +26,12 @@ export const PortfolioOptimizer: React.FC = () => {
     await optimizePortfolio(stocks, dateRange, portfolioValue, riskAversion);
   };
 
-  const handleSaveAPIKey = () => {
-    if (!openAIKey.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a valid OpenAI API key",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    localStorage.setItem("OPENAI_API_KEY", openAIKey);
-    toast({
-      title: "Success",
-      description: "OpenAI API key saved successfully",
-    });
-    setOpen(false);
-  };
-
   return (
     <div className="min-h-screen p-8 bg-gradient-to-br from-gray-50 to-gray-100">
       <div className="max-w-4xl mx-auto space-y-8 animate-fadeIn">
         <header className="text-center space-y-4">
           <h1 className="text-4xl font-bold text-gray-900">Portfolio Optimizer</h1>
           <p className="text-lg text-gray-600">Optimize your portfolio using modern portfolio theory</p>
-          
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="mt-2">
-                Set OpenAI API Key
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>OpenAI API Key</DialogTitle>
-                <DialogDescription>
-                  Enter your OpenAI API key to enable AI portfolio analysis.
-                  Your key will be stored securely in your browser's local storage.
-                </DialogDescription>
-              </DialogHeader>
-              <Input
-                type="password"
-                value={openAIKey}
-                onChange={(e) => setOpenAIKey(e.target.value)}
-                placeholder="sk-..."
-                className="mt-4"
-              />
-              <DialogFooter className="mt-4">
-                <Button onClick={handleSaveAPIKey}>Save API Key</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </header>
 
         {/* Input Section */}
