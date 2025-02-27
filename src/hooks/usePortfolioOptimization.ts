@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { create, all } from 'mathjs';
 import { toast } from "@/hooks/use-toast";
@@ -388,17 +389,60 @@ export const usePortfolioOptimization = () => {
         description: "Portfolio optimization finished successfully!",
       });
 
-      const initialSpyValue = spyData[0].close;
-      const historicalData = stocksData[0].map((_, i) => {
-        const date = stocksData[0][i].date;
-        const value = stocks.reduce((sum, _, j) => 
-          sum + (stocksData[j][i].close / stocksData[j][0].close) * allocations[stocks[j]],
-          0
-        );
+      // Find the common date range across all stocks by finding earliest starting date
+      // This prevents the error of accessing undefined data when stocks have different date ranges
+      const allDates = new Set<string>();
+      
+      // Create a map of dates to values for each stock
+      const stockDateMaps = stocksData.map(stockData => {
+        const dateMap = new Map();
+        stockData.forEach(d => {
+          const dateStr = d.date.toISOString().split('T')[0];
+          dateMap.set(dateStr, d.close);
+          allDates.add(dateStr);
+        });
+        return dateMap;
+      });
+      
+      // Create a similar map for SPY benchmark
+      const spyDateMap = new Map();
+      spyData.forEach(d => {
+        const dateStr = d.date.toISOString().split('T')[0];
+        spyDateMap.set(dateStr, d.close);
+      });
+      
+      // Convert to array of dates and sort chronologically
+      const commonDates = [...allDates].filter(date => {
+        // Only include dates where ALL stocks have data
+        return stockDateMaps.every(map => map.has(date)) && spyDateMap.has(date);
+      }).sort();
+      
+      if (commonDates.length === 0) {
+        throw new Error('No common dates found across all selected stocks');
+      }
+      
+      // Calculate initial values for normalization
+      const initialValues = stockDateMaps.map(map => map.get(commonDates[0]));
+      const initialSpyValue = spyDateMap.get(commonDates[0]);
+      
+      // Create historical data using the common date range
+      const historicalData = commonDates.map(dateStr => {
+        const date = new Date(dateStr);
+        
+        // Calculate portfolio value using normalized returns * allocation
+        const value = stocks.reduce((sum, _, j) => {
+          const currentPrice = stockDateMaps[j].get(dateStr);
+          const initialPrice = initialValues[j];
+          return sum + (currentPrice / initialPrice) * allocations[stocks[j]];
+        }, 0);
+        
+        // Get benchmark value
+        const benchmarkValue = (spyDateMap.get(dateStr) / initialSpyValue) * portfolioValue;
+        
         return {
           date,
           value,
-          benchmark: spyData[i].close / initialSpyValue * portfolioValue,
+          benchmark: benchmarkValue,
         };
       });
 
