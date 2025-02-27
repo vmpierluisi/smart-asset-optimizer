@@ -12,6 +12,7 @@ export default defineConfig({
     },
   },
   server: {
+    port: 8080,
     proxy: {
       '/api/analyze-portfolio': {
         target: 'http://localhost:54321/functions/v1/analyze-portfolio',
