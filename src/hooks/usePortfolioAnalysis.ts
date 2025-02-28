@@ -50,11 +50,14 @@ export const usePortfolioAnalysis = () => {
 
       console.log("Sending data to API:", JSON.stringify(processedData));
 
-      // Call the Supabase Edge Function
-      const response = await fetch('/api/analyze-portfolio', {
+      // Call the Supabase Edge Function with the correct URL format
+      // Replace YOUR_PROJECT_ID with your actual Supabase project ID
+      const response = await fetch('https://YOUR_PROJECT_ID.supabase.co/functions/v1/analyze-portfolio', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          // If your function requires authentication, you may need to add this:
+          // 'Authorization': `Bearer ${supabaseAccessToken}`
         },
         body: JSON.stringify(processedData),
       });
