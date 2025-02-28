@@ -49,7 +49,7 @@ export const usePortfolioAnalysis = () => {
       };
 
       // Call the Supabase Edge Function
-      const response = await fetch('/api/analyze-portfolio', {
+      const response = await fetch('hymucchmkpgemxcxngpe.supabase.co/functions/v1/analyze-portfolio', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
