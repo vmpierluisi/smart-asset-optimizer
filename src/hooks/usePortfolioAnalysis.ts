@@ -48,6 +48,8 @@ export const usePortfolioAnalysis = () => {
         metrics: portfolioData.metrics
       };
 
+      console.log("Sending data to API:", JSON.stringify(processedData));
+
       // Call the Supabase Edge Function
       const response = await fetch('/api/analyze-portfolio', {
         method: 'POST',
@@ -57,36 +59,46 @@ export const usePortfolioAnalysis = () => {
         body: JSON.stringify(processedData),
       });
 
-      // Check if the response is valid before parsing JSON
+      // Log the raw response for debugging
+      const responseText = await response.text();
+      console.log("Raw API response:", responseText);
+
+      // Check if the response is valid
       if (!response.ok) {
-        // Try to parse error message first, but handle the case if it fails
+        let errorMessage = 'Failed to analyze portfolio';
+        
         try {
-          const errorData = await response.text();
-          let errorMessage = 'Failed to analyze portfolio';
-          
-          try {
-            // Only parse as JSON if it looks like JSON
-            if (errorData.trim().startsWith('{')) {
-              const errorJson = JSON.parse(errorData);
-              errorMessage = errorJson.error || errorMessage;
-            } else {
-              errorMessage = errorData || errorMessage;
-            }
-          } catch (parseError) {
-            // If parsing fails, use the raw text
-            errorMessage = errorData || errorMessage;
+          // Only parse as JSON if it looks like JSON
+          if (responseText.trim().startsWith('{')) {
+            const errorJson = JSON.parse(responseText);
+            errorMessage = errorJson.error || errorMessage;
+          } else {
+            errorMessage = responseText || errorMessage;
           }
-          
-          throw new Error(errorMessage);
-        } catch (textError) {
-          throw new Error('Failed to analyze portfolio: Unable to retrieve error details');
+        } catch (parseError) {
+          // If parsing fails, use the raw text
+          console.error("Error parsing error response:", parseError);
+          errorMessage = responseText || errorMessage;
         }
+        
+        throw new Error(errorMessage);
       }
 
       // Try to parse the successful response
       try {
-        const responseText = await response.text();
-        const data = JSON.parse(responseText);
+        let data;
+        
+        // Only attempt to parse if we have content
+        if (responseText.trim()) {
+          data = JSON.parse(responseText);
+        } else {
+          throw new Error('Empty response from server');
+        }
+        
+        if (!data || !data.analysis) {
+          throw new Error('Invalid response format: missing analysis data');
+        }
+        
         setAnalysis(data.analysis);
         
         toast({
@@ -94,7 +106,8 @@ export const usePortfolioAnalysis = () => {
           description: "AI portfolio analysis is ready!",
         });
       } catch (parseError) {
-        throw new Error('Error parsing response: Invalid JSON response from server');
+        console.error("JSON parse error:", parseError, "Response text:", responseText);
+        throw new Error(`Error parsing response: ${parseError.message}. Raw response: ${responseText.substring(0, 100)}...`);
       }
     } catch (err) {
       const error = err as Error;
