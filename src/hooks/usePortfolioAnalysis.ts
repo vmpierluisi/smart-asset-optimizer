@@ -48,43 +48,54 @@ export const usePortfolioAnalysis = () => {
         metrics: portfolioData.metrics
       };
 
-      // Creating a mock analysis response since we don't have a functioning API
-      // This simulates what would normally come from the server
-      const mockAnalysis = `
-## Portfolio Performance Analysis
+      // Call the Supabase Edge Function
+      const response = await fetch('/api/analyze-portfolio', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(processedData),
+      });
 
-### Summary
-Your portfolio has ${portfolioData.metrics.expectedReturn > 0 ? 'outperformed' : 'underperformed'} the S&P 500 benchmark. The portfolio shows an expected annual return of ${(portfolioData.metrics.expectedReturn * 100).toFixed(2)}% with a volatility of $${portfolioData.metrics.volatility.toFixed(2)}.
+      // Check if the response is valid before parsing JSON
+      if (!response.ok) {
+        // Try to parse error message first, but handle the case if it fails
+        try {
+          const errorData = await response.text();
+          let errorMessage = 'Failed to analyze portfolio';
+          
+          try {
+            // Only parse as JSON if it looks like JSON
+            if (errorData.trim().startsWith('{')) {
+              const errorJson = JSON.parse(errorData);
+              errorMessage = errorJson.error || errorMessage;
+            } else {
+              errorMessage = errorData || errorMessage;
+            }
+          } catch (parseError) {
+            // If parsing fails, use the raw text
+            errorMessage = errorData || errorMessage;
+          }
+          
+          throw new Error(errorMessage);
+        } catch (textError) {
+          throw new Error('Failed to analyze portfolio: Unable to retrieve error details');
+        }
+      }
 
-### Key Contributors
-${stocks.slice(0, 3).map(stock => `- **${stock}**: Allocation of ${(portfolioData.weights[stock] * 100).toFixed(2)}%`).join('\n')}
-
-### Risk Assessment
-- **Value at Risk (95%)**: $${Math.abs(portfolioData.metrics.var).toFixed(2)}
-- **Expected Shortfall**: $${Math.abs(portfolioData.metrics.es).toFixed(2)}
-
-This means that with 95% confidence, your portfolio won't lose more than $${Math.abs(portfolioData.metrics.var).toFixed(2)} in a day.
-
-### Diversification Analysis
-Your portfolio includes ${stocks.length} stocks, providing ${stocks.length > 3 ? 'good' : 'limited'} diversification across ${stocks.length > 3 ? 'multiple' : 'few'} securities.
-
-### Recommendations
-1. ${portfolioData.metrics.volatility > 10 ? 'Consider reducing exposure to volatile assets to improve risk-adjusted returns' : 'Your current risk level appears appropriate given your return objectives'}
-2. Continue monitoring market conditions and rebalance your portfolio quarterly
-3. ${stocks.length < 5 ? 'Consider adding more stocks to improve diversification' : 'Maintain your diversified approach'}
-      `;
-
-      // Instead of making an actual API call, we'll simulate a successful response
-      setTimeout(() => {
-        setAnalysis(mockAnalysis);
-        setIsAnalyzing(false);
+      // Try to parse the successful response
+      try {
+        const responseText = await response.text();
+        const data = JSON.parse(responseText);
+        setAnalysis(data.analysis);
         
         toast({
           title: "Analysis Complete",
           description: "AI portfolio analysis is ready!",
         });
-      }, 2000);
-
+      } catch (parseError) {
+        throw new Error('Error parsing response: Invalid JSON response from server');
+      }
     } catch (err) {
       const error = err as Error;
       setError(error);
@@ -96,6 +107,7 @@ Your portfolio includes ${stocks.length} stocks, providing ${stocks.length > 3 ?
       });
       
       console.error("Portfolio analysis error:", error);
+    } finally {
       setIsAnalyzing(false);
     }
   };
