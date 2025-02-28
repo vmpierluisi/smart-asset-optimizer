@@ -2,7 +2,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const openAIApiKey = Deno.env.get('sk-proj-odE1t2vaQqPefBYFxcOAT3BlbkFJ2XQiR2tPVkwkGEBWlXcz');
+// Correctly retrieve the API key from environment variables
+const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -69,6 +70,11 @@ serve(async (req) => {
 
     Format your response in a conversational, easy-to-understand way with separate sections. Include relevant links to news sources if possible when mentioning news events.
     `;
+
+    // Check if API key exists
+    if (!openAIApiKey) {
+      throw new Error('OpenAI API key not found in environment variables');
+    }
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
