@@ -50,52 +50,11 @@ export const usePortfolioAnalysis = () => {
 
       console.log("Sending data to API:", JSON.stringify(processedData));
 
-      // For testing/debugging, we'll generate a mock response
-      // This will ensure the UI works while you're setting up Supabase
-      // You can remove this section once your Supabase function is working
-      const mockAnalysis = `
-## Portfolio Analysis Summary
-
-Your portfolio had a return of ${(portfolioData.metrics.expectedReturn * 100).toFixed(2)}% compared to the benchmark's performance. This analysis is based on the historical data and allocations you've provided.
-
-### Key Performance Drivers
-
-The primary drivers of your portfolio's performance were likely:
-
-${stocks.map(stock => `- **${stock}**: Allocated ${(portfolioData.weights[stock] * 100).toFixed(2)}% of portfolio`).join('\n')}
-
-### Risk Assessment
-
-Your portfolio shows:
-- **Volatility**: $${portfolioData.metrics.volatility.toFixed(2)}
-- **Value at Risk (95%)**: $${Math.abs(portfolioData.metrics.var).toFixed(2)}
-- **Expected Shortfall**: $${Math.abs(portfolioData.metrics.es).toFixed(2)}
-
-### Recommendation
-
-Based on this analysis, consider maintaining your current asset allocation while monitoring market conditions.
-
-*Note: This is a simulated analysis while your Supabase function is being configured.*
-      `;
-
-      // Set the mock analysis directly
-      setAnalysis(mockAnalysis);
-      
-      toast({
-        title: "Analysis Complete",
-        description: "Mock AI portfolio analysis is ready!",
-      });
-
-      // Comment out the Supabase function call for now
-      // Uncomment once your Supabase function is working
-      /*
       // Call the Supabase Edge Function
-      const response = await fetch('https://your-supabase-project-id.functions.supabase.co/analyze-portfolio', {
+      const response = await fetch('/api/analyze-portfolio', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // Add authorization if needed
-          // 'Authorization': `Bearer ${supabaseToken}`
         },
         body: JSON.stringify(processedData),
       });
@@ -150,7 +109,6 @@ Based on this analysis, consider maintaining your current asset allocation while
         console.error("JSON parse error:", parseError, "Response text:", responseText);
         throw new Error(`Error parsing response: ${parseError.message}. Raw response: ${responseText.substring(0, 100)}...`);
       }
-      */
     } catch (err) {
       const error = err as Error;
       setError(error);
