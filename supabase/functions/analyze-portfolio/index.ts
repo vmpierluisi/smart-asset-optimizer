@@ -33,7 +33,7 @@ serve(async (req) => {
     };
 
     // Create summary of each stock's weight
-    const stockWeightsSummary = stocks.map((stock, i) => {
+    const stockWeightsSummary = stocks.map((stock) => {
       return `${stock}: ${(weights[stock] * 100).toFixed(2)}%`;
     }).join(', ');
 
