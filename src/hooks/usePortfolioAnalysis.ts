@@ -52,14 +52,13 @@ export const usePortfolioAnalysis = () => {
 
       // Call the Supabase Edge Function with the correct URL format
       // Replace YOUR_PROJECT_ID with your actual Supabase project ID
-      const response = await fetch('https://hymucchmkpgemxcxngpe.supabase.co/functions/v1/analyze-portfolio', {
-        method: 'POST',
+      const response = await fetch("https://hymucchmkpgemxcxngpe.supabase.co/functions/v1/analyze-portfolio", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          // If your function requires authentication, you may need to add this:
-          // 'Authorization': `Bearer ${supabaseAccessToken}`
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, // Use Vite env variable
         },
-        body: JSON.stringify(processedData),
+        body: JSON.stringify(l),
       });
 
       // Log the raw response for debugging
