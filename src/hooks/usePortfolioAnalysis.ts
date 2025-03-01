@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { toast } from "@/hooks/use-toast";
 
@@ -51,13 +50,23 @@ export const usePortfolioAnalysis = () => {
       console.log("Sending data to API:", JSON.stringify(processedData));
 
       // Call the Supabase Edge Function with the correct URL format
-      const response = await fetch("https://hymucchmkpgemxcxngpe.supabase.co/functions/v1/analyze-portfolio", {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error("Supabase environment variables are missing. Please check your .env file.");
+      }
+
+      console.log("Supabase URL:", supabaseUrl);
+      console.log("Supabase Anon Key:", supabaseAnonKey ? "Loaded" : "Missing");
+
+      const response = await fetch(`${supabaseUrl}/functions/v1/analyze-portfolio`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, // Use Vite env variable
+          "Authorization": `Bearer ${supabaseAnonKey}`,
         },
-        body: JSON.stringify(processedData), // <-- Fixed: Changed 'l' to 'processedData'
+        body: JSON.stringify(processedData),
       });
 
       // Log the raw response for debugging
@@ -120,7 +129,11 @@ export const usePortfolioAnalysis = () => {
         variant: "destructive",
       });
       
-      console.error("Portfolio analysis error:", error);
+      console.error("Portfolio analysis error:", {
+        message: error.message,
+        stack: error.stack,
+        processedData,
+      });
     } finally {
       setIsAnalyzing(false);
     }
