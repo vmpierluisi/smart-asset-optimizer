@@ -28,6 +28,13 @@ export const usePortfolioAnalysis = () => {
     setError(null);
 
     try {
+      // Check if Supabase Anon Key is available
+      if (!import.meta.env.VITE_SUPABASE_ANON_KEY) {
+        throw new Error(
+          "Missing Supabase Anon Key. Please add VITE_SUPABASE_ANON_KEY to your environment variables."
+        );
+      }
+
       toast({
         title: "Analyzing Portfolio",
         description: "AI is analyzing your portfolio results...",
