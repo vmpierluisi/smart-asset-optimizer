@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePortfolioAnalysis } from '@/hooks/usePortfolioAnalysis';
 import ReactMarkdown from 'react-markdown';
-import { EnvDebugger } from './EnvDebugger';
 
 interface PortfolioAnalysisProps {
   results: {
@@ -41,8 +40,6 @@ export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results })
       </CardHeader>
       
       <CardContent>
-        <EnvDebugger />
-        
         {!analysis && !isAnalyzing && !error && (
           <div className="text-center p-6">
             <p className="text-gray-600 mb-4">

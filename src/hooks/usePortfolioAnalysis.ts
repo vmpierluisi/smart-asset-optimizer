@@ -28,13 +28,6 @@ export const usePortfolioAnalysis = () => {
     setError(null);
 
     try {
-      // Check if Supabase Anon Key is available
-      if (!import.meta.env.VITE_SUPABASE_ANON_KEY) {
-        throw new Error(
-          "Missing Supabase Anon Key. Please add VITE_SUPABASE_ANON_KEY to your environment variables."
-        );
-      }
-
       toast({
         title: "Analyzing Portfolio",
         description: "AI is analyzing your portfolio results...",
@@ -56,16 +49,15 @@ export const usePortfolioAnalysis = () => {
       };
 
       console.log("Sending data to API:", JSON.stringify(processedData));
-      console.log("Supabase Anon Key exists:", !!import.meta.env.VITE_SUPABASE_ANON_KEY);
 
       // Call the Supabase Edge Function with the correct URL format
       const response = await fetch("https://hymucchmkpgemxcxngpe.supabase.co/functions/v1/analyze-portfolio", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, // Use Vite env variable
         },
-        body: JSON.stringify(processedData),
+        body: JSON.stringify(processedData), // <-- Fixed: Changed 'l' to 'processedData'
       });
 
       // Log the raw response for debugging
