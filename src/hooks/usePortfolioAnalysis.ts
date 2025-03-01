@@ -50,97 +50,68 @@ export const usePortfolioAnalysis = () => {
 
       console.log("Sending data to API:", JSON.stringify(processedData));
 
-      // Flag to control whether to use local mock or actual API
-      const useMockData = true; // Set to false when your Supabase function is working
+      // Call the Supabase Edge Function with the correct URL format
+      // Replace YOUR_PROJECT_ID with your actual Supabase project ID
+      const response = await fetch('https://hymucchmkpgemxcxngpe.supabase.co/functions/v1/analyze-portfolio', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          // If your function requires authentication, you may need to add this:
+          // 'Authorization': `Bearer ${supabaseAccessToken}`
+        },
+        body: JSON.stringify(processedData),
+      });
 
-      let responseData;
+      // Log the raw response for debugging
+      const responseText = await response.text();
+      console.log("Raw API response:", responseText);
 
-      if (useMockData) {
-        // Provide a mock response for testing
-        console.log("Using mock data for portfolio analysis");
-        responseData = {
-          analysis: `# Portfolio Analysis
-
-## Performance Summary
-Your portfolio has performed well compared to the benchmark. The optimized allocation helped achieve better risk-adjusted returns.
-
-## Key Drivers
-- Technology stocks contributed most positively to performance
-- Diversification across sectors provided stability during market fluctuations
-
-## Market Impact
-Recent market volatility has affected your portfolio less than the broader market, demonstrating the effectiveness of your risk management approach.
-
-## Recommendations
-Consider rebalancing quarterly to maintain your target allocation and risk profile.`
-        };
-      } else {
-        // Make the actual API call to Supabase
-        // Replace with your actual Supabase project URL
-        const supabaseProjectUrl = 'https://hymucchmkpgemxcxngpe.supabase.co';
+      // Check if the response is valid
+      if (!response.ok) {
+        let errorMessage = 'Failed to analyze portfolio';
         
-        // Call the Supabase Edge Function with the correct URL format
-        const response = await fetch(`${supabaseProjectUrl}/functions/v1/analyze-portfolio`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            // If your function requires authentication, you may need to add this:
-            // 'Authorization': `Bearer ${supabaseAccessToken}`
-          },
-          body: JSON.stringify(processedData),
-        });
-
-        // Log the raw response for debugging
-        const responseText = await response.text();
-        console.log("Raw API response:", responseText);
-        console.log("Response status:", response.status);
-        console.log("Response headers:", Object.fromEntries([...response.headers]));
-
-        // Check if the response is valid
-        if (!response.ok) {
-          let errorMessage = `Failed to analyze portfolio. Status: ${response.status}`;
-          
-          try {
-            // Only parse as JSON if it looks like JSON
-            if (responseText.trim().startsWith('{')) {
-              const errorJson = JSON.parse(responseText);
-              errorMessage = errorJson.error || errorMessage;
-            } else {
-              errorMessage = responseText || errorMessage;
-            }
-          } catch (parseError) {
-            // If parsing fails, use the raw text
-            console.error("Error parsing error response:", parseError);
+        try {
+          // Only parse as JSON if it looks like JSON
+          if (responseText.trim().startsWith('{')) {
+            const errorJson = JSON.parse(responseText);
+            errorMessage = errorJson.error || errorMessage;
+          } else {
             errorMessage = responseText || errorMessage;
           }
-          
-          throw new Error(errorMessage);
-        }
-
-        // Try to parse the successful response
-        try {
-          // Only attempt to parse if we have content
-          if (responseText.trim()) {
-            responseData = JSON.parse(responseText);
-          } else {
-            throw new Error('Empty response from server');
-          }
-          
-          if (!responseData || !responseData.analysis) {
-            throw new Error('Invalid response format: missing analysis data');
-          }
         } catch (parseError) {
-          console.error("JSON parse error:", parseError, "Response text:", responseText);
-          throw new Error(`Error parsing response: ${parseError.message}. Raw response: ${responseText.substring(0, 100)}...`);
+          // If parsing fails, use the raw text
+          console.error("Error parsing error response:", parseError);
+          errorMessage = responseText || errorMessage;
         }
+        
+        throw new Error(errorMessage);
       }
-      
-      setAnalysis(responseData.analysis);
-      
-      toast({
-        title: "Analysis Complete",
-        description: "AI portfolio analysis is ready!",
-      });
+
+      // Try to parse the successful response
+      try {
+        let data;
+        
+        // Only attempt to parse if we have content
+        if (responseText.trim()) {
+          data = JSON.parse(responseText);
+        } else {
+          throw new Error('Empty response from server');
+        }
+        
+        if (!data || !data.analysis) {
+          throw new Error('Invalid response format: missing analysis data');
+        }
+        
+        setAnalysis(data.analysis);
+        
+        toast({
+          title: "Analysis Complete",
+          description: "AI portfolio analysis is ready!",
+        });
+      } catch (parseError) {
+        console.error("JSON parse error:", parseError, "Response text:", responseText);
+        throw new Error(`Error parsing response: ${parseError.message}. Raw response: ${responseText.substring(0, 100)}...`);
+      }
     } catch (err) {
       const error = err as Error;
       setError(error);
