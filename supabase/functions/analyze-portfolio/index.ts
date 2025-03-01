@@ -10,6 +10,14 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // Handle OPTIONS request for CORS
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders,
+    });
+  }
+
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
@@ -100,9 +108,16 @@ serve(async (req) => {
       }),
     });
 
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("OpenAI API error:", errorText);
+      throw new Error(`OpenAI API Error: ${errorText}`);
+    }
+
     const data = await response.json();
 
     if (data.error) {
+      console.error("OpenAI API returned error:", data.error);
       throw new Error(`OpenAI API Error: ${data.error.message}`);
     }
 
@@ -111,7 +126,7 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error("Error processing portfolio analysis:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: error.message || String(error) }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
