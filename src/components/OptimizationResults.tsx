@@ -1,4 +1,3 @@
-
 import React, { useMemo } from 'react';
 import { LinePath } from '@visx/shape';
 import { curveMonotoneX } from '@visx/curve';
@@ -237,9 +236,6 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
         </div>
       </div>
 
-      {/* Portfolio Analysis Card */}
-      <PortfolioAnalysis results={results} />
-
       {/* Key Metrics Card */}
       <div className="bg-white rounded-xl shadow-sm p-6">
         <h3 className="text-lg font-semibold mb-4">Key Metrics</h3>
@@ -314,6 +310,9 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
           </div>
         </div>
       </div>
+
+      {/* Portfolio Analysis Card */}
+      <PortfolioAnalysis results={results} />
     </div>
   );
 };
