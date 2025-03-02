@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { toast } from "@/hooks/use-toast";
 
@@ -132,7 +133,6 @@ export const usePortfolioAnalysis = () => {
       console.error("Portfolio analysis error:", {
         message: error.message,
         stack: error.stack,
-        processedData,
       });
     } finally {
       setIsAnalyzing(false);
