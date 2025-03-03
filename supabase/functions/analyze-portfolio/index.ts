@@ -79,8 +79,7 @@ serve(async (req) => {
 
     ---
     💡 **Please provide:**
-    1. A detailed summary of how the optimized portfolio performed compared to the benchmark. Interpret the Expected Return and Volatility,
-    Value at Risk and the Expected Shortfall.
+    1. A detailed summary of how the optimized portfolio performed compared to the benchmark. Interpret the Expected Return, Volatility, Value at Risk and the Expected Shortfall.
 
     2. For each individual stock in the portfolio (${stocks.join(", ")}), provide specific information about:
        - Recent price movements and performance
