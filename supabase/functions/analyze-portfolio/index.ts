@@ -79,7 +79,8 @@ serve(async (req) => {
 
     ---
     💡 **Please provide:**
-    1. A detailed summary of how the optimized portfolio performed compared to the benchmark.
+    1. A detailed summary of how the optimized portfolio performed compared to the benchmark. Interpret the Expected Return and Volatility,
+    Value at Risk and the Expected Shortfall.
 
     2. For each individual stock in the portfolio (${stocks.join(", ")}), provide specific information about:
        - Recent price movements and performance
@@ -91,11 +92,11 @@ serve(async (req) => {
        - Key management changes
        - Regulatory issues or legal developments
        - Recent analyst ratings changes
-       - Include links to at least 1-2 recent news articles for each stock discussed
+       - Include links to important recent news articles for each stock discussed
 
     3. Explain external market factors that might have influenced these stocks during this period.
 
-    4. Provide a reasoned investment recommendation based on this analysis with specific actions for each stock.
+    4. Provide a summary of institutional investors investment outlook for the stocks (buy, sell, hold reccomendations).
 
     Format your response in markdown with clear headings for each section. For news article links, include the source name and publication date where possible, e.g., "[Title of Article](link) - Bloomberg (May 15, 2023)".
     `;
@@ -112,7 +113,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "o1",
         messages: [
           { role: "system", content: "You are a financial analyst that provides comprehensive, detailed stock analysis with supporting news article links." },
           { role: "user", content: prompt },
