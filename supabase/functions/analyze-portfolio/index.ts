@@ -112,7 +112,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "o1",
+        model: "o3-mini",
         messages: [
           { role: "system", content: "You are a financial analyst that provides comprehensive, detailed stock analysis with supporting news article links." },
           { role: "user", content: prompt },
