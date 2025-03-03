@@ -90,12 +90,12 @@ serve(async (req) => {
        - Major partnerships or acquisitions
        - Key management changes
        - Regulatory issues or legal developments
-       - Recent analyst ratings changes
+       - Recent analyst ratings changes (buy, sell, hold reccomendations)
        - Include links to important recent news articles for each stock discussed
 
     3. Explain external market factors that might have influenced these stocks during this period.
 
-    4. Provide a summary of institutional investors investment outlook for the stocks (buy, sell, hold reccomendations).
+    4. Provide a summary of stock and portfolio performance.
 
     Format your response in markdown with clear headings for each section. For news article links, include the source name and publication date where possible, e.g., "[Title of Article](link) - Bloomberg (May 15, 2023)".
     `;
