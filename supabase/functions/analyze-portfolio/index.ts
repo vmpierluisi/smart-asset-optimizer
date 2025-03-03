@@ -52,9 +52,9 @@ serve(async (req) => {
       .map((stock) => `${stock}: ${(weights[stock] * 100).toFixed(2)}%`)
       .join(", ");
 
-    // **Prompt for OpenAI**
+    // **Enhanced Prompt for OpenAI**
     const prompt = `
-    You are a portfolio analyst assistant. Please analyze the following portfolio optimization results and provide insights in easy-to-understand language:
+    You are a professional portfolio analyst assistant with access to the latest financial news and data. Please analyze the following portfolio optimization results and provide detailed insights:
 
     📈 **PORTFOLIO PERFORMANCE:**
     - Start value: **$${portfolioPerformance.startValue.toFixed(2)}**
@@ -79,19 +79,32 @@ serve(async (req) => {
 
     ---
     💡 **Please provide:**
-    1. A summary of how the optimized portfolio performed compared to the benchmark.
-    2. Insights into why the portfolio performed the way it did, identifying key stocks driving performance.
-    3. Possible external factors (e.g., economic news) that might explain the performance of key stocks.
-    4. A simple recommendation based on this analysis.
+    1. A detailed summary of how the optimized portfolio performed compared to the benchmark.
 
-    📰 If relevant, include links to recent financial news about the stocks.
+    2. For each individual stock in the portfolio (${stocks.join(", ")}), provide specific information about:
+       - Recent price movements and performance
+       - Notable product launches or company initiatives
+       - Most recent earnings results (beats, misses, or in-line)
+       - Any earnings revisions by analysts
+       - Significant investments or strategic moves
+       - Major partnerships or acquisitions
+       - Key management changes
+       - Regulatory issues or legal developments
+       - Recent analyst ratings changes
+       - Include links to at least 1-2 recent news articles for each stock discussed
+
+    3. Explain external market factors that might have influenced these stocks during this period.
+
+    4. Provide a reasoned investment recommendation based on this analysis with specific actions for each stock.
+
+    Format your response in markdown with clear headings for each section. For news article links, include the source name and publication date where possible, e.g., "[Title of Article](link) - Bloomberg (May 15, 2023)".
     `;
 
     if (!openAIApiKey) {
       throw new Error("OpenAI API key is missing");
     }
 
-    // Call OpenAI API
+    // Call OpenAI API with the enhanced model and prompt
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -101,11 +114,11 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "gpt-4o",
         messages: [
-          { role: "system", content: "You are a financial analyst that explains portfolio performance in simple terms." },
+          { role: "system", content: "You are a financial analyst that provides comprehensive, detailed stock analysis with supporting news article links." },
           { role: "user", content: prompt },
         ],
         temperature: 0.7,
-        max_tokens: 1000,
+        max_tokens: 2000,
       }),
     });
 
