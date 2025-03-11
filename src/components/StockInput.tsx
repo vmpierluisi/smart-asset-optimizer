@@ -15,9 +15,22 @@ interface StockSuggestion {
   exchange: string;
 }
 
-// Type guard to check if a quote has the necessary properties
-const isValidQuote = (quote: any): boolean => {
-  return !!quote.symbol && !!(quote.shortname || quote.longname);
+// Define a more specific type for yahoo finance quotes
+interface YahooQuote {
+  symbol?: string;
+  shortname?: string;
+  longname?: string;
+  exchDisp?: string;
+  exchange?: string;
+  [key: string]: any; // For other properties we don't care about
+}
+
+// Enhanced type guard to check if a quote has the necessary properties
+const isValidQuote = (quote: any): quote is YahooQuote => {
+  return typeof quote === 'object' && 
+         quote !== null && 
+         typeof quote.symbol === 'string' && 
+         (typeof quote.shortname === 'string' || typeof quote.longname === 'string');
 };
 
 export const StockInput: React.FC<StockInputProps> = ({ stocks, onChange }) => {
