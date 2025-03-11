@@ -1,6 +1,47 @@
 
-import * as yahooFinance from 'yahoo-finance2';
-import { toast } from "@/hooks/use-toast";
+// Mock stock data for common companies
+const COMMON_STOCKS = [
+  { symbol: "AAPL", name: "Apple Inc.", exchange: "NASDAQ" },
+  { symbol: "MSFT", name: "Microsoft Corporation", exchange: "NASDAQ" },
+  { symbol: "GOOGL", name: "Alphabet Inc.", exchange: "NASDAQ" },
+  { symbol: "AMZN", name: "Amazon.com Inc.", exchange: "NASDAQ" },
+  { symbol: "META", name: "Meta Platforms Inc.", exchange: "NASDAQ" },
+  { symbol: "TSLA", name: "Tesla, Inc.", exchange: "NASDAQ" },
+  { symbol: "NVDA", name: "NVIDIA Corporation", exchange: "NASDAQ" },
+  { symbol: "BRK-B", name: "Berkshire Hathaway Inc.", exchange: "NYSE" },
+  { symbol: "JPM", name: "JPMorgan Chase & Co.", exchange: "NYSE" },
+  { symbol: "JNJ", name: "Johnson & Johnson", exchange: "NYSE" },
+  { symbol: "V", name: "Visa Inc.", exchange: "NYSE" },
+  { symbol: "PG", name: "Procter & Gamble Co.", exchange: "NYSE" },
+  { symbol: "UNH", name: "UnitedHealth Group Inc.", exchange: "NYSE" },
+  { symbol: "HD", name: "Home Depot Inc.", exchange: "NYSE" },
+  { symbol: "BAC", name: "Bank of America Corp.", exchange: "NYSE" },
+  { symbol: "XOM", name: "Exxon Mobil Corporation", exchange: "NYSE" },
+  { symbol: "PFE", name: "Pfizer Inc.", exchange: "NYSE" },
+  { symbol: "NFLX", name: "Netflix, Inc.", exchange: "NASDAQ" },
+  { symbol: "DIS", name: "The Walt Disney Company", exchange: "NYSE" },
+  { symbol: "CSCO", name: "Cisco Systems, Inc.", exchange: "NASDAQ" },
+  { symbol: "ADBE", name: "Adobe Inc.", exchange: "NASDAQ" },
+  { symbol: "INTC", name: "Intel Corporation", exchange: "NASDAQ" },
+  { symbol: "CRM", name: "Salesforce, Inc.", exchange: "NYSE" },
+  { symbol: "VZ", name: "Verizon Communications Inc.", exchange: "NYSE" },
+  { symbol: "IBM", name: "International Business Machines", exchange: "NYSE" },
+  { symbol: "CMCSA", name: "Comcast Corporation", exchange: "NASDAQ" },
+  { symbol: "KO", name: "The Coca-Cola Company", exchange: "NYSE" },
+  { symbol: "PEP", name: "PepsiCo, Inc.", exchange: "NASDAQ" },
+  { symbol: "MRK", name: "Merck & Co., Inc.", exchange: "NYSE" },
+  { symbol: "WMT", name: "Walmart Inc.", exchange: "NYSE" },
+  { symbol: "ABT", name: "Abbott Laboratories", exchange: "NYSE" },
+  { symbol: "TMO", name: "Thermo Fisher Scientific Inc.", exchange: "NYSE" },
+  { symbol: "COST", name: "Costco Wholesale Corporation", exchange: "NASDAQ" },
+  { symbol: "ABBV", name: "AbbVie Inc.", exchange: "NYSE" },
+  { symbol: "AVGO", name: "Broadcom Inc.", exchange: "NASDAQ" },
+  { symbol: "ACN", name: "Accenture plc", exchange: "NYSE" },
+  { symbol: "DHR", name: "Danaher Corporation", exchange: "NYSE" },
+  { symbol: "MCD", name: "McDonald's Corporation", exchange: "NYSE" },
+  { symbol: "PYPL", name: "PayPal Holdings, Inc.", exchange: "NASDAQ" },
+  { symbol: "NKE", name: "NIKE, Inc.", exchange: "NYSE" }
+];
 
 export interface StockSuggestion {
   symbol: string;
@@ -8,70 +49,25 @@ export interface StockSuggestion {
   exchange: string;
 }
 
-// Search for stocks using Yahoo Finance API
+// Search for stocks from our static dataset
 export const searchStocks = async (query: string): Promise<StockSuggestion[]> => {
   try {
-    // Polyfill for process in browser environment
-    if (typeof window !== 'undefined' && !window.process) {
-      (window as any).process = { env: {} };
-    }
+    // Simulate network delay to make it feel like a real API
+    await new Promise(resolve => setTimeout(resolve, 300));
     
-    const results = await yahooFinance.default.search(query, { quotesCount: 6, newsCount: 0 });
+    if (!query || query.length < 2) return [];
     
-    if (results.quotes && results.quotes.length > 0) {
-      // Process quotes to extract the information we need
-      const suggestions: StockSuggestion[] = [];
-      
-      for (const quote of results.quotes) {
-        // Make sure the quote is a valid object with the properties we need
-        if (quote && typeof quote === 'object') {
-          // Try to extract the symbol
-          let symbol: string | undefined;
-          if ('symbol' in quote && typeof quote.symbol === 'string') {
-            symbol = quote.symbol;
-          } else if ('index' in quote && typeof quote.index === 'string') {
-            symbol = quote.index;
-          }
-          
-          // If we have a symbol, create a suggestion
-          if (symbol) {
-            // Extract name - check different possible properties
-            let name: string = symbol;
-            if ('shortname' in quote && quote.shortname) {
-              name = quote.shortname;
-            } else if ('longname' in quote && quote.longname) {
-              name = quote.longname;
-            } else if ('name' in quote && quote.name) {
-              name = quote.name;
-            }
-            
-            // Extract exchange
-            let exchange: string = '';
-            if ('exchDisp' in quote && quote.exchDisp) {
-              exchange = quote.exchDisp;
-            } else if ('exchange' in quote && quote.exchange) {
-              exchange = quote.exchange;
-            }
-            
-            suggestions.push({
-              symbol,
-              name,
-              exchange
-            });
-          }
-        }
-      }
-      
-      return suggestions;
-    }
-    return [];
+    const lowerQuery = query.toLowerCase().trim();
+    
+    // Filter stocks based on the search query
+    const results = COMMON_STOCKS.filter(stock => 
+      stock.symbol.toLowerCase().includes(lowerQuery) || 
+      stock.name.toLowerCase().includes(lowerQuery)
+    ).slice(0, 6); // Limit to 6 results
+    
+    return results;
   } catch (error) {
     console.error('Error searching stocks:', error);
-    toast({
-      title: "Search Error",
-      description: "Unable to fetch stock suggestions at this time.",
-      variant: "destructive",
-    });
     return [];
   }
 };
