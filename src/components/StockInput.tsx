@@ -15,57 +15,14 @@ interface StockSuggestion {
   exchange: string;
 }
 
-// Define possible Yahoo Finance quote types
-interface YahooFinanceQuote {
-  symbol?: string;
+// Use a more permissive type for Yahoo Finance results
+type YahooQuote = {
+  symbol: string;
   shortname?: string;
   longname?: string;
   exchDisp?: string;
   exchange?: string;
-  [key: string]: any; // For other properties we don't care about
-}
-
-interface AlternativeQuote {
-  name: string;
-  isYahooFinance: boolean;
-  index: string;
-  permalink: string;
   [key: string]: any;
-}
-
-type PossibleQuote = YahooFinanceQuote | AlternativeQuote;
-
-// Enhanced type guard to check if a quote has the necessary properties we need
-const isValidQuote = (quote: any): quote is YahooFinanceQuote => {
-  return typeof quote === 'object' && 
-         quote !== null && 
-         typeof quote.symbol === 'string';
-};
-
-// Check if an object is an alternative quote format
-const isAlternativeQuote = (quote: any): quote is AlternativeQuote => {
-  return typeof quote === 'object' &&
-         quote !== null &&
-         typeof quote.name === 'string' &&
-         typeof quote.index === 'string';
-};
-
-// Convert any quote type to a consistent StockSuggestion format
-const convertToStockSuggestion = (quote: PossibleQuote): StockSuggestion | null => {
-  if (isValidQuote(quote)) {
-    return {
-      symbol: quote.symbol!,
-      name: quote.shortname || quote.longname || quote.symbol || '',
-      exchange: quote.exchDisp || quote.exchange || ''
-    };
-  } else if (isAlternativeQuote(quote)) {
-    return {
-      symbol: quote.index,
-      name: quote.name,
-      exchange: ''
-    };
-  }
-  return null;
 };
 
 export const StockInput: React.FC<StockInputProps> = ({ stocks, onChange }) => {
@@ -101,14 +58,26 @@ export const StockInput: React.FC<StockInputProps> = ({ stocks, onChange }) => {
       try {
         const query = input.trim();
         
-        // Using yahooFinance.search
+        // Using Yahoo Finance search (patched for browser environment)
+        if (!window.process) {
+          window.process = { env: {} } as any;
+        }
+        
         const results = await yahooFinance.default.search(query, { quotesCount: 6, newsCount: 0 });
         
         if (results.quotes && results.quotes.length > 0) {
-          // Process all quotes and filter out any that couldn't be converted
+          // Transform and validate the quotes
           const filteredSuggestions = results.quotes
-            .map(convertToStockSuggestion)
-            .filter((suggestion): suggestion is StockSuggestion => suggestion !== null);
+            .filter((quote): quote is YahooQuote => 
+              typeof quote === 'object' && 
+              quote !== null && 
+              typeof quote.symbol === 'string'
+            )
+            .map(quote => ({
+              symbol: quote.symbol,
+              name: quote.shortname || quote.longname || quote.symbol,
+              exchange: quote.exchDisp || quote.exchange || ''
+            }));
           
           setSuggestions(filteredSuggestions);
           setShowSuggestions(true);
