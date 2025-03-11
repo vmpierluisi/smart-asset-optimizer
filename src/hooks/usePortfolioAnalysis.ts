@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { toast } from "@/hooks/use-toast";
 
 interface PortfolioData {
@@ -22,10 +22,20 @@ export const usePortfolioAnalysis = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [error, setError] = useState<Error | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const analyzePortfolio = async (portfolioData: PortfolioData) => {
     setIsAnalyzing(true);
     setError(null);
+    setAnalysis("");  // Initialize with empty string for streaming
+
+    // Abort any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Create a new AbortController for this request
+    abortControllerRef.current = new AbortController();
 
     try {
       toast({
@@ -68,59 +78,73 @@ export const usePortfolioAnalysis = () => {
           "Authorization": `Bearer ${supabaseAnonKey}`,
         },
         body: JSON.stringify(processedData),
+        signal: abortControllerRef.current.signal
       });
 
-      // Log the raw response for debugging
-      const responseText = await response.text();
-      console.log("Raw API response:", responseText);
-
-      // Check if the response is valid
       if (!response.ok) {
-        let errorMessage = 'Failed to analyze portfolio';
-        
-        try {
-          // Only parse as JSON if it looks like JSON
-          if (responseText.trim().startsWith('{')) {
-            const errorJson = JSON.parse(responseText);
-            errorMessage = errorJson.error || errorMessage;
-          } else {
-            errorMessage = responseText || errorMessage;
-          }
-        } catch (parseError) {
-          // If parsing fails, use the raw text
-          console.error("Error parsing error response:", parseError);
-          errorMessage = responseText || errorMessage;
-        }
-        
-        throw new Error(errorMessage);
+        const errorText = await response.text();
+        throw new Error(`Failed to analyze portfolio: ${errorText}`);
       }
 
-      // Try to parse the successful response
-      try {
-        let data;
+      // Process streaming response
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("Failed to get response reader");
+      }
+
+      toast({
+        title: "Analysis Started",
+        description: "Receiving streaming analysis from AI...",
+      });
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+      
+      // Process the stream
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
         
-        // Only attempt to parse if we have content
-        if (responseText.trim()) {
-          data = JSON.parse(responseText);
-        } else {
-          throw new Error('Empty response from server');
+        const chunk = decoder.decode(value, { stream: true });
+        buffer += chunk;
+        
+        // Process each complete SSE event
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || ''; // Keep the last incomplete event in the buffer
+        
+        for (const event of events) {
+          if (event.trim() === '') continue;
+          
+          // Extract the data part of the SSE event
+          const dataMatch = event.match(/^data: (.+)$/m);
+          if (!dataMatch) continue;
+          
+          try {
+            const parsedData = JSON.parse(dataMatch[1]);
+            
+            if (parsedData.analysisComplete) {
+              // This is the final message with the complete analysis
+              setAnalysis(parsedData.fullAnalysis);
+              toast({
+                title: "Analysis Complete",
+                description: "AI portfolio analysis is complete!",
+              });
+            } else if (parsedData.analysis) {
+              // This is a partial update
+              setAnalysis(prevAnalysis => (prevAnalysis || '') + parsedData.analysis);
+            }
+          } catch (e) {
+            console.error('Error parsing SSE data:', e);
+          }
         }
-        
-        if (!data || !data.analysis) {
-          throw new Error('Invalid response format: missing analysis data');
-        }
-        
-        setAnalysis(data.analysis);
-        
-        toast({
-          title: "Analysis Complete",
-          description: "AI portfolio analysis is ready!",
-        });
-      } catch (parseError) {
-        console.error("JSON parse error:", parseError, "Response text:", responseText);
-        throw new Error(`Error parsing response: ${parseError.message}. Raw response: ${responseText.substring(0, 100)}...`);
       }
     } catch (err) {
+      // Don't handle AbortError as an error
+      if (err.name === 'AbortError') {
+        console.log('Request was aborted');
+        return;
+      }
+      
       const error = err as Error;
       setError(error);
       
@@ -136,8 +160,23 @@ export const usePortfolioAnalysis = () => {
       });
     } finally {
       setIsAnalyzing(false);
+      abortControllerRef.current = null;
     }
   };
 
-  return { analyzePortfolio, analysis, isAnalyzing, error };
+  // Cancel ongoing analysis
+  const cancelAnalysis = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+      setIsAnalyzing(false);
+      
+      toast({
+        title: "Analysis Cancelled",
+        description: "Portfolio analysis was cancelled.",
+      });
+    }
+  };
+
+  return { analyzePortfolio, analysis, isAnalyzing, error, cancelAnalysis };
 };

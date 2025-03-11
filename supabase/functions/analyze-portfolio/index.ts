@@ -2,7 +2,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const openAIApiKey = Deno.env.get("OPENAI_API_KEY");
+const perplexityApiKey = Deno.env.get("PERPLEXITY_API_KEY");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -52,7 +52,7 @@ serve(async (req) => {
       .map((stock) => `${stock}: ${(weights[stock] * 100).toFixed(2)}%`)
       .join(", ");
 
-    // **Enhanced Prompt for OpenAI**
+    // **Enhanced Prompt for Perplexity**
     const prompt = `
     You are a professional portfolio analyst assistant with access to the latest financial news and data. Please analyze the following portfolio optimization results and provide detailed insights:
 
@@ -100,37 +100,98 @@ serve(async (req) => {
     Format your response in markdown with clear headings for each section. For news article links, include the source name and publication date where possible, e.g., "[Title of Article](link) - Bloomberg (May 15, 2023)".
     `;
 
-    if (!openAIApiKey) {
-      throw new Error("OpenAI API key is missing");
+    if (!perplexityApiKey) {
+      throw new Error("Perplexity API key is missing");
     }
 
-    // Call OpenAI API with the enhanced model and prompt
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${openAIApiKey}`,
-        "Content-Type": "application/json",
+    const headers = new Headers({
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${perplexityApiKey}`
+    });
+
+    // Set up streaming response
+    const responseInit = {
+      headers: { 
+        ...corsHeaders,
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive"
       },
+    };
+    
+    // Create a new TransformStream for streaming the response
+    const stream = new TransformStream();
+    const writer = stream.writable.getWriter();
+    
+    // Start the stream response
+    const response = new Response(stream.readable, responseInit);
+    
+    // Make the request to Perplexity API
+    const perplexityResponse = await fetch("https://api.perplexity.ai/chat/completions", {
+      method: "POST",
+      headers,
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "sonar-reasoning-pro",
         messages: [
           { role: "system", content: "You are a financial analyst that provides comprehensive, detailed stock analysis with supporting news article links." },
           { role: "user", content: prompt },
         ],
         temperature: 0.7,
-        max_tokens: 2000,
+        stream: true
       }),
     });
 
-    const data = await response.json();
-
-    if (data.error) {
-      throw new Error(`OpenAI API Error: ${data.error.message}`);
+    if (!perplexityResponse.ok) {
+      const errorText = await perplexityResponse.text();
+      throw new Error(`Perplexity API Error: ${errorText}`);
     }
 
-    return new Response(JSON.stringify({ analysis: data.choices[0].message.content }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // Process the streaming response from Perplexity
+    const reader = perplexityResponse.body?.getReader();
+    if (!reader) {
+      throw new Error("Failed to get response reader");
+    }
+    
+    let analysisContent = "";
+    let decoder = new TextDecoder();
+    
+    // Process the chunks as they arrive
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      const chunk = decoder.decode(value, { stream: true });
+      let eventData = "";
+      
+      // Process each line in the chunk
+      for (const line of chunk.split('\n')) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          
+          // Check if it's the [DONE] marker
+          if (data === '[DONE]') continue;
+          
+          try {
+            const parsed = JSON.parse(data);
+            const content = parsed.choices[0]?.delta?.content || '';
+            if (content) {
+              analysisContent += content;
+              // Send the content to the client
+              const event = `data: ${JSON.stringify({ analysis: content })}\n\n`;
+              await writer.write(new TextEncoder().encode(event));
+            }
+          } catch (e) {
+            console.error('Error parsing JSON:', e);
+          }
+        }
+      }
+    }
+    
+    // Send the final complete analysis as a single event
+    await writer.write(new TextEncoder().encode(`data: ${JSON.stringify({ analysisComplete: true, fullAnalysis: analysisContent })}\n\n`));
+    await writer.close();
+    
+    return response;
   } catch (error) {
     console.error("Error processing portfolio analysis:", error);
     return new Response(JSON.stringify({ error: error.message }), {
