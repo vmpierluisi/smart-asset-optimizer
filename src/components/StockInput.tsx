@@ -15,6 +15,11 @@ interface StockSuggestion {
   exchange: string;
 }
 
+// Type guard to check if a quote has the necessary properties
+const isValidQuote = (quote: any): boolean => {
+  return !!quote.symbol && !!(quote.shortname || quote.longname);
+};
+
 export const StockInput: React.FC<StockInputProps> = ({ stocks, onChange }) => {
   const [input, setInput] = useState('');
   const [suggestions, setSuggestions] = useState<StockSuggestion[]>([]);
@@ -53,11 +58,11 @@ export const StockInput: React.FC<StockInputProps> = ({ stocks, onChange }) => {
         
         if (results.quotes && results.quotes.length > 0) {
           const filteredSuggestions = results.quotes
-            .filter(quote => quote.symbol && quote.shortname)
+            .filter(isValidQuote)
             .map(quote => ({
-              symbol: quote.symbol,
-              name: quote.shortname || quote.longname || quote.symbol,
-              exchange: quote.exchange || ''
+              symbol: quote.symbol as string,
+              name: (quote.shortname || quote.longname || quote.symbol) as string,
+              exchange: (quote.exchDisp || quote.exchange || '') as string
             }));
           
           setSuggestions(filteredSuggestions);
