@@ -1,22 +1,15 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Search } from 'lucide-react';
-import * as yahooFinance from 'yahoo-finance2';
+import { Search } from 'lucide-react';
 import { toast } from "@/hooks/use-toast";
+import { searchStocks, StockSuggestion } from '../utils/yahooFinanceUtils';
+import { StockSuggestionsList } from './StockSuggestionsList';
+import { StockTag } from './StockTag';
 
 interface StockInputProps {
   stocks: string[];
   onChange: (stocks: string[]) => void;
 }
-
-interface StockSuggestion {
-  symbol: string;
-  name: string;
-  exchange: string;
-}
-
-// Define a type for Yahoo Finance quotes with all the possible shapes
-type YahooFinanceQuoteResult = any; // Using any for the Yahoo Finance response
 
 export const StockInput: React.FC<StockInputProps> = ({ stocks, onChange }) => {
   const [input, setInput] = useState('');
@@ -41,88 +34,22 @@ export const StockInput: React.FC<StockInputProps> = ({ stocks, onChange }) => {
 
   // Search for stock suggestions based on input
   useEffect(() => {
-    const searchStocks = async () => {
+    const fetchSuggestions = async () => {
       if (input.trim().length < 2) {
         setSuggestions([]);
         return;
       }
 
       setIsLoading(true);
-      try {
-        const query = input.trim();
-        
-        // Polyfill for process in browser environment
-        if (typeof window !== 'undefined' && !window.process) {
-          (window as any).process = { env: {} };
-        }
-        
-        const results = await yahooFinance.default.search(query, { quotesCount: 6, newsCount: 0 });
-        
-        if (results.quotes && results.quotes.length > 0) {
-          // Process quotes to extract the information we need
-          const filteredSuggestions: StockSuggestion[] = [];
-          
-          for (const quote of results.quotes) {
-            // Make sure the quote is a valid object with the properties we need
-            if (quote && typeof quote === 'object') {
-              // Try to extract the symbol
-              let symbol: string | undefined;
-              if ('symbol' in quote && typeof quote.symbol === 'string') {
-                symbol = quote.symbol;
-              } else if ('index' in quote && typeof quote.index === 'string') {
-                symbol = quote.index;
-              }
-              
-              // If we have a symbol, create a suggestion
-              if (symbol) {
-                // Extract name - check different possible properties
-                let name: string = symbol;
-                if ('shortname' in quote && quote.shortname) {
-                  name = quote.shortname;
-                } else if ('longname' in quote && quote.longname) {
-                  name = quote.longname;
-                } else if ('name' in quote && quote.name) {
-                  name = quote.name;
-                }
-                
-                // Extract exchange
-                let exchange: string = '';
-                if ('exchDisp' in quote && quote.exchDisp) {
-                  exchange = quote.exchDisp;
-                } else if ('exchange' in quote && quote.exchange) {
-                  exchange = quote.exchange;
-                }
-                
-                filteredSuggestions.push({
-                  symbol,
-                  name,
-                  exchange
-                });
-              }
-            }
-          }
-          
-          setSuggestions(filteredSuggestions);
-          setShowSuggestions(true);
-        } else {
-          setSuggestions([]);
-        }
-      } catch (error) {
-        console.error('Error searching stocks:', error);
-        toast({
-          title: "Search Error",
-          description: "Unable to fetch stock suggestions at this time.",
-          variant: "destructive",
-        });
-        setSuggestions([]);
-      } finally {
-        setIsLoading(false);
-      }
+      const stockSuggestions = await searchStocks(input.trim());
+      setSuggestions(stockSuggestions);
+      setShowSuggestions(stockSuggestions.length > 0);
+      setIsLoading(false);
     };
 
     const debounceTimer = setTimeout(() => {
       if (input.trim().length >= 2) {
-        searchStocks();
+        fetchSuggestions();
       }
     }, 300);
 
@@ -182,42 +109,22 @@ export const StockInput: React.FC<StockInputProps> = ({ stocks, onChange }) => {
         )}
 
         {/* Suggestions dropdown */}
-        {showSuggestions && suggestions.length > 0 && (
-          <div 
+        {showSuggestions && (
+          <StockSuggestionsList
             ref={suggestionsRef}
-            className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 overflow-auto"
-          >
-            {suggestions.map((suggestion) => (
-              <div
-                key={suggestion.symbol}
-                className="px-4 py-2 hover:bg-gray-100 cursor-pointer flex justify-between items-center"
-                onClick={() => handleSelectSuggestion(suggestion)}
-              >
-                <div>
-                  <div className="font-medium">{suggestion.symbol}</div>
-                  <div className="text-sm text-gray-500">{suggestion.name}</div>
-                </div>
-                <div className="text-xs text-gray-400">{suggestion.exchange}</div>
-              </div>
-            ))}
-          </div>
+            suggestions={suggestions}
+            onSelectSuggestion={handleSelectSuggestion}
+          />
         )}
       </div>
 
       <div className="flex flex-wrap gap-2">
         {stocks.map((stock) => (
-          <div
-            key={stock}
-            className="flex items-center gap-2 px-3 py-1 bg-primary/10 rounded-full"
-          >
-            <span className="text-sm font-mono">{stock}</span>
-            <button
-              onClick={() => removeStock(stock)}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              <X size={14} />
-            </button>
-          </div>
+          <StockTag 
+            key={stock} 
+            symbol={stock} 
+            onRemove={removeStock} 
+          />
         ))}
       </div>
     </div>
