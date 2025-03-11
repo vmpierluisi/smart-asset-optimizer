@@ -47,7 +47,9 @@ export const StockInput: React.FC<StockInputProps> = ({ stocks, onChange }) => {
       setIsLoading(true);
       try {
         const query = input.trim();
-        const results = await yahooFinance.search(query, { quotesCount: 6, newsCount: 0 });
+        
+        // Using yahooFinance.search correctly
+        const results = await yahooFinance.default.search(query, { quotesCount: 6, newsCount: 0 });
         
         if (results.quotes && results.quotes.length > 0) {
           const filteredSuggestions = results.quotes
