@@ -32,8 +32,15 @@ export default defineConfig(({ mode }) => ({
           });
           proxy.on('proxyReq', (proxyReq, req, _res) => {
             console.log('Sending Request to the Target:', req.method, req.url);
-            // Don't remove or modify Authorization header
-            console.log('Headers being sent:', Object.fromEntries(proxyReq.getHeaders()));
+            // Convert headers to a format compatible with Object.fromEntries
+            const headers = proxyReq.getHeaders();
+            const headersObj = {};
+            for (const key in headers) {
+              if (Object.prototype.hasOwnProperty.call(headers, key)) {
+                headersObj[key] = headers[key];
+              }
+            }
+            console.log('Headers being sent:', headersObj);
           });
           proxy.on('proxyRes', (proxyRes, req, _res) => {
             console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
