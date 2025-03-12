@@ -145,7 +145,8 @@ serve(async (req) => {
 
     if (!perplexityResponse.ok) {
       const errorText = await perplexityResponse.text();
-      throw new Error(`Perplexity API Error: ${errorText}`);
+      console.error("Perplexity API Error:", perplexityResponse.status, errorText);
+      throw new Error(`Perplexity API Error (${perplexityResponse.status}): ${errorText}`);
     }
 
     // Process the streaming response from Perplexity
@@ -163,7 +164,6 @@ serve(async (req) => {
       if (done) break;
       
       const chunk = decoder.decode(value, { stream: true });
-      let eventData = "";
       
       // Process each line in the chunk
       for (const line of chunk.split('\n')) {

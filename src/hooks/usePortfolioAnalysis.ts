@@ -95,6 +95,9 @@ export const usePortfolioAnalysis = () => {
         apiUrl = `${supabaseUrl}/functions/v1/analyze-portfolio`;
       }
 
+      console.log("Using API URL:", apiUrl);
+      
+      // Create a fetch request with appropriate headers
       const fetchPromise = fetch(apiUrl, {
         method: "POST",
         headers: {
