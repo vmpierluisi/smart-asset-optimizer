@@ -34,7 +34,7 @@ export default defineConfig(({ mode }) => ({
             console.log('Sending Request to the Target:', req.method, req.url);
             // Convert headers to a format compatible with Object.fromEntries
             const headers = proxyReq.getHeaders();
-            const headersObj = {};
+            const headersObj: Record<string, string | string[] | number> = {};
             for (const key in headers) {
               if (Object.prototype.hasOwnProperty.call(headers, key)) {
                 headersObj[key] = headers[key];
