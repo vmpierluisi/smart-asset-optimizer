@@ -37,7 +37,11 @@ export default defineConfig(({ mode }) => ({
             const headersObj: Record<string, string | string[] | number> = {};
             for (const key in headers) {
               if (Object.prototype.hasOwnProperty.call(headers, key)) {
-                headersObj[key] = headers[key];
+                const headerValue = headers[key];
+                // Only assign if the value is not undefined
+                if (headerValue !== undefined) {
+                  headersObj[key] = headerValue;
+                }
               }
             }
             console.log('Headers being sent:', headersObj);
