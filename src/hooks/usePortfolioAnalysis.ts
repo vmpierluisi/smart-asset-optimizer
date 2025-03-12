@@ -23,6 +23,7 @@ export const usePortfolioAnalysis = () => {
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const timeoutRef = useRef<number | null>(null);
 
   const analyzePortfolio = async (portfolioData: PortfolioData) => {
     setIsAnalyzing(true);
@@ -32,6 +33,11 @@ export const usePortfolioAnalysis = () => {
     // Abort any previous request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
+    }
+    
+    // Clear any existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
     }
     
     // Create a new AbortController for this request
@@ -69,9 +75,27 @@ export const usePortfolioAnalysis = () => {
       }
 
       console.log("Supabase URL:", supabaseUrl);
-      console.log("Supabase Anon Key:", supabaseAnonKey ? "Loaded" : "Missing");
 
-      const response = await fetch(`${supabaseUrl}/functions/v1/analyze-portfolio`, {
+      // Set a timeout for the request (2 minutes)
+      const TIMEOUT_MS = 120000;
+      const timeoutPromise = new Promise<Response>((_, reject) => {
+        timeoutRef.current = setTimeout(() => {
+          if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+          }
+          reject(new Error('Request timed out after 2 minutes'));
+        }, TIMEOUT_MS) as unknown as number;
+      });
+
+      // Try using the API proxy through Vite's dev server first
+      let apiUrl = '/api/analyze-portfolio';
+      
+      // If in production or the proxy fails, use the direct Supabase URL
+      if (import.meta.env.PROD) {
+        apiUrl = `${supabaseUrl}/functions/v1/analyze-portfolio`;
+      }
+
+      const fetchPromise = fetch(apiUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -81,9 +105,19 @@ export const usePortfolioAnalysis = () => {
         signal: abortControllerRef.current.signal
       });
 
+      // Race between the fetch and the timeout
+      const response = await Promise.race([fetchPromise, timeoutPromise]);
+
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Failed to analyze portfolio: ${errorText}`);
+        console.error("API error response:", errorText);
+        throw new Error(`Failed to analyze portfolio (${response.status}): ${errorText || response.statusText}`);
+      }
+
+      // Clear timeout since we got a response
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
       }
 
       // Process streaming response
@@ -132,6 +166,8 @@ export const usePortfolioAnalysis = () => {
             } else if (parsedData.analysis) {
               // This is a partial update
               setAnalysis(prevAnalysis => (prevAnalysis || '') + parsedData.analysis);
+            } else if (parsedData.error) {
+              throw new Error(parsedData.error);
             }
           } catch (e) {
             console.error('Error parsing SSE data:', e);
@@ -161,6 +197,10 @@ export const usePortfolioAnalysis = () => {
     } finally {
       setIsAnalyzing(false);
       abortControllerRef.current = null;
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
     }
   };
 
@@ -169,13 +209,19 @@ export const usePortfolioAnalysis = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
-      setIsAnalyzing(false);
-      
-      toast({
-        title: "Analysis Cancelled",
-        description: "Portfolio analysis was cancelled.",
-      });
     }
+    
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    
+    setIsAnalyzing(false);
+    
+    toast({
+      title: "Analysis Cancelled",
+      description: "Portfolio analysis was cancelled.",
+    });
   };
 
   return { analyzePortfolio, analysis, isAnalyzing, error, cancelAnalysis };

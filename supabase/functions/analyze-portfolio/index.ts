@@ -4,13 +4,13 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const perplexityApiKey = Deno.env.get("PERPLEXITY_API_KEY");
 
-return new Response(JSON.stringify(data), {
-  headers: {
-    "Access-Control-Allow-Origin": "*", // Or replace * with your frontend URL
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization"
-  }
-});
+// Define proper CORS headers
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Max-Age": "86400",
+};
 
 serve(async (req) => {
   // Handle CORS preflight requests (OPTIONS)
