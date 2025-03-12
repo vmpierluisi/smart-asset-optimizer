@@ -38,7 +38,7 @@ export default defineConfig(({ mode }) => ({
             for (const key in headers) {
               if (Object.prototype.hasOwnProperty.call(headers, key)) {
                 const headerValue = headers[key];
-                // Only assign if the value is not undefined
+                // Only add if the value is not undefined
                 if (headerValue !== undefined) {
                   headersObj[key] = headerValue;
                 }

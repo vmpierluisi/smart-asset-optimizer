@@ -28,18 +28,16 @@ serve(async (req) => {
     });
   }
   
-  // Validate JWT token from Authorization header
+  // Check Authorization header exists - Note that we're not validating the JWT here
+  // Supabase Edge Functions don't require validation since they're protected by Supabase already
   const authHeader = req.headers.get('Authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ error: "Missing or invalid authorization token" }), {
+    return new Response(JSON.stringify({ error: "Missing or invalid authorization header format" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
   
-  // Note: In a Supabase Edge Function, the JWT validation is handled automatically
-  // We're just checking that the header exists in the expected format
-
   try {
     const body = await req.json();
     console.log("Received data:", body);
