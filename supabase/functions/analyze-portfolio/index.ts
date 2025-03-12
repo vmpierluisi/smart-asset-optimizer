@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
@@ -13,7 +12,7 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
-  // Handle CORS preflight requests (OPTIONS)
+  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
@@ -27,17 +26,18 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-  
-  // Check Authorization header exists - Note that we're not validating the JWT here
-  // Supabase Edge Functions don't require validation since they're protected by Supabase already
+
+  // Extract and validate the authorization header
   const authHeader = req.headers.get('Authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return new Response(JSON.stringify({ error: "Missing or invalid authorization header format" }), {
+  const anon_key = Deno.env.get('SUPABASE_ANON_KEY');
+
+  if (!authHeader || !anon_key || authHeader !== `Bearer ${anon_key}`) {
+    return new Response(JSON.stringify({ msg: "Invalid JWT" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-  
+
   try {
     const body = await req.json();
     console.log("Received data:", body);

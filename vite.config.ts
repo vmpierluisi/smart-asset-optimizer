@@ -1,4 +1,3 @@
-
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
@@ -7,7 +6,6 @@ import dotenv from 'dotenv'
 
 dotenv.config()
 
-// https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
@@ -32,18 +30,16 @@ export default defineConfig(({ mode }) => ({
           });
           proxy.on('proxyReq', (proxyReq, req, _res) => {
             console.log('Sending Request to the Target:', req.method, req.url);
-            // Convert headers to a format compatible with Object.fromEntries
             const headers = proxyReq.getHeaders();
             const headersObj: Record<string, string | string[] | number> = {};
-            for (const key in headers) {
-              if (Object.prototype.hasOwnProperty.call(headers, key)) {
-                const headerValue = headers[key];
-                // Only add if the value is not undefined
-                if (headerValue !== undefined) {
-                  headersObj[key] = headerValue;
-                }
+            
+            // Ensure we forward all headers, especially Authorization
+            Object.entries(headers).forEach(([key, value]) => {
+              if (value !== undefined) {
+                headersObj[key] = value;
               }
-            }
+            });
+            
             console.log('Headers being sent:', headersObj);
           });
           proxy.on('proxyRes', (proxyRes, req, _res) => {
