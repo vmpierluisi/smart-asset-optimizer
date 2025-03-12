@@ -98,6 +98,7 @@ export const usePortfolioAnalysis = () => {
       console.log("Using API URL:", apiUrl);
       
       // Create a fetch request with appropriate headers
+      // Ensure the Authorization header format is correct for Supabase functions
       const fetchPromise = fetch(apiUrl, {
         method: "POST",
         headers: {
