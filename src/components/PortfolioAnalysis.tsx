@@ -24,33 +24,35 @@ interface PortfolioAnalysisProps {
 }
 
 export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results }) => {
-  const { analyzePortfolio, analysis, isAnalyzing, error } = usePortfolioAnalysis();
+  const { analyzePortfolio, analysis, streamingAnalysis, isAnalyzing, error, cancelAnalysis } = usePortfolioAnalysis();
 
   const handleAnalyze = () => {
     analyzePortfolio(results);
   };
+
+  // Determine what content to display
+  const displayContent = streamingAnalysis || analysis;
 
   return (
     <Card className="bg-white rounded-xl shadow-sm my-6">
       <CardHeader>
         <CardTitle className="text-xl font-semibold">AI Portfolio Insights</CardTitle>
         <CardDescription>
-          Get AI-powered analysis of your portfolio performance
+          Get AI-powered analysis of your portfolio metrics
         </CardDescription>
       </CardHeader>
       
       <CardContent>
-        {!analysis && !isAnalyzing && !error && (
+        {!displayContent && !isAnalyzing && !error && (
           <div className="text-center p-6">
             <p className="text-gray-600 mb-4">
               Click the button below to analyze your portfolio with AI. 
-              Our AI will compare your portfolio to the benchmark, identify key performance drivers, 
-              and suggest possible reasons for stock movements.
+              Our AI will explain what your portfolio metrics mean and provide recommendations.
             </p>
           </div>
         )}
         
-        {isAnalyzing && (
+        {isAnalyzing && !streamingAnalysis && (
           <div className="text-center p-6">
             <div className="animate-pulse flex space-x-4 mb-4">
               <div className="flex-1 space-y-6 py-1">
@@ -65,6 +67,13 @@ export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results })
               </div>
             </div>
             <p className="text-gray-600">Analyzing your portfolio performance...</p>
+            <Button 
+              onClick={cancelAnalysis} 
+              variant="outline" 
+              className="mt-4"
+            >
+              Cancel
+            </Button>
           </div>
         )}
         
@@ -79,7 +88,7 @@ export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results })
           </div>
         )}
         
-        {analysis && !isAnalyzing && (
+        {displayContent && (
           <div className="prose prose-sm max-w-none overflow-auto">
             <ReactMarkdown 
               components={{
@@ -108,8 +117,19 @@ export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results })
                 ),
               }}
             >
-              {analysis}
+              {displayContent}
             </ReactMarkdown>
+            
+            {isAnalyzing && streamingAnalysis && (
+              <div className="flex justify-center mt-4">
+                <Button 
+                  onClick={cancelAnalysis} 
+                  variant="outline"
+                >
+                  Cancel
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </CardContent>
@@ -121,7 +141,7 @@ export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results })
             disabled={isAnalyzing}
             className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700"
           >
-            {analysis ? "Refresh Analysis" : "Analyze My Portfolio"}
+            {displayContent ? "Refresh Analysis" : "Analyze My Portfolio"}
           </Button>
         )}
       </CardFooter>

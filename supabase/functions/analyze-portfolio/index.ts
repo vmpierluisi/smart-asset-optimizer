@@ -32,72 +32,27 @@ serve(async (req) => {
 
     const { portfolioData, benchmarkData, stocks, weights, metrics } = body;
 
-    // Portfolio performance calculations
-    const portfolioPerformance = {
-      startValue: portfolioData[0].value,
-      endValue: portfolioData[portfolioData.length - 1].value,
-      percentageChange:
-        ((portfolioData[portfolioData.length - 1].value - portfolioData[0].value) / portfolioData[0].value) * 100,
-    };
-
-    // Benchmark performance calculations
-    const benchmarkPerformance = {
-      startValue: benchmarkData[0],
-      endValue: benchmarkData[benchmarkData.length - 1],
-      percentageChange: ((benchmarkData[benchmarkData.length - 1] - benchmarkData[0]) / benchmarkData[0]) * 100,
-    };
-
-    // Stock weight summary
-    const stockWeightsSummary = stocks
-      .map((stock) => `${stock}: ${(weights[stock] * 100).toFixed(2)}%`)
-      .join(", ");
-
-    // Updated prompt for Perplexity
+    // Simplified prompt focused on portfolio metrics interpretation
     const prompt = `
-    You are a professional portfolio analyst assistant with access to the latest financial news and data. Please analyze the following portfolio optimization results and provide detailed insights:
+    As a financial analyst, please provide a brief explanation of the following portfolio metrics and what they mean for this investment strategy:
 
-    📈 **PORTFOLIO PERFORMANCE:**
-    - Start value: **$${portfolioPerformance.startValue.toFixed(2)}**
-    - End value: **$${portfolioPerformance.endValue.toFixed(2)}**
-    - **Percentage change:** ${portfolioPerformance.percentageChange.toFixed(2)}%
-
-    📊 **BENCHMARK PERFORMANCE (S&P 500):**
-    - Start value: **$${benchmarkPerformance.startValue.toFixed(2)}**
-    - End value: **$${benchmarkPerformance.endValue.toFixed(2)}**
-    - **Percentage change:** ${benchmarkPerformance.percentageChange.toFixed(2)}%
-
-    🏗 **PORTFOLIO COMPOSITION:**
-    ${stockWeightsSummary}
-
-    📉 **RISK METRICS:**
+    📉 **PORTFOLIO METRICS:**
     - **Expected Return:** ${(metrics.expectedReturn * 100).toFixed(2)}%
     - **Volatility:** $${metrics.volatility.toFixed(2)}
     - **Value at Risk (95%):** $${Math.abs(metrics.var).toFixed(2)}
     - **Expected Shortfall:** $${Math.abs(metrics.es).toFixed(2)}
 
-    🔎 **STOCKS IN PORTFOLIO:** ${stocks.join(", ")}
+    🏗 **PORTFOLIO COMPOSITION:**
+    ${stocks.map((stock) => `${stock}: ${(weights[stock] * 100).toFixed(2)}%`).join(", ")}
 
-    ---
-    💡 **Please provide:**
-    1. A detailed summary of how the optimized portfolio performed compared to the benchmark. Interpret the Expected Return, Volatility, Value at Risk and the Expected Shortfall.
+    Please explain:
+    1. What each of these metrics means in simple terms
+    2. How these values compare to typical market benchmarks
+    3. What these metrics suggest about the risk level of this portfolio
+    4. Any recommendations for improvement based solely on these metrics
 
-    2. For each individual stock in the portfolio (${stocks.join(", ")}), provide specific information about:
-       - Recent price movements and performance
-       - Notable product launches or company initiatives
-       - Most recent earnings results (beats, misses, or in-line)
-       - Any earnings revisions by analysts
-       - Significant investments or strategic moves
-       - Major partnerships or acquisitions
-       - Key management changes
-       - Regulatory issues or legal developments
-       - Recent analyst ratings changes (buy, sell, hold reccomendations)
-       - Include links to important recent news articles for each stock discussed
-
-    3. Explain external market factors that might have influenced these stocks during this period.
-
-    4. Provide a summary of stock and portfolio performance.
-
-    Format your response in markdown with clear headings for each section. For news article links, include the source name and publication date where possible, e.g., "[Title of Article](link) - Bloomberg (May 15, 2023)".
+    Include relevant links to financial education resources that explain these concepts further.
+    Format your response in markdown with clear headings for each section.
     `;
 
     if (!PERPLEXITY_API_KEY) {
@@ -106,40 +61,107 @@ serve(async (req) => {
 
     console.log("Sending request to Perplexity API");
 
-    // Call Perplexity API
-    const response = await fetch("https://api.perplexity.ai/chat/completions", {
+    // Set up streaming response
+    const encoder = new TextEncoder();
+    const stream = new TransformStream();
+    const writer = stream.writable.getWriter();
+
+    // Start the streaming response
+    const responsePromise = fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${PERPLEXITY_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "sonar-reasoning-pro",
+        model: "sonar-deep-research",
         messages: [
-          { role: "system", content: "You are a financial analyst that provides comprehensive, detailed stock analysis with supporting news article links." },
+          { role: "system", content: "You are a financial analyst that provides concise portfolio metrics analysis with supporting links to educational resources." },
           { role: "user", content: prompt },
         ],
         temperature: 0.2,
         max_tokens: 4000,
         top_p: 0.9,
+        stream: true,
       }),
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Perplexity API error:", errorText);
-      throw new Error(`Perplexity API error: ${response.status} ${response.statusText}`);
-    }
+    // Handle the streaming response in a separate async function
+    (async () => {
+      try {
+        const response = await responsePromise;
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Perplexity API error:", errorText);
+          writer.write(encoder.encode(JSON.stringify({ error: `API error: ${response.status} ${response.statusText}` })));
+          writer.close();
+          return;
+        }
 
-    const data = await response.json();
-    console.log("Perplexity API response received");
+        if (!response.body) {
+          writer.write(encoder.encode(JSON.stringify({ error: "No response body" })));
+          writer.close();
+          return;
+        }
 
-    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      throw new Error("Invalid response format from Perplexity API");
-    }
+        const reader = response.body.getReader();
+        let analysisText = "";
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          // Parse the chunk as a string
+          const chunk = new TextDecoder().decode(value);
+          
+          try {
+            // Process each line in the chunk (each line is a JSON object)
+            const lines = chunk.split('\n').filter(line => line.trim() !== '');
+            
+            for (const line of lines) {
+              // Remove the "data: " prefix if present
+              const jsonStr = line.replace(/^data: /, '');
+              
+              // Skip "[DONE]" message
+              if (jsonStr.trim() === '[DONE]') continue;
+              
+              try {
+                const parsedData = JSON.parse(jsonStr);
+                
+                if (parsedData.choices && parsedData.choices[0]?.delta?.content) {
+                  const contentDelta = parsedData.choices[0].delta.content;
+                  analysisText += contentDelta;
+                  
+                  // Send the delta to the client
+                  writer.write(encoder.encode(`data: ${JSON.stringify({ delta: contentDelta, text: analysisText })}\n\n`));
+                }
+              } catch (parseError) {
+                console.error("Error parsing JSON in stream:", parseError, "Raw data:", jsonStr);
+              }
+            }
+          } catch (error) {
+            console.error("Error processing chunk:", error);
+          }
+        }
+        
+        // Send a final message to indicate the stream is complete
+        writer.write(encoder.encode(`data: ${JSON.stringify({ done: true, analysis: analysisText })}\n\n`));
+        writer.close();
+      } catch (error) {
+        console.error("Streaming error:", error);
+        writer.write(encoder.encode(JSON.stringify({ error: error.message })));
+        writer.close();
+      }
+    })();
 
-    return new Response(JSON.stringify({ analysis: data.choices[0].message.content }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    return new Response(stream.readable, {
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
     });
   } catch (error) {
     console.error("Error processing portfolio analysis:", error);
