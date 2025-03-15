@@ -36,14 +36,12 @@ serve(async (req) => {
     const prompt = `
     As a financial analyst, please provide a brief explanation of the following portfolio metrics and what they mean for this investment strategy:
 
+    Section 1
     📉 **PORTFOLIO METRICS:**
     - **Expected Return:** ${(metrics.expectedReturn * 100).toFixed(2)}%
     - **Volatility:** $${metrics.volatility.toFixed(2)}
     - **Value at Risk (95%):** $${Math.abs(metrics.var).toFixed(2)}
     - **Expected Shortfall:** $${Math.abs(metrics.es).toFixed(2)}
-
-    🏗 **PORTFOLIO COMPOSITION:**
-    ${stocks.map((stock) => `${stock}: ${(weights[stock] * 100).toFixed(2)}%`).join(", ")}
 
     Please explain:
     1. What each of these metrics means in simple terms
@@ -51,7 +49,29 @@ serve(async (req) => {
     3. What these metrics suggest about the risk level of this portfolio
     4. Any recommendations for improvement based solely on these metrics
 
-    Include relevant links to financial education resources that explain these concepts further.
+    Section 2
+    🔎 **STOCKS IN PORTFOLIO:** ${stocks.join(", ")}
+
+     🏗 **PORTFOLIO COMPOSITION:**
+    ${stocks.map((stock) => `${stock}: ${(weights[stock] * 100).toFixed(2)}%`).join(", ")}
+    
+    For each individual stock in the portfolio (${stocks.join(", ")}), provide specific information about:
+       - Recent price movements and performance
+       - Notable product launches or company initiatives
+       - Most recent earnings results (beats, misses, or in-line)
+       - Any earnings revisions by analysts
+       - Significant investments or strategic moves
+       - Major partnerships or acquisitions
+       - Key management changes
+       - Regulatory issues or legal developments
+       - Recent analyst ratings changes (buy, sell, hold reccomendations)
+       - Include links (5-6) to important recent news articles for each stock discussed
+
+    Section 3
+    Provide a summary of stock and portfolio performance and explain external market factors that might have influenced these stocks during this period.
+
+    Output specification
+    Format your response in markdown with clear headings for each section. For news article links, include the source name and publication date where possible, e.g., "[Title of Article](link) - Bloomberg (May 15, 2023)"
     Format your response in markdown with clear headings for each section.
     `;
 
