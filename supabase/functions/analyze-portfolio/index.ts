@@ -70,9 +70,6 @@ serve(async (req) => {
     Section 3
     Provide a summary of stock and portfolio performance and explain external market factors that might have influenced these stocks during this period.
 
-    Output specification
-    Format your response in markdown with clear headings for each section. For news article links, include the source name and publication date where possible, e.g., "[Title of Article](link) - Bloomberg (May 15, 2023)"
-    Format your response in markdown with clear headings for each section.
     `;
 
     if (!PERPLEXITY_API_KEY) {
@@ -94,9 +91,9 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "sonar-deep-research",
+        model: "sonar-pro",
         messages: [
-          { role: "system", content: "You are a financial analyst that provides concise portfolio metrics analysis with supporting links to educational resources." },
+          { role: "system", content: "You are a financial analyst that provides concise portfolio metrics analysis with supporting links to educational resources. Format your response in markdown with clear headings for each section. For news article links, include the source name and publication date where possible, eg (Bloomberg, September 2024). Format your response in markdown with clear headings for each section." },
           { role: "user", content: prompt },
         ],
         temperature: 0.2,
