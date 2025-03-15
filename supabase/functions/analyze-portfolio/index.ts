@@ -2,7 +2,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const openAIApiKey = Deno.env.get("OPENAI_API_KEY");
+const PERPLEXITY_API_KEY = Deno.env.get("PERPLEXITY_API_KEY");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -52,7 +52,7 @@ serve(async (req) => {
       .map((stock) => `${stock}: ${(weights[stock] * 100).toFixed(2)}%`)
       .join(", ");
 
-    // **Enhanced Prompt for OpenAI**
+    // Updated prompt for Perplexity
     const prompt = `
     You are a professional portfolio analyst assistant with access to the latest financial news and data. Please analyze the following portfolio optimization results and provide detailed insights:
 
@@ -100,32 +100,42 @@ serve(async (req) => {
     Format your response in markdown with clear headings for each section. For news article links, include the source name and publication date where possible, e.g., "[Title of Article](link) - Bloomberg (May 15, 2023)".
     `;
 
-    if (!openAIApiKey) {
-      throw new Error("OpenAI API key is missing");
+    if (!PERPLEXITY_API_KEY) {
+      throw new Error("Perplexity API key is missing");
     }
 
-    // Call OpenAI API with the enhanced model and prompt
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    console.log("Sending request to Perplexity API");
+
+    // Call Perplexity API
+    const response = await fetch("https://api.perplexity.ai/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${openAIApiKey}`,
+        "Authorization": `Bearer ${PERPLEXITY_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "sonar-reasoning-pro",
         messages: [
           { role: "system", content: "You are a financial analyst that provides comprehensive, detailed stock analysis with supporting news article links." },
           { role: "user", content: prompt },
         ],
-        temperature: 0.7,
-        max_tokens: 2000,
+        temperature: 0.2,
+        max_tokens: 4000,
+        top_p: 0.9,
       }),
     });
 
-    const data = await response.json();
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Perplexity API error:", errorText);
+      throw new Error(`Perplexity API error: ${response.status} ${response.statusText}`);
+    }
 
-    if (data.error) {
-      throw new Error(`OpenAI API Error: ${data.error.message}`);
+    const data = await response.json();
+    console.log("Perplexity API response received");
+
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      throw new Error("Invalid response format from Perplexity API");
     }
 
     return new Response(JSON.stringify({ analysis: data.choices[0].message.content }), {

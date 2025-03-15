@@ -50,7 +50,7 @@ export const usePortfolioAnalysis = () => {
 
       console.log("Sending data to API:", JSON.stringify(processedData));
 
-      // Call the Supabase Edge Function with the correct URL format
+      // Get Supabase environment variables
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
@@ -58,9 +58,10 @@ export const usePortfolioAnalysis = () => {
         throw new Error("Supabase environment variables are missing. Please check your .env file.");
       }
 
+      console.log("Making request to Supabase Edge Function");
       console.log("Supabase URL:", supabaseUrl);
-      console.log("Supabase Anon Key:", supabaseAnonKey ? "Loaded" : "Missing");
 
+      // Call the Supabase Edge Function
       const response = await fetch(`${supabaseUrl}/functions/v1/analyze-portfolio`, {
         method: "POST",
         headers: {
@@ -70,28 +71,16 @@ export const usePortfolioAnalysis = () => {
         body: JSON.stringify(processedData),
       });
 
-      // Log the raw response for debugging
+      // Log the raw response status
+      console.log("API response status:", response.status);
+
+      // Get the response text
       const responseText = await response.text();
       console.log("Raw API response:", responseText);
 
       // Check if the response is valid
       if (!response.ok) {
-        let errorMessage = 'Failed to analyze portfolio';
-        
-        try {
-          // Only parse as JSON if it looks like JSON
-          if (responseText.trim().startsWith('{')) {
-            const errorJson = JSON.parse(responseText);
-            errorMessage = errorJson.error || errorMessage;
-          } else {
-            errorMessage = responseText || errorMessage;
-          }
-        } catch (parseError) {
-          // If parsing fails, use the raw text
-          console.error("Error parsing error response:", parseError);
-          errorMessage = responseText || errorMessage;
-        }
-        
+        let errorMessage = `Failed to analyze portfolio (${response.status}): ${responseText}`;
         throw new Error(errorMessage);
       }
 
