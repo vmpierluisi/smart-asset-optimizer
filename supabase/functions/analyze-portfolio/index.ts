@@ -32,7 +32,7 @@ serve(async (req) => {
 
     const { portfolioData, benchmarkData, stocks, weights, metrics } = body;
 
-    // Updated prompt focused on portfolio metrics interpretation with stocks analysis
+    // Simplified prompt focused on portfolio metrics interpretation
     const prompt = `
     As a financial analyst, please provide a brief explanation of the following portfolio metrics and what they mean for this investment strategy:
 
@@ -47,9 +47,9 @@ serve(async (req) => {
 
     Please explain:
     1. What each of these metrics means in simple terms
-    2. What are the key characteristics of each stock in the portfolio
-    3. How these stocks complement each other in terms of diversification
-    4. Are there any concerning concentration risks in specific sectors or companies
+    2. How these values compare to typical market benchmarks
+    3. What these metrics suggest about the risk level of this portfolio
+    4. Any recommendations for improvement based solely on these metrics
 
     Include relevant links to financial education resources that explain these concepts further.
     Format your response in markdown with clear headings for each section.
