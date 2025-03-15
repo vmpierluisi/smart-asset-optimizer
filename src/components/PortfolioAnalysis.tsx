@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePortfolioAnalysis } from '@/hooks/usePortfolioAnalysis';
 import ReactMarkdown from 'react-markdown';
-import { X } from 'lucide-react';
 
 interface PortfolioAnalysisProps {
   results: {
@@ -25,7 +24,7 @@ interface PortfolioAnalysisProps {
 }
 
 export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results }) => {
-  const { analyzePortfolio, analysis, isAnalyzing, error, cancelAnalysis } = usePortfolioAnalysis();
+  const { analyzePortfolio, analysis, isAnalyzing, error } = usePortfolioAnalysis();
 
   const handleAnalyze = () => {
     analyzePortfolio(results);
@@ -52,78 +51,24 @@ export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results })
         )}
         
         {isAnalyzing && (
-          <div className="relative p-6">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="absolute top-2 right-2" 
-              onClick={cancelAnalysis}
-            >
-              <X className="h-4 w-4 mr-1" />
-              Cancel
-            </Button>
-            
-            {analysis ? (
-              <div className="prose prose-sm max-w-none overflow-auto">
-                <ReactMarkdown 
-                  components={{
-                    a: ({ node, ...props }) => (
-                      <a 
-                        {...props} 
-                        className="text-blue-600 hover:underline" 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                      />
-                    ),
-                    h2: ({ node, ...props }) => (
-                      <h2 {...props} className="text-lg font-bold mt-6 mb-2" />
-                    ),
-                    h3: ({ node, ...props }) => (
-                      <h3 {...props} className="text-md font-semibold mt-4 mb-2" />
-                    ),
-                    p: ({ node, ...props }) => (
-                      <p {...props} className="my-2" />
-                    ),
-                    ul: ({ node, ...props }) => (
-                      <ul {...props} className="list-disc pl-5 my-2" />
-                    ),
-                    li: ({ node, ...props }) => (
-                      <li {...props} className="mb-1" />
-                    ),
-                  }}
-                >
-                  {analysis}
-                </ReactMarkdown>
-                
-                <div className="mt-4 flex items-center justify-center">
-                  <div className="animate-pulse flex space-x-1">
-                    <div className="h-2 w-2 bg-blue-400 rounded-full"></div>
-                    <div className="h-2 w-2 bg-blue-400 rounded-full"></div>
-                    <div className="h-2 w-2 bg-blue-400 rounded-full"></div>
+          <div className="text-center p-6">
+            <div className="animate-pulse flex space-x-4 mb-4">
+              <div className="flex-1 space-y-6 py-1">
+                <div className="h-2 bg-gray-200 rounded"></div>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="h-2 bg-gray-200 rounded col-span-2"></div>
+                    <div className="h-2 bg-gray-200 rounded col-span-1"></div>
                   </div>
+                  <div className="h-2 bg-gray-200 rounded"></div>
                 </div>
               </div>
-            ) : (
-              <div className="text-center">
-                <div className="animate-pulse flex space-x-4 mb-4">
-                  <div className="flex-1 space-y-6 py-1">
-                    <div className="h-2 bg-gray-200 rounded"></div>
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-3 gap-4">
-                        <div className="h-2 bg-gray-200 rounded col-span-2"></div>
-                        <div className="h-2 bg-gray-200 rounded col-span-1"></div>
-                      </div>
-                      <div className="h-2 bg-gray-200 rounded"></div>
-                    </div>
-                  </div>
-                </div>
-                <p className="text-gray-600">Initializing analysis...</p>
-              </div>
-            )}
+            </div>
+            <p className="text-gray-600">Analyzing your portfolio performance...</p>
           </div>
         )}
         
-        {error && !isAnalyzing && (
+        {error && (
           <div className="text-center p-6">
             <p className="text-red-500 mb-4">
               Error: {error.message}

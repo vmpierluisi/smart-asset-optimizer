@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+
+import { useState } from 'react';
 import { toast } from "@/hooks/use-toast";
 
 interface PortfolioData {
@@ -21,23 +22,10 @@ export const usePortfolioAnalysis = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [error, setError] = useState<Error | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const timeoutRef = useRef<number | null>(null);
 
   const analyzePortfolio = async (portfolioData: PortfolioData) => {
     setIsAnalyzing(true);
     setError(null);
-    setAnalysis("");
-
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-    
-    abortControllerRef.current = new AbortController();
 
     try {
       toast({
@@ -45,8 +33,10 @@ export const usePortfolioAnalysis = () => {
         description: "AI is analyzing your portfolio results...",
       });
 
+      // Extract stocks from the weights object
       const stocks = Object.keys(portfolioData.weights);
       
+      // Prepare historical data for the API
       const processedData = {
         portfolioData: portfolioData.historicalData.map(d => ({
           date: d.date.toISOString().split('T')[0],
@@ -60,6 +50,7 @@ export const usePortfolioAnalysis = () => {
 
       console.log("Sending data to API:", JSON.stringify(processedData));
 
+      // Call the Supabase Edge Function with the correct URL format
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
@@ -68,102 +59,68 @@ export const usePortfolioAnalysis = () => {
       }
 
       console.log("Supabase URL:", supabaseUrl);
+      console.log("Supabase Anon Key:", supabaseAnonKey ? "Loaded" : "Missing");
 
-      const TIMEOUT_MS = 120000;
-      const timeoutPromise = new Promise<Response>((_, reject) => {
-        timeoutRef.current = setTimeout(() => {
-          if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-          }
-          reject(new Error('Request timed out after 2 minutes'));
-        }, TIMEOUT_MS) as unknown as number;
-      });
-
-      let apiUrl = '/api/analyze-portfolio';
-      
-      if (import.meta.env.PROD) {
-        apiUrl = `${supabaseUrl}/functions/v1/analyze-portfolio`;
-      }
-
-      console.log("Using API URL:", apiUrl);
-      
-      const fetchPromise = fetch(apiUrl, {
+      const response = await fetch(`${supabaseUrl}/functions/v1/analyze-portfolio`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${supabaseAnonKey}`,
         },
         body: JSON.stringify(processedData),
-        signal: abortControllerRef.current.signal
       });
 
-      const response = await Promise.race([fetchPromise, timeoutPromise]);
+      // Log the raw response for debugging
+      const responseText = await response.text();
+      console.log("Raw API response:", responseText);
 
+      // Check if the response is valid
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error("API error response:", errorText);
-        throw new Error(`Failed to analyze portfolio (${response.status}): ${errorText || response.statusText}`);
-      }
-
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error("Failed to get response reader");
-      }
-
-      toast({
-        title: "Analysis Started",
-        description: "Receiving streaming analysis from AI...",
-      });
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+        let errorMessage = 'Failed to analyze portfolio';
         
-        const chunk = decoder.decode(value, { stream: true });
-        buffer += chunk;
-        
-        const events = buffer.split('\n\n');
-        buffer = events.pop() || '';
-        
-        for (const event of events) {
-          if (event.trim() === '') continue;
-          
-          const dataMatch = event.match(/^data: (.+)$/m);
-          if (!dataMatch) continue;
-          
-          try {
-            const parsedData = JSON.parse(dataMatch[1]);
-            
-            if (parsedData.analysisComplete) {
-              setAnalysis(parsedData.fullAnalysis);
-              toast({
-                title: "Analysis Complete",
-                description: "AI portfolio analysis is complete!",
-              });
-            } else if (parsedData.analysis) {
-              setAnalysis(prevAnalysis => (prevAnalysis || '') + parsedData.analysis);
-            } else if (parsedData.error) {
-              throw new Error(parsedData.error);
-            }
-          } catch (e) {
-            console.error('Error parsing SSE data:', e);
+        try {
+          // Only parse as JSON if it looks like JSON
+          if (responseText.trim().startsWith('{')) {
+            const errorJson = JSON.parse(responseText);
+            errorMessage = errorJson.error || errorMessage;
+          } else {
+            errorMessage = responseText || errorMessage;
           }
+        } catch (parseError) {
+          // If parsing fails, use the raw text
+          console.error("Error parsing error response:", parseError);
+          errorMessage = responseText || errorMessage;
         }
+        
+        throw new Error(errorMessage);
+      }
+
+      // Try to parse the successful response
+      try {
+        let data;
+        
+        // Only attempt to parse if we have content
+        if (responseText.trim()) {
+          data = JSON.parse(responseText);
+        } else {
+          throw new Error('Empty response from server');
+        }
+        
+        if (!data || !data.analysis) {
+          throw new Error('Invalid response format: missing analysis data');
+        }
+        
+        setAnalysis(data.analysis);
+        
+        toast({
+          title: "Analysis Complete",
+          description: "AI portfolio analysis is ready!",
+        });
+      } catch (parseError) {
+        console.error("JSON parse error:", parseError, "Response text:", responseText);
+        throw new Error(`Error parsing response: ${parseError.message}. Raw response: ${responseText.substring(0, 100)}...`);
       }
     } catch (err) {
-      if (err.name === 'AbortError') {
-        console.log('Request was aborted');
-        return;
-      }
-      
       const error = err as Error;
       setError(error);
       
@@ -179,32 +136,8 @@ export const usePortfolioAnalysis = () => {
       });
     } finally {
       setIsAnalyzing(false);
-      abortControllerRef.current = null;
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
     }
   };
 
-  const cancelAnalysis = () => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-    
-    setIsAnalyzing(false);
-    
-    toast({
-      title: "Analysis Cancelled",
-      description: "Portfolio analysis was cancelled.",
-    });
-  };
-
-  return { analyzePortfolio, analysis, isAnalyzing, error, cancelAnalysis };
+  return { analyzePortfolio, analysis, isAnalyzing, error };
 };
