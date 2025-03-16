@@ -22,10 +22,13 @@ export const usePortfolioAnalysis = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [error, setError] = useState<Error | null>(null);
+  const [streamedContent, setStreamedContent] = useState<string>("");
 
   const analyzePortfolio = async (portfolioData: PortfolioData) => {
     setIsAnalyzing(true);
     setError(null);
+    setStreamedContent("");
+    setAnalysis(null);
 
     try {
       toast({
@@ -70,55 +73,68 @@ export const usePortfolioAnalysis = () => {
         body: JSON.stringify(processedData),
       });
 
-      // Log the raw response for debugging
-      const responseText = await response.text();
-      console.log("Raw API response:", responseText);
-
-      // Check if the response is valid
       if (!response.ok) {
-        let errorMessage = 'Failed to analyze portfolio';
+        const text = await response.text();
+        console.error("Response not OK:", response.status, text);
         
+        let errorMessage = 'Failed to analyze portfolio';
         try {
-          // Only parse as JSON if it looks like JSON
-          if (responseText.trim().startsWith('{')) {
-            const errorJson = JSON.parse(responseText);
-            errorMessage = errorJson.error || errorMessage;
+          // Try to parse as JSON first
+          if (text.trim().startsWith('{')) {
+            const errorData = JSON.parse(text);
+            errorMessage = errorData.error || errorMessage;
           } else {
-            errorMessage = responseText || errorMessage;
+            errorMessage = text || errorMessage;
           }
-        } catch (parseError) {
-          // If parsing fails, use the raw text
-          console.error("Error parsing error response:", parseError);
-          errorMessage = responseText || errorMessage;
+        } catch (e) {
+          errorMessage = text || errorMessage;
         }
         
         throw new Error(errorMessage);
       }
 
-      // Try to parse the successful response
+      // Handle streaming response
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("Failed to get stream reader");
+      }
+
+      let accumulatedContent = "";
+      
       try {
-        let data;
-        
-        // Only attempt to parse if we have content
-        if (responseText.trim()) {
-          data = JSON.parse(responseText);
-        } else {
-          throw new Error('Empty response from server');
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) {
+            console.log("Stream complete");
+            break;
+          }
+          
+          // Decode the chunk
+          const chunk = new TextDecoder().decode(value);
+          
+          // If the chunk starts with "error:", handle it as an error
+          if (chunk.startsWith("error:")) {
+            throw new Error(chunk.substring(6).trim());
+          }
+          
+          // Add the chunk to our accumulated content
+          accumulatedContent += chunk;
+          
+          // Update the state with the latest content
+          setStreamedContent(accumulatedContent);
         }
         
-        if (!data || !data.analysis) {
-          throw new Error('Invalid response format: missing analysis data');
-        }
-        
-        setAnalysis(data.analysis);
+        // When streaming is complete, set the final analysis
+        setAnalysis(accumulatedContent);
         
         toast({
           title: "Analysis Complete",
           description: "AI portfolio analysis is ready!",
         });
-      } catch (parseError) {
-        console.error("JSON parse error:", parseError, "Response text:", responseText);
-        throw new Error(`Error parsing response: ${parseError.message}. Raw response: ${responseText.substring(0, 100)}...`);
+      } catch (e) {
+        console.error("Error reading stream:", e);
+        throw e;
       }
     } catch (err) {
       const error = err as Error;
@@ -139,5 +155,5 @@ export const usePortfolioAnalysis = () => {
     }
   };
 
-  return { analyzePortfolio, analysis, isAnalyzing, error };
+  return { analyzePortfolio, analysis, isAnalyzing, error, streamedContent };
 };

@@ -24,11 +24,14 @@ interface PortfolioAnalysisProps {
 }
 
 export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results }) => {
-  const { analyzePortfolio, analysis, isAnalyzing, error } = usePortfolioAnalysis();
+  const { analyzePortfolio, analysis, isAnalyzing, error, streamedContent } = usePortfolioAnalysis();
 
   const handleAnalyze = () => {
     analyzePortfolio(results);
   };
+
+  // Content to display - use streamedContent while analyzing, otherwise use the final analysis
+  const displayContent = isAnalyzing ? streamedContent : analysis;
 
   return (
     <Card className="bg-white rounded-xl shadow-sm my-6">
@@ -40,7 +43,7 @@ export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results })
       </CardHeader>
       
       <CardContent>
-        {!analysis && !isAnalyzing && !error && (
+        {!displayContent && !isAnalyzing && !error && (
           <div className="text-center p-6">
             <p className="text-gray-600 mb-4">
               Click the button below to analyze your portfolio with AI. 
@@ -50,7 +53,7 @@ export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results })
           </div>
         )}
         
-        {isAnalyzing && (
+        {isAnalyzing && !streamedContent && (
           <div className="text-center p-6">
             <div className="animate-pulse flex space-x-4 mb-4">
               <div className="flex-1 space-y-6 py-1">
@@ -79,7 +82,7 @@ export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results })
           </div>
         )}
         
-        {analysis && !isAnalyzing && (
+        {displayContent && (
           <div className="prose prose-sm max-w-none overflow-auto">
             <ReactMarkdown 
               components={{
@@ -108,7 +111,7 @@ export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results })
                 ),
               }}
             >
-              {analysis}
+              {displayContent}
             </ReactMarkdown>
           </div>
         )}

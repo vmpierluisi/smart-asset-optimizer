@@ -97,8 +97,12 @@ serve(async (req) => {
       throw new Error("OpenAI API key is missing");
     }
 
-    // Call OpenAI API with the model updated to gpt-4o-search-preview
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    // Create a ReadableStream
+    const stream = new TransformStream();
+    const writer = stream.writable.getWriter();
+
+    // Start the fetch to OpenAI in the background
+    const fetchPromise = fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${openAIApiKey}`,
@@ -111,20 +115,88 @@ serve(async (req) => {
           { role: "user", content: prompt },
         ],
         max_tokens: 2000,
+        stream: true, // Enable streaming
         web_search_options: {
           search_context_size: "low",
         },
       }),
     });
 
-    const data = await response.json();
+    // Process the OpenAI response as a stream
+    fetchPromise.then(async (response) => {
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("OpenAI API Error:", errorText);
+        writer.write(new TextEncoder().encode(`error: ${errorText}`));
+        writer.close();
+        return;
+      }
 
-    if (data.error) {
-      throw new Error(`OpenAI API Error: ${data.error.message}`);
-    }
+      // Get the response body as a ReadableStream
+      const reader = response.body?.getReader();
+      if (!reader) {
+        writer.write(new TextEncoder().encode("error: Failed to get stream reader"));
+        writer.close();
+        return;
+      }
 
-    return new Response(JSON.stringify({ analysis: data.choices[0].message.content }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      let analysisText = "";
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          // Decode the chunk
+          const chunk = new TextDecoder().decode(value);
+          
+          // Process the chunk (OpenAI sends "data: {...}" lines)
+          const lines = chunk.split("\n").filter(line => line.trim() !== "");
+          
+          for (const line of lines) {
+            // Skip lines that don't start with "data: "
+            if (!line.startsWith("data: ")) continue;
+            
+            // Check for the "[DONE]" message
+            if (line === "data: [DONE]") continue;
+            
+            try {
+              // Parse the JSON data
+              const jsonData = JSON.parse(line.substring(6)); // Remove "data: " prefix
+              
+              if (jsonData.choices && jsonData.choices.length > 0) {
+                const content = jsonData.choices[0].delta.content;
+                if (content) {
+                  analysisText += content;
+                  // Write the content to our output stream
+                  writer.write(new TextEncoder().encode(content));
+                }
+              }
+            } catch (e) {
+              console.error("Error parsing JSON from stream:", e, "Line:", line);
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Error reading stream:", e);
+        writer.write(new TextEncoder().encode(`error: ${e.message}`));
+      } finally {
+        writer.close();
+        console.log("Analysis completed, stream closed");
+      }
+    }).catch(error => {
+      console.error("Fetch error:", error);
+      writer.write(new TextEncoder().encode(`error: ${error.message}`));
+      writer.close();
+    });
+
+    // Return the stream to the client
+    return new Response(stream.readable, {
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+      },
     });
   } catch (error) {
     console.error("Error processing portfolio analysis:", error);
