@@ -112,7 +112,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o",
+        model: "gpt-4o-search-preview",
         messages: [
           { role: "system", content: "You are a financial analyst that provides comprehensive, detailed stock analysis with supporting news article links." },
           { role: "user", content: prompt },
