@@ -1,4 +1,3 @@
-
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
@@ -26,13 +25,6 @@ export default defineConfig(({ mode }) => ({
         target: 'http://localhost:54321/functions/v1/analyze-portfolio',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/analyze-portfolio/, ''),
-        // Preserve all headers, including Authorization
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
-            // Log headers for debugging
-            console.log('Proxy request headers:', req.headers);
-          });
-        }
       },
     },
   },
