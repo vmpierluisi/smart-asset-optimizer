@@ -110,7 +110,6 @@ serve(async (req) => {
           { role: "system", content: "You are a financial analyst that provides comprehensive, detailed stock analysis with supporting news article links." },
           { role: "user", content: prompt },
         ],
-        temperature: 0.7,
         max_tokens: 2000,
         web_search_options: {
           search_context_size: "low",
