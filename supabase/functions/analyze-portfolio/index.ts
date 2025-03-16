@@ -81,30 +81,23 @@ serve(async (req) => {
     💡 **Please provide:**
     1. A detailed summary of how the optimized portfolio performed compared to the benchmark. Interpret the Expected Return, Volatility, Value at Risk and the Expected Shortfall.
 
-    2. For each individual stock in the portfolio (${stocks.join(", ")}), provide specific information about:
-       - Recent price movements and performance
-       - Notable product launches or company initiatives
-       - Most recent earnings results (beats, misses, or in-line)
-       - Any earnings revisions by analysts
-       - Significant investments or strategic moves
-       - Major partnerships or acquisitions
-       - Key management changes
-       - Regulatory issues or legal developments
-       - Recent analyst ratings changes (buy, sell, hold reccomendations)
-       - Include links to important recent news articles for each stock discussed
+    2. For each stock in the portfolio:
+       - Key characteristics (market cap, sector, business model)
+       - Recent performance relative to the market
+       - Current analyst consensus (if available)
 
-    3. Explain external market factors that might have influenced these stocks during this period.
+    3. Explain how these stocks work together as a portfolio - discuss diversification benefits or concentration risks.
 
-    4. Provide a summary of stock and portfolio performance.
+    4. Provide your professional opinion on the portfolio's risk/reward profile based on the metrics.
 
-    Format your response in markdown with clear headings for each section. For news article links, include the source name and publication date where possible, e.g., "[Title of Article](link) - Bloomberg (May 15, 2023)".
+    Format your response in markdown with clear headings for each section. Include links to important recent news articles for each stock discussed.
     `;
 
     if (!openAIApiKey) {
       throw new Error("OpenAI API key is missing");
     }
 
-    // Call OpenAI API with the enhanced model and prompt
+    // Call OpenAI API with the model updated to gpt-4o-search-preview
     const response = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -119,6 +112,9 @@ serve(async (req) => {
         ],
         temperature: 0.7,
         max_tokens: 2000,
+        web_search_options: {
+          search_context_size: "low",
+        },
       }),
     });
 
