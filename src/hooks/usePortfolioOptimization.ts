@@ -20,6 +20,7 @@ interface OptimizationResults {
     value: number;
     benchmark: number;
   }[];
+  benchmarkSymbol: string;
 }
 
 const calculateGJRGarch = (returns: number[]) => {
@@ -297,7 +298,8 @@ export const usePortfolioOptimization = () => {
     stocks: string[],
     dateRange: { start: Date; end: Date },
     portfolioValue: number,
-    riskAversion: number
+    riskAversion: number,
+    benchmarkSymbol: string = "SPY"
   ) => {
     setIsLoading(true);
     setError(null);
@@ -312,11 +314,11 @@ export const usePortfolioOptimization = () => {
         stocks.map(symbol => fetchStockData(symbol, dateRange.start, dateRange.end))
       );
       
-      const spyData = await fetchStockData('SPY', dateRange.start, dateRange.end);
+      const benchmarkData = await fetchStockData(benchmarkSymbol, dateRange.start, dateRange.end);
 
       toast({
         title: "Processing Data",
-        description: "Calculating returns and optimizing weights...",
+        description: `Calculating returns and optimizing weights using ${getBenchmarkName(benchmarkSymbol)} as benchmark...`,
       });
 
       const returns = stocksData.map(data => {
@@ -388,7 +390,7 @@ export const usePortfolioOptimization = () => {
         description: "Portfolio optimization finished successfully!",
       });
 
-      const initialSpyValue = spyData[0].close;
+      const initialBenchmarkValue = benchmarkData[0].close;
       const historicalData = stocksData[0].map((_, i) => {
         const date = stocksData[0][i].date;
         const value = stocks.reduce((sum, _, j) => 
@@ -398,20 +400,21 @@ export const usePortfolioOptimization = () => {
         return {
           date,
           value,
-          benchmark: spyData[i].close / initialSpyValue * portfolioValue,
+          benchmark: benchmarkData[i].close / initialBenchmarkValue * portfolioValue,
         };
       });
 
       setResults({
-        weights: weightsBySymbol,        // Percentage weights (summing to 1)
-        allocations: allocations,        // Dollar amounts
+        weights: weightsBySymbol,
+        allocations: allocations,
         metrics: {
           expectedReturn: portfolioReturn,
-          volatility: portfolioVolatility * 100,  // Multiply by 100 to get dollar amount
-          var: var95 * portfolioValue,     // Convert to dollar amount
-          es: es95 * portfolioValue,       // Convert to dollar amount
+          volatility: portfolioVolatility * 100,
+          var: var95 * portfolioValue,
+          es: es95 * portfolioValue,
         },
         historicalData,
+        benchmarkSymbol,
       });
 
     } catch (err) {
@@ -424,6 +427,18 @@ export const usePortfolioOptimization = () => {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const getBenchmarkName = (symbol: string): string => {
+    switch (symbol) {
+      case "SPY": return "S&P 500";
+      case "DIA": return "DOW Jones";
+      case "QQQ": return "Nasdaq";
+      case "FEZ": return "Euro Stoxx 50";
+      case "STOXX": return "Euro Stoxx 600";
+      case "URTH": return "MSCI World Index";
+      default: return "S&P 500";
     }
   };
 

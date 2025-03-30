@@ -15,6 +15,7 @@ export const PortfolioOptimizer: React.FC = () => {
   });
   const [portfolioValue, setPortfolioValue] = useState<number>(10000);
   const [riskAversion, setRiskAversion] = useState<number>(2);
+  const [benchmark, setBenchmark] = useState<string>("SPY"); // Default to S&P 500
 
   const { optimizePortfolio, isLoading, error, results } = usePortfolioOptimization();
 
@@ -23,7 +24,7 @@ export const PortfolioOptimizer: React.FC = () => {
       alert("Please select at least 2 stocks");
       return;
     }
-    await optimizePortfolio(stocks, dateRange, portfolioValue, riskAversion);
+    await optimizePortfolio(stocks, dateRange, portfolioValue, riskAversion, benchmark);
   };
 
   return (
@@ -38,7 +39,12 @@ export const PortfolioOptimizer: React.FC = () => {
         <div className="glassmorphism p-6 rounded-xl">
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             <StockInput stocks={stocks} onChange={setStocks} />
-            <DateRangeSelector value={dateRange} onChange={setDateRange} />
+            <DateRangeSelector 
+              value={dateRange} 
+              onChange={setDateRange} 
+              benchmark={benchmark}
+              onBenchmarkChange={setBenchmark}
+            />
             <div className="space-y-6">
               <PortfolioValueInput value={portfolioValue} onChange={setPortfolioValue} />
               <RiskAversionInput value={riskAversion} onChange={setRiskAversion} />
