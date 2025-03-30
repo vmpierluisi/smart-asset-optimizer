@@ -1,7 +1,7 @@
 
 import React from 'react';
-import DatePicker from 'react-datepicker';
-import "react-datepicker/dist/react-datepicker.css";
+import { Button } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 interface DateRangeSelectorProps {
   value: { start: Date; end: Date };
@@ -9,16 +9,44 @@ interface DateRangeSelectorProps {
 }
 
 export const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({ value, onChange }) => {
-  const handleStartDateChange = (date: Date | null) => {
-    if (date) {
-      onChange({ ...value, start: date });
-    }
+  // Calculate which preset is active based on the current start date
+  const getActivePreset = (): string => {
+    const end = new Date();
+    const diffMonths = Math.round((end.getTime() - value.start.getTime()) / (30 * 24 * 60 * 60 * 1000));
+    
+    if (diffMonths <= 6) return "6m";
+    if (diffMonths <= 12) return "1y";
+    if (diffMonths <= 24) return "2y";
+    if (diffMonths <= 36) return "3y";
+    if (diffMonths <= 60) return "5y";
+    return "";
   };
 
-  const handleEndDateChange = (date: Date | null) => {
-    if (date) {
-      onChange({ ...value, end: date });
+  const handlePresetChange = (preset: string) => {
+    const end = new Date();
+    let start = new Date();
+    
+    switch (preset) {
+      case "6m":
+        start.setMonth(end.getMonth() - 6);
+        break;
+      case "1y":
+        start.setFullYear(end.getFullYear() - 1);
+        break;
+      case "2y":
+        start.setFullYear(end.getFullYear() - 2);
+        break;
+      case "3y":
+        start.setFullYear(end.getFullYear() - 3);
+        break;
+      case "5y":
+        start.setFullYear(end.getFullYear() - 5);
+        break;
+      default:
+        start.setFullYear(end.getFullYear() - 1);
     }
+    
+    onChange({ start, end });
   };
 
   return (
@@ -26,27 +54,18 @@ export const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({ value, onC
       <label className="block text-sm font-medium text-gray-700">
         Select Date Range
       </label>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <DatePicker
-            selected={value.start}
-            onChange={handleStartDateChange}
-            className="input-field w-full"
-            maxDate={value.end}
-            placeholderText="Start Date"
-          />
-        </div>
-        <div>
-          <DatePicker
-            selected={value.end}
-            onChange={handleEndDateChange}
-            className="input-field w-full"
-            minDate={value.start}
-            maxDate={new Date()}
-            placeholderText="End Date"
-          />
-        </div>
-      </div>
+      <ToggleGroup 
+        type="single" 
+        value={getActivePreset()} 
+        onValueChange={handlePresetChange}
+        className="justify-start w-full"
+      >
+        <ToggleGroupItem value="6m">6 Months</ToggleGroupItem>
+        <ToggleGroupItem value="1y">1 Year</ToggleGroupItem>
+        <ToggleGroupItem value="2y">2 Years</ToggleGroupItem>
+        <ToggleGroupItem value="3y">3 Years</ToggleGroupItem>
+        <ToggleGroupItem value="5y">5 Years</ToggleGroupItem>
+      </ToggleGroup>
     </div>
   );
 };
