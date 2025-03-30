@@ -1,8 +1,8 @@
 
-import { PortfolioOptimizer } from '../components/PortfolioOptimizer';
+import { Navigate } from 'react-router-dom';
 
 const Index = () => {
-  return <PortfolioOptimizer />;
+  return <Navigate to="/" replace />;
 };
 
 export default Index;
