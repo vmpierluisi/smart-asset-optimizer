@@ -37,21 +37,28 @@ export const PortfolioOptimizer: React.FC = () => {
 
         {/* Input Section */}
         <div className="glassmorphism p-6 rounded-xl">
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            <StockInput stocks={stocks} onChange={setStocks} />
-            <DateRangeSelector 
-              value={dateRange} 
-              onChange={setDateRange} 
-              benchmark={benchmark}
-              onBenchmarkChange={setBenchmark}
-            />
+          <div className="grid gap-8 md:grid-cols-2">
             <div className="space-y-6">
-              <PortfolioValueInput value={portfolioValue} onChange={setPortfolioValue} />
-              <RiskAversionInput value={riskAversion} onChange={setRiskAversion} />
+              <StockInput stocks={stocks} onChange={setStocks} />
+            </div>
+            
+            <div className="space-y-6">
+              <DateRangeSelector 
+                value={dateRange} 
+                onChange={setDateRange} 
+                benchmark={benchmark}
+                onBenchmarkChange={setBenchmark}
+              />
+              
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <PortfolioValueInput value={portfolioValue} onChange={setPortfolioValue} />
+                <RiskAversionInput value={riskAversion} onChange={setRiskAversion} />
+              </div>
+              
               <button
                 onClick={handleOptimize}
                 disabled={isLoading}
-                className="btn-primary w-full"
+                className="btn-primary w-full mt-2"
               >
                 {isLoading ? "Optimizing..." : "Optimize Portfolio"}
               </button>

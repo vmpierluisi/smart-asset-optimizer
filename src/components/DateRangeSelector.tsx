@@ -1,8 +1,6 @@
 
 import React from 'react';
-import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 
 interface DateRangeSelectorProps {
@@ -59,59 +57,42 @@ export const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <Label className="block text-sm font-medium text-gray-700 mb-2">
           Select Date Range
-        </label>
+        </Label>
         <ToggleGroup 
           type="single" 
           value={getActivePreset()} 
           onValueChange={handlePresetChange}
-          className="justify-start w-full"
+          className="flex flex-wrap justify-start gap-1 w-full"
         >
-          <ToggleGroupItem value="6m">6 Months</ToggleGroupItem>
-          <ToggleGroupItem value="1y">1 Year</ToggleGroupItem>
-          <ToggleGroupItem value="2y">2 Years</ToggleGroupItem>
-          <ToggleGroupItem value="3y">3 Years</ToggleGroupItem>
-          <ToggleGroupItem value="5y">5 Years</ToggleGroupItem>
+          <ToggleGroupItem value="6m" className="flex-1">6M</ToggleGroupItem>
+          <ToggleGroupItem value="1y" className="flex-1">1Y</ToggleGroupItem>
+          <ToggleGroupItem value="2y" className="flex-1">2Y</ToggleGroupItem>
+          <ToggleGroupItem value="3y" className="flex-1">3Y</ToggleGroupItem>
+          <ToggleGroupItem value="5y" className="flex-1">5Y</ToggleGroupItem>
         </ToggleGroup>
       </div>
       
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <Label className="block text-sm font-medium text-gray-700 mb-2">
           Select Benchmark
-        </label>
-        <RadioGroup 
+        </Label>
+        <ToggleGroup 
+          type="single" 
           value={benchmark} 
           onValueChange={onBenchmarkChange}
-          className="grid grid-cols-2 gap-2"
+          className="flex flex-wrap justify-start gap-1 w-full"
         >
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="SPY" id="benchmark-spy" />
-            <Label htmlFor="benchmark-spy">S&P 500</Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="DIA" id="benchmark-dow" />
-            <Label htmlFor="benchmark-dow">DOW Jones</Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="QQQ" id="benchmark-nasdaq" />
-            <Label htmlFor="benchmark-nasdaq">Nasdaq</Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="FEZ" id="benchmark-euro50" />
-            <Label htmlFor="benchmark-euro50">Euro Stoxx 50</Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="STOXX" id="benchmark-euro600" />
-            <Label htmlFor="benchmark-euro600">Euro Stoxx 600</Label>
-          </div>
-          <div className="flex items-center space-x-2">
-            <RadioGroupItem value="URTH" id="benchmark-msci" />
-            <Label htmlFor="benchmark-msci">MSCI World Index</Label>
-          </div>
-        </RadioGroup>
+          <ToggleGroupItem value="SPY" className="flex-1 text-xs">S&P 500</ToggleGroupItem>
+          <ToggleGroupItem value="DIA" className="flex-1 text-xs">DOW</ToggleGroupItem>
+          <ToggleGroupItem value="QQQ" className="flex-1 text-xs">NASDAQ</ToggleGroupItem>
+          <ToggleGroupItem value="FEZ" className="flex-1 text-xs">EURO 50</ToggleGroupItem>
+          <ToggleGroupItem value="STOXX" className="flex-1 text-xs">EURO 600</ToggleGroupItem>
+          <ToggleGroupItem value="URTH" className="flex-1 text-xs">MSCI</ToggleGroupItem>
+        </ToggleGroup>
       </div>
     </div>
   );
