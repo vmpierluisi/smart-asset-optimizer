@@ -1,4 +1,3 @@
-
 import { Home, BarChart } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import {
@@ -11,10 +10,12 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar";
 
 export function AppSidebar() {
   const location = useLocation();
+  const { state } = useSidebar();
   
   // Define navigation items
   const navItems = [
@@ -31,11 +32,11 @@ export function AppSidebar() {
   ];
 
   return (
-    <Sidebar>
+    <Sidebar collapsible="icon">
       <SidebarContent>
         <div className="flex h-12 items-center px-4">
           <SidebarTrigger />
-          <span className="ml-2 text-lg font-semibold">Asset Optimizer</span>
+          {state === "expanded" && <span className="ml-2 text-lg font-semibold">Asset Optimizer</span>}
         </div>
         <SidebarGroup>
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
