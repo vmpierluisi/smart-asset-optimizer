@@ -4,8 +4,6 @@ import { toast } from "@/hooks/use-toast";
 
 const math = create(all);
 
-const ALPHA_VANTAGE_API_KEY = '8NMNG3M6153UL6N7';
-
 interface OptimizationResults {
   weights: { [key: string]: number };
   allocations: { [key: string]: number };
@@ -18,9 +16,9 @@ interface OptimizationResults {
   historicalData: {
     date: Date;
     value: number;
-    benchmark: number;
+    benchmarks: { [symbol: string]: number };
   }[];
-  benchmarkSymbol: string;
+  benchmarkSymbols: string[];
 }
 
 const calculateGJRGarch = (returns: number[]) => {
@@ -200,55 +198,66 @@ export const usePortfolioOptimization = () => {
 
   const fetchStockData = async (symbol: string, startDate: Date, endDate: Date) => {
     try {
-      const apiUrl = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${ALPHA_VANTAGE_API_KEY}&outputsize=full`;
       toast({
         title: "Fetching Data",
-        description: `Fetching data for ${symbol}...`,
+        description: `Fetching historical data for ${symbol}...`,
       });
 
-      const response = await fetch(apiUrl);
+      // Get Supabase environment variables
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      
+      if (!supabaseUrl || !supabaseAnonKey) {
+        toast({
+          title: "Configuration Error",
+          description: "Supabase environment variables are missing",
+          variant: "destructive",
+        });
+        throw new Error("Supabase environment variables are missing");
+      }
+      
+      // Call the Supabase Edge Function
+      const response = await fetch(`${supabaseUrl}/functions/v1/historical-prices`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+        },
+        body: JSON.stringify({
+          symbol,
+          startDate: startDate.toISOString(),
+          endDate: endDate.toISOString()
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        toast({
+          title: "API Error",
+          description: `Error fetching data: ${errorText}`,
+          variant: "destructive",
+        });
+        throw new Error(`API error: ${response.status} ${errorText}`);
+      }
+
       const data = await response.json();
-
-      if (data['Note']) {
-        toast({
-          title: "API Limit Reached",
-          description: "The Alpha Vantage API limit has been reached. Please try again in a minute.",
-          variant: "destructive",
-        });
-        throw new Error(`API limit reached: ${data['Note']}`);
-      }
-
-      if (data['Error Message']) {
-        toast({
-          title: "Error",
-          description: `Error fetching data for ${symbol}: ${data['Error Message']}`,
-          variant: "destructive",
-        });
-        throw new Error(`Alpha Vantage error: ${data['Error Message']}`);
-      }
-
-      const timeSeriesData = data['Time Series (Daily)'];
-      if (!timeSeriesData) {
+      
+      if (!data || !Array.isArray(data) || data.length === 0) {
         toast({
           title: "No Data",
           description: `No data received for ${symbol}. Please try again.`,
           variant: "destructive",
         });
-        throw new Error(`No data received from Alpha Vantage for symbol ${symbol}`);
+        throw new Error(`No data received for symbol ${symbol}`);
       }
 
-      const filteredData = Object.entries(timeSeriesData)
-        .filter(([date]) => {
-          const currentDate = new Date(date);
-          return currentDate >= startDate && currentDate <= endDate;
-        })
-        .map(([date, values]: [string, any]) => ({
-          date: new Date(date),
-          close: parseFloat(values['4. close']),
-        }))
-        .sort((a, b) => a.date.getTime() - b.date.getTime());
+      // Process dates (the edge function returns date strings)
+      const processedData = data.map((item: any) => ({
+        date: new Date(item.date),
+        close: parseFloat(item.close),
+      }));
 
-      if (filteredData.length === 0) {
+      if (processedData.length === 0) {
         toast({
           title: "No Data in Date Range",
           description: `No data available for ${symbol} in the selected date range.`,
@@ -262,7 +271,7 @@ export const usePortfolioOptimization = () => {
         description: `Successfully fetched data for ${symbol}`,
       });
       
-      return filteredData;
+      return processedData;
     } catch (error) {
       toast({
         title: "Error",
@@ -299,7 +308,7 @@ export const usePortfolioOptimization = () => {
     dateRange: { start: Date; end: Date },
     portfolioValue: number,
     riskAversion: number,
-    benchmarkSymbol: string = "SPY"
+    benchmarkSymbols: string[] = ["SPY"]
   ) => {
     setIsLoading(true);
     setError(null);
@@ -314,11 +323,14 @@ export const usePortfolioOptimization = () => {
         stocks.map(symbol => fetchStockData(symbol, dateRange.start, dateRange.end))
       );
       
-      const benchmarkData = await fetchStockData(benchmarkSymbol, dateRange.start, dateRange.end);
+      // Fetch data for all benchmarks
+      const benchmarksData = await Promise.all(
+        benchmarkSymbols.map(symbol => fetchStockData(symbol, dateRange.start, dateRange.end))
+      );
 
       toast({
         title: "Processing Data",
-        description: `Calculating returns and optimizing weights using ${getBenchmarkName(benchmarkSymbol)} as benchmark...`,
+        description: `Calculating returns and optimizing weights using ${benchmarkSymbols.map(symbol => getBenchmarkName(symbol)).join(', ')} as benchmarks...`,
       });
 
       const returns = stocksData.map(data => {
@@ -390,17 +402,27 @@ export const usePortfolioOptimization = () => {
         description: "Portfolio optimization finished successfully!",
       });
 
-      const initialBenchmarkValue = benchmarkData[0].close;
+      // Initialize benchmark values 
+      const initialBenchmarkValues = benchmarksData.map(data => data[0].close);
+      
+      // Create historical data with all benchmarks
       const historicalData = stocksData[0].map((_, i) => {
         const date = stocksData[0][i].date;
         const value = stocks.reduce((sum, _, j) => 
           sum + (stocksData[j][i].close / stocksData[j][0].close) * allocations[stocks[j]],
           0
         );
+        
+        // Create a map of benchmark values
+        const benchmarks = benchmarkSymbols.reduce((acc, symbol, idx) => {
+          acc[symbol] = benchmarksData[idx][i].close / initialBenchmarkValues[idx] * portfolioValue;
+          return acc;
+        }, {} as { [symbol: string]: number });
+        
         return {
           date,
           value,
-          benchmark: benchmarkData[i].close / initialBenchmarkValue * portfolioValue,
+          benchmarks
         };
       });
 
@@ -414,7 +436,7 @@ export const usePortfolioOptimization = () => {
           es: es95 * portfolioValue,
         },
         historicalData,
-        benchmarkSymbol,
+        benchmarkSymbols,
       });
 
     } catch (err) {
@@ -438,7 +460,7 @@ export const usePortfolioOptimization = () => {
       case "FEZ": return "Euro Stoxx 50";
       case "STOXX": return "Euro Stoxx 600";
       case "URTH": return "MSCI World Index";
-      default: return "S&P 500";
+      default: return symbol;
     }
   };
 

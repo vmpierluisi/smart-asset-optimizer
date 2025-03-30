@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Label } from "@/components/ui/label";
@@ -6,15 +5,15 @@ import { Label } from "@/components/ui/label";
 interface DateRangeSelectorProps {
   value: { start: Date; end: Date };
   onChange: (range: { start: Date; end: Date }) => void;
-  benchmark: string;
-  onBenchmarkChange: (benchmark: string) => void;
+  benchmarks: string[];
+  onBenchmarksChange: (benchmarks: string[]) => void;
 }
 
 export const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({ 
   value, 
   onChange, 
-  benchmark, 
-  onBenchmarkChange 
+  benchmarks, 
+  onBenchmarksChange 
 }) => {
   // Calculate which preset is active based on the current start date
   const getActivePreset = (): string => {
@@ -56,6 +55,14 @@ export const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
     onChange({ start, end });
   };
 
+  const handleBenchmarkChange = (values: string[]) => {
+    // Ensure at least one benchmark is selected
+    if (values.length === 0 && benchmarks.length > 0) {
+      return;
+    }
+    onBenchmarksChange(values);
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -78,12 +85,12 @@ export const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
       
       <div>
         <Label className="block text-sm font-medium text-gray-700 mb-2">
-          Select Benchmark
+          Select Benchmarks (Multiple)
         </Label>
         <ToggleGroup 
-          type="single" 
-          value={benchmark} 
-          onValueChange={onBenchmarkChange}
+          type="multiple" 
+          value={benchmarks} 
+          onValueChange={handleBenchmarkChange}
           className="flex flex-wrap justify-start gap-1 w-full"
         >
           <ToggleGroupItem value="SPY" className="flex-1 text-xs">S&P 500</ToggleGroupItem>

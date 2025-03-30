@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,8 +17,9 @@ interface PortfolioAnalysisProps {
     historicalData: {
       date: Date;
       value: number;
-      benchmark: number;
+      benchmarks: { [symbol: string]: number };
     }[];
+    benchmarkSymbols: string[];
   };
 }
 
@@ -47,8 +47,6 @@ export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results })
           <div className="text-center p-6">
             <p className="text-gray-600 mb-4">
               Click the button below to analyze your portfolio with AI. 
-              Our AI will compare your portfolio to the benchmark, identify key performance drivers, 
-              and suggest possible reasons for stock movements.
             </p>
           </div>
         )}

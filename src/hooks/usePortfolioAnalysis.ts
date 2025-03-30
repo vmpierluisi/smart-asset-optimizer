@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { toast } from "@/hooks/use-toast";
 
@@ -14,8 +13,9 @@ interface PortfolioData {
   historicalData: {
     date: Date;
     value: number;
-    benchmark: number;
+    benchmarks: { [symbol: string]: number };
   }[];
+  benchmarkSymbols: string[];
 }
 
 export const usePortfolioAnalysis = () => {
@@ -39,13 +39,23 @@ export const usePortfolioAnalysis = () => {
       // Extract stocks from the weights object
       const stocks = Object.keys(portfolioData.weights);
       
+      // Get primary benchmark (first one in the list)
+      const primaryBenchmark = portfolioData.benchmarkSymbols[0] || "SPY";
+      
       // Prepare historical data for the API
       const processedData = {
         portfolioData: portfolioData.historicalData.map(d => ({
           date: d.date.toISOString().split('T')[0],
           value: d.value
         })),
-        benchmarkData: portfolioData.historicalData.map(d => d.benchmark),
+        // Use the first benchmark as the primary benchmark for backward compatibility
+        benchmarkData: portfolioData.historicalData.map(d => d.benchmarks[primaryBenchmark]),
+        // Also send all benchmarks data
+        allBenchmarksData: portfolioData.benchmarkSymbols.reduce((acc, symbol) => {
+          acc[symbol] = portfolioData.historicalData.map(d => d.benchmarks[symbol]);
+          return acc;
+        }, {} as Record<string, number[]>),
+        benchmarkSymbols: portfolioData.benchmarkSymbols,
         stocks,
         weights: portfolioData.weights,
         metrics: portfolioData.metrics

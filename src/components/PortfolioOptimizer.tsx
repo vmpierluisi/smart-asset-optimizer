@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { StockInput } from './StockInput';
 import { DateRangeSelector } from './DateRangeSelector';
@@ -15,7 +14,7 @@ export const PortfolioOptimizer: React.FC = () => {
   });
   const [portfolioValue, setPortfolioValue] = useState<number>(10000);
   const [riskAversion, setRiskAversion] = useState<number>(2);
-  const [benchmark, setBenchmark] = useState<string>("SPY"); // Default to S&P 500
+  const [benchmarks, setBenchmarks] = useState<string[]>(["SPY"]); // Default to S&P 500
 
   const { optimizePortfolio, isLoading, error, results } = usePortfolioOptimization();
 
@@ -24,7 +23,13 @@ export const PortfolioOptimizer: React.FC = () => {
       alert("Please select at least 2 stocks");
       return;
     }
-    await optimizePortfolio(stocks, dateRange, portfolioValue, riskAversion, benchmark);
+    
+    if (benchmarks.length === 0) {
+      alert("Please select at least one benchmark");
+      return;
+    }
+    
+    await optimizePortfolio(stocks, dateRange, portfolioValue, riskAversion, benchmarks);
   };
 
   return (
@@ -46,8 +51,8 @@ export const PortfolioOptimizer: React.FC = () => {
               <DateRangeSelector 
                 value={dateRange} 
                 onChange={setDateRange} 
-                benchmark={benchmark}
-                onBenchmarkChange={setBenchmark}
+                benchmarks={benchmarks}
+                onBenchmarksChange={setBenchmarks}
               />
               
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
