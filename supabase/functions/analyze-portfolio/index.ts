@@ -85,12 +85,12 @@ serve(async (req) => {
        - Key characteristics (market cap, sector, business model)
        - Recent performance relative to the market
        - Current analyst consensus (if available)
+       - Include 5 links per firm being analyzed. The news articles used should not be more than 6 months old.
 
     3. Explain how these stocks work together as a portfolio - discuss diversification benefits or concentration risks.
 
     4. Provide your professional opinion on the portfolio's risk/reward profile based on the metrics.
 
-    Format your response in markdown with clear headings for each section. Include links to important recent news articles for each stock discussed.
     `;
 
     if (!openAIApiKey) {
@@ -111,7 +111,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "gpt-4o-search-preview",
         messages: [
-          { role: "system", content: "You are a financial analyst that provides comprehensive, detailed stock analysis with supporting news article links." },
+          { role: "system", content: "You are a financial analyst that provides comprehensive, detailed stock analysis with supporting news article links. Format your response in markdown with clear headings for each section." },
           { role: "user", content: prompt },
         ],
         max_tokens: 2000,
