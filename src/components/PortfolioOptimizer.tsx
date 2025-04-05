@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { OptimizationResults } from './OptimizationResults';
 import { usePortfolioOptimization } from '../hooks/usePortfolioOptimization';
@@ -31,7 +32,7 @@ export const PortfolioOptimizer: React.FC = () => {
   };
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full w-full">
       <SidebarProvider>
         <AnalysisSidebar 
           stocks={stocks}
@@ -49,7 +50,7 @@ export const PortfolioOptimizer: React.FC = () => {
         />
       </SidebarProvider>
       
-      <div className="flex-1 p-4 md:p-6 bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="flex-1 p-4 md:p-6 bg-gradient-to-br from-gray-50 to-gray-100 w-full">
         <div className="max-w-5xl mx-auto space-y-6 animate-fadeIn">
           <header className="text-center space-y-3">
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Portfolio Optimizer</h1>
