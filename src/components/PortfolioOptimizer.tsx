@@ -50,8 +50,8 @@ export const PortfolioOptimizer: React.FC = () => {
         />
       </SidebarProvider>
       
-      <div className="flex-1 p-4 md:p-6 bg-gradient-to-br from-gray-50 to-gray-100 w-full">
-        <div className="max-w-5xl mx-auto space-y-6 animate-fadeIn">
+      <div className="flex-1 p-4 md:p-6 bg-gradient-to-br from-gray-50 to-gray-100 w-full flex justify-center items-center">
+        <div className="max-w-5xl w-full space-y-6 animate-fadeIn">
           <header className="text-center space-y-3">
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Portfolio Optimizer</h1>
             <p className="text-md md:text-lg text-gray-600">Optimize your portfolio using modern portfolio theory</p>
