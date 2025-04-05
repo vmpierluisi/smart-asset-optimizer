@@ -1,10 +1,8 @@
 import React, { useState } from 'react';
-import { StockInput } from './StockInput';
-import { DateRangeSelector } from './DateRangeSelector';
-import { PortfolioValueInput } from './PortfolioValueInput';
-import { RiskAversionInput } from './RiskAversionInput';
 import { OptimizationResults } from './OptimizationResults';
 import { usePortfolioOptimization } from '../hooks/usePortfolioOptimization';
+import { AnalysisSidebar } from './AnalysisSidebar';
+import { SidebarProvider } from "@/components/ui/sidebar";
 
 export const PortfolioOptimizer: React.FC = () => {
   const [stocks, setStocks] = useState<string[]>([]);
@@ -33,51 +31,48 @@ export const PortfolioOptimizer: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen p-8 bg-gradient-to-br from-gray-50 to-gray-100">
-      <div className="max-w-4xl mx-auto space-y-8 animate-fadeIn">
-        <header className="text-center space-y-4">
-          <h1 className="text-4xl font-bold text-gray-900">Portfolio Optimizer</h1>
-          <p className="text-lg text-gray-600">Optimize your portfolio using modern portfolio theory</p>
-        </header>
+    <div className="flex h-full">
+      <SidebarProvider>
+        <AnalysisSidebar 
+          stocks={stocks}
+          setStocks={setStocks}
+          dateRange={dateRange}
+          setDateRange={setDateRange}
+          portfolioValue={portfolioValue}
+          setPortfolioValue={setPortfolioValue}
+          riskAversion={riskAversion}
+          setRiskAversion={setRiskAversion}
+          benchmarks={benchmarks}
+          setBenchmarks={setBenchmarks}
+          onOptimize={handleOptimize}
+          isLoading={isLoading}
+        />
+      </SidebarProvider>
+      
+      <div className="flex-1 p-4 md:p-6 bg-gradient-to-br from-gray-50 to-gray-100">
+        <div className="max-w-5xl mx-auto space-y-6 animate-fadeIn">
+          <header className="text-center space-y-3">
+            <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Portfolio Optimizer</h1>
+            <p className="text-md md:text-lg text-gray-600">Optimize your portfolio using modern portfolio theory</p>
+          </header>
 
-        {/* Input Section */}
-        <div className="glassmorphism p-6 rounded-xl">
-          <div className="grid gap-8 md:grid-cols-2">
-            <div className="space-y-6">
-              <StockInput stocks={stocks} onChange={setStocks} />
+          {/* Results Section */}
+          {error && (
+            <div className="text-red-500 p-4 bg-red-50 rounded-xl">
+              Error: {error.message}
             </div>
-            
-            <div className="space-y-6">
-              <DateRangeSelector 
-                value={dateRange} 
-                onChange={setDateRange} 
-                benchmarks={benchmarks}
-                onBenchmarksChange={setBenchmarks}
-              />
-              
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <PortfolioValueInput value={portfolioValue} onChange={setPortfolioValue} />
-                <RiskAversionInput value={riskAversion} onChange={setRiskAversion} />
+          )}
+          {results && <OptimizationResults results={results} />}
+          
+          {!results && !error && (
+            <div className="flex items-center justify-center h-[60vh] text-center text-gray-500">
+              <div>
+                <p className="mb-2">Configure your portfolio settings in the sidebar</p>
+                <p>Then click "Optimize Portfolio" to see results</p>
               </div>
-              
-              <button
-                onClick={handleOptimize}
-                disabled={isLoading}
-                className="btn-primary w-full mt-2"
-              >
-                {isLoading ? "Optimizing..." : "Optimize Portfolio"}
-              </button>
             </div>
-          </div>
+          )}
         </div>
-
-        {/* Results Section */}
-        {error && (
-          <div className="text-red-500 p-4 bg-red-50 rounded-xl">
-            Error: {error.message}
-          </div>
-        )}
-        {results && <OptimizationResults results={results} />}
       </div>
     </div>
   );

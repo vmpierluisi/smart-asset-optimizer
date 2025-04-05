@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -12,14 +11,16 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <SidebarProvider>
-        <div className="flex min-h-screen w-full">
+      <div className="flex min-h-screen w-full">
+        <SidebarProvider>
           <AppSidebar />
-          <main className="flex-1">
-            <Outlet />
-          </main>
-        </div>
-      </SidebarProvider>
+          <div className="flex-1">
+            <SidebarProvider>
+              <Outlet />
+            </SidebarProvider>
+          </div>
+        </SidebarProvider>
+      </div>
       <Toaster />
       <Sonner />
     </TooltipProvider>

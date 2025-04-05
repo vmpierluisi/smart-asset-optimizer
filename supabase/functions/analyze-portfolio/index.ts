@@ -117,7 +117,7 @@ serve(async (req) => {
         max_tokens: 2000,
         stream: true, // Enable streaming
         web_search_options: {
-          search_context_size: "low",
+          search_context_size: "high",
         },
       }),
     });

@@ -46,7 +46,7 @@ serve(async (req) => {
       symbol: item.symbol,
       name: item.name,
       exchange: item.exchangeShortName || 'Unknown',
-    })).slice(0, 6); // Limit to 6 results like the previous implementation
+    })).slice(0, 10); // Limit to 6 results like the previous implementation
 
     return new Response(
       JSON.stringify(stockSuggestions),

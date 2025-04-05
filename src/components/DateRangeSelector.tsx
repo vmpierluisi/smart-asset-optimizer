@@ -1,6 +1,7 @@
 import React from 'react';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 
 interface DateRangeSelectorProps {
   value: { start: Date; end: Date };
@@ -55,12 +56,16 @@ export const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
     onChange({ start, end });
   };
 
-  const handleBenchmarkChange = (values: string[]) => {
-    // Ensure at least one benchmark is selected
-    if (values.length === 0 && benchmarks.length > 0) {
-      return;
+  const handleBenchmarkChange = (benchmark: string) => {
+    // Toggle benchmark selection
+    if (benchmarks.includes(benchmark)) {
+      // Don't allow removing the last benchmark
+      if (benchmarks.length > 1) {
+        onBenchmarksChange(benchmarks.filter(b => b !== benchmark));
+      }
+    } else {
+      onBenchmarksChange([...benchmarks, benchmark]);
     }
-    onBenchmarksChange(values);
   };
 
   return (
@@ -73,13 +78,13 @@ export const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
           type="single" 
           value={getActivePreset()} 
           onValueChange={handlePresetChange}
-          className="flex flex-wrap justify-start gap-1 w-full"
+          className="flex justify-between gap-1 w-full"
         >
-          <ToggleGroupItem value="6m" className="flex-1">6M</ToggleGroupItem>
-          <ToggleGroupItem value="1y" className="flex-1">1Y</ToggleGroupItem>
-          <ToggleGroupItem value="2y" className="flex-1">2Y</ToggleGroupItem>
-          <ToggleGroupItem value="3y" className="flex-1">3Y</ToggleGroupItem>
-          <ToggleGroupItem value="5y" className="flex-1">5Y</ToggleGroupItem>
+          <ToggleGroupItem value="6m" className="min-w-0 text-sm px-2 py-1">6M</ToggleGroupItem>
+          <ToggleGroupItem value="1y" className="min-w-0 text-sm px-2 py-1">1Y</ToggleGroupItem>
+          <ToggleGroupItem value="2y" className="min-w-0 text-sm px-2 py-1">2Y</ToggleGroupItem>
+          <ToggleGroupItem value="3y" className="min-w-0 text-sm px-2 py-1">3Y</ToggleGroupItem>
+          <ToggleGroupItem value="5y" className="min-w-0 text-sm px-2 py-1">5Y</ToggleGroupItem>
         </ToggleGroup>
       </div>
       
@@ -87,19 +92,56 @@ export const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
         <Label className="block text-sm font-medium text-gray-700 mb-2">
           Select Benchmarks (Multiple)
         </Label>
-        <ToggleGroup 
-          type="multiple" 
-          value={benchmarks} 
-          onValueChange={handleBenchmarkChange}
-          className="flex flex-wrap justify-start gap-1 w-full"
-        >
-          <ToggleGroupItem value="SPY" className="flex-1 text-xs">S&P 500</ToggleGroupItem>
-          <ToggleGroupItem value="DIA" className="flex-1 text-xs">DOW</ToggleGroupItem>
-          <ToggleGroupItem value="QQQ" className="flex-1 text-xs">NASDAQ</ToggleGroupItem>
-          <ToggleGroupItem value="FEZ" className="flex-1 text-xs">EURO 50</ToggleGroupItem>
-          <ToggleGroupItem value="STOXX" className="flex-1 text-xs">EURO 600</ToggleGroupItem>
-          <ToggleGroupItem value="URTH" className="flex-1 text-xs">MSCI</ToggleGroupItem>
-        </ToggleGroup>
+        <div className="grid grid-cols-3 gap-1">
+          <Button
+            variant={benchmarks.includes("SPY") ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleBenchmarkChange("SPY")}
+            className="text-xs py-1 h-auto"
+          >
+            S&P 500
+          </Button>
+          <Button
+            variant={benchmarks.includes("DIA") ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleBenchmarkChange("DIA")}
+            className="text-xs py-1 h-auto"
+          >
+            DOW
+          </Button>
+          <Button
+            variant={benchmarks.includes("QQQ") ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleBenchmarkChange("QQQ")}
+            className="text-xs py-1 h-auto"
+          >
+            NASDAQ
+          </Button>
+          <Button
+            variant={benchmarks.includes("FEZ") ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleBenchmarkChange("FEZ")}
+            className="text-xs py-1 h-auto"
+          >
+            EURO 50
+          </Button>
+          <Button
+            variant={benchmarks.includes("STOXX") ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleBenchmarkChange("STOXX")}
+            className="text-xs py-1 h-auto"
+          >
+            EURO 600
+          </Button>
+          <Button
+            variant={benchmarks.includes("URTH") ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleBenchmarkChange("URTH")}
+            className="text-xs py-1 h-auto"
+          >
+            MSCI
+          </Button>
+        </div>
       </div>
     </div>
   );
