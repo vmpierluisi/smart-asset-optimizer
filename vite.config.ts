@@ -20,6 +20,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    allowedHosts: ['92226cd8-7c9b-41ca-989c-3a85adb4fd98.lovableproject.com'],
     proxy: {
       '/api/analyze-portfolio': {
         target: 'http://localhost:54321/functions/v1/analyze-portfolio',
