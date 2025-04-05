@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { OptimizationResults } from './OptimizationResults';
 import { usePortfolioOptimization } from '../hooks/usePortfolioOptimization';
 import { AnalysisSidebar } from './AnalysisSidebar';
-import { SidebarProvider } from "@/components/ui/sidebar";
 
 export const PortfolioOptimizer: React.FC = () => {
   const [stocks, setStocks] = useState<string[]>([]);
@@ -31,49 +30,47 @@ export const PortfolioOptimizer: React.FC = () => {
   };
 
   return (
-    <div className="flex h-full">
-      <SidebarProvider>
-        <AnalysisSidebar 
-          stocks={stocks}
-          setStocks={setStocks}
-          dateRange={dateRange}
-          setDateRange={setDateRange}
-          portfolioValue={portfolioValue}
-          setPortfolioValue={setPortfolioValue}
-          riskAversion={riskAversion}
-          setRiskAversion={setRiskAversion}
-          benchmarks={benchmarks}
-          setBenchmarks={setBenchmarks}
-          onOptimize={handleOptimize}
-          isLoading={isLoading}
-        />
-      </SidebarProvider>
+    <div className="flex h-full w-full overflow-hidden">
+      <AnalysisSidebar 
+        stocks={stocks}
+        setStocks={setStocks}
+        dateRange={dateRange}
+        setDateRange={setDateRange}
+        portfolioValue={portfolioValue}
+        setPortfolioValue={setPortfolioValue}
+        riskAversion={riskAversion}
+        setRiskAversion={setRiskAversion}
+        benchmarks={benchmarks}
+        setBenchmarks={setBenchmarks}
+        onOptimize={handleOptimize}
+        isLoading={isLoading}
+      />
       
-      <div className="flex-1 p-4 md:p-6 bg-gradient-to-br from-gray-50 to-gray-100">
-        <div className="max-w-5xl mx-auto space-y-6 animate-fadeIn">
-          <header className="text-center space-y-3">
-            <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Portfolio Optimizer</h1>
-            <p className="text-md md:text-lg text-gray-600">Optimize your portfolio using modern portfolio theory</p>
+      <main className="grow w-full bg-gradient-to-br from-gray-50 to-gray-100 overflow-auto">
+        <div className="w-full h-full flex flex-col p-[30px]">
+          <header className="text-left mb-6">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900">Portfolio Optimizer</h1>
+            <p className="text-sm sm:text-md md:text-lg text-gray-600">Optimize your portfolio using modern portfolio theory</p>
           </header>
 
           {/* Results Section */}
           {error && (
-            <div className="text-red-500 p-4 bg-red-50 rounded-xl">
+            <div className="text-red-500 p-4 bg-red-50 rounded-xl mb-6">
               Error: {error.message}
             </div>
           )}
           {results && <OptimizationResults results={results} />}
           
           {!results && !error && (
-            <div className="flex items-center justify-center h-[60vh] text-center text-gray-500">
-              <div>
-                <p className="mb-2">Configure your portfolio settings in the sidebar</p>
+            <div className="flex w-full h-full items-center justify-center text-center text-gray-500 flex-1">
+              <div className="p-8 rounded-xl bg-white/50 backdrop-blur-sm shadow-sm">
+                <p className="mb-2 text-lg">Configure your portfolio settings in the sidebar</p>
                 <p>Then click "Optimize Portfolio" to see results</p>
               </div>
             </div>
           )}
         </div>
-      </div>
+      </main>
     </div>
   );
 };

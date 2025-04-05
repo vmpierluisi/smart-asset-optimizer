@@ -1,19 +1,18 @@
-
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 
 const LandingPage = () => {
   return (
-    <div className="container mx-auto px-4 py-12">
-      <div className="mx-auto max-w-4xl space-y-12">
-        <section className="space-y-6 text-center">
+    <div className="w-full p-[30px]">
+      <div className="w-full space-y-12">
+        <section className="space-y-6 text-left">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl md:text-6xl">
             Modern Portfolio Optimizer
           </h1>
-          <p className="mx-auto max-w-3xl text-xl text-muted-foreground">
+          <p className="max-w-3xl text-xl text-muted-foreground">
             Optimize your investment portfolio using advanced mathematical models and modern portfolio theory
           </p>
-          <div className="flex justify-center gap-4">
+          <div className="flex gap-4">
             <Button asChild size="lg">
               <Link to="/optimizer">Try Portfolio Optimizer</Link>
             </Button>
@@ -58,7 +57,7 @@ const LandingPage = () => {
               <p>Adjust your risk aversion level and see how it affects the optimal allocation of your investments.</p>
             </div>
           </div>
-          <div className="flex justify-center pt-8">
+          <div className="flex pt-8">
             <Button asChild size="lg">
               <Link to="/optimizer">Get Started Now</Link>
             </Button>

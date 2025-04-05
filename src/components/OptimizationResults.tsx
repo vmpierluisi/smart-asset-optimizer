@@ -148,14 +148,14 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
   };
 
   return (
-    <div className="space-y-6 p-4 max-w-4xl mx-auto">
+    <div className="space-y-6 w-full flex-grow">
       {/* Main Chart Section */}
-      <div className="bg-white rounded-xl shadow-sm p-6">
+      <div className="bg-white rounded-xl shadow-sm p-[30px]">
         <h3 className="text-xl font-semibold mb-2">Portfolio Performance</h3>
         <p className="text-sm text-gray-600 mb-4">
           Comparing your optimized portfolio against selected benchmarks
         </p>
-        <div ref={containerRef} className="w-full h-[500px]" style={{ position: 'relative' }}>
+        <div ref={containerRef} className="w-full h-[350px] sm:h-[400px] md:h-[500px] lg:h-[550px] relative" style={{ minHeight: '300px' }}>
           <svg width={width} height={height}>
             <Group>
               <GridRows
@@ -210,25 +210,25 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
               ))}
 
               {/* Legend */}
-              <Group transform={`translate(${width / 2 - 150}, ${height - 30})`}>
+              <Group transform={`translate(${Math.max(10, width / 2 - (results.benchmarkSymbols.length * 50))}, ${height - 30})`}>
                 <text x={15} y={0} dy="1em" fontSize={12} fill="#059669">Portfolio</text>
                 <line x1={0} y1={12} x2={10} y2={12} stroke="#059669" strokeWidth={2} />
                 
                 {results.benchmarkSymbols.map((symbol, index) => (
                   <React.Fragment key={symbol}>
                     <text 
-                      x={15 + (index + 1) * 100} 
+                      x={15 + (index + 1) * Math.min(100, Math.max(60, width / (results.benchmarkSymbols.length + 1)))} 
                       y={0} 
                       dy="1em" 
                       fontSize={12} 
                       fill={BENCHMARK_COLORS[symbol] || '#64748B'}
                     >
-                      {getBenchmarkName(symbol)}
+                      {width < 500 ? symbol : getBenchmarkName(symbol)}
                     </text>
                     <line 
-                      x1={index * 100 + 100} 
+                      x1={(index + 1) * Math.min(100, Math.max(60, width / (results.benchmarkSymbols.length + 1)))} 
                       y1={12} 
-                      x2={index * 100 + 110} 
+                      x2={(index + 1) * Math.min(100, Math.max(60, width / (results.benchmarkSymbols.length + 1))) + 10} 
                       y2={12} 
                       stroke={BENCHMARK_COLORS[symbol] || '#64748B'} 
                       strokeWidth={1.5} 
@@ -324,9 +324,9 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
       </div>
 
       {/* Key Metrics Card */}
-      <div className="bg-white rounded-xl shadow-sm p-6">
+      <div className="bg-white rounded-xl shadow-sm p-[30px]">
         <h3 className="text-lg font-semibold mb-4">Key Metrics</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
           <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
             <span className="text-gray-600">Expected Daily Return</span>
             <span className={`font-mono font-medium ${results.metrics.expectedReturn >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
@@ -355,10 +355,10 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
       </div>
 
       {/* Asset Allocation Card */}
-      <div className="bg-white rounded-xl shadow-sm p-6">
+      <div className="bg-white rounded-xl shadow-sm p-[30px]">
         <h3 className="text-lg font-semibold mb-4">Asset Allocation</h3>
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="h-[300px]">
+        <div className="flex flex-col lg:flex-row gap-6">
+          <div className="lg:w-1/2 h-[250px] sm:h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -378,7 +378,7 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <div className="space-y-2">
+          <div className="lg:w-1/2 space-y-2">
             {pieData.map((entry, index) => (
               <div key={entry.name} className="flex items-center justify-between p-3 bg-gray-50 rounded">
                 <div className="flex items-center">

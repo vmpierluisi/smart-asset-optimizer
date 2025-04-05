@@ -34,17 +34,17 @@ export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results })
   const displayContent = isAnalyzing ? streamedContent : analysis;
 
   return (
-    <Card className="bg-white rounded-xl shadow-sm my-6">
-      <CardHeader>
+    <Card className="bg-white rounded-xl shadow-sm my-6 w-full">
+      <CardHeader className="p-[30px] pb-0 text-left">
         <CardTitle className="text-xl font-semibold">AI Portfolio Insights</CardTitle>
         <CardDescription>
           Get AI-powered analysis of your portfolio performance
         </CardDescription>
       </CardHeader>
       
-      <CardContent>
+      <CardContent className="p-[30px]">
         {!displayContent && !isAnalyzing && !error && (
-          <div className="text-center p-6">
+          <div className="text-left">
             <p className="text-gray-600 mb-4">
               Click the button below to analyze your portfolio with AI. 
             </p>
@@ -52,7 +52,7 @@ export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results })
         )}
         
         {isAnalyzing && !streamedContent && (
-          <div className="text-center p-6">
+          <div className="text-left">
             <div className="animate-pulse flex space-x-4 mb-4">
               <div className="flex-1 space-y-6 py-1">
                 <div className="h-2 bg-gray-200 rounded"></div>
@@ -115,7 +115,7 @@ export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results })
         )}
       </CardContent>
       
-      <CardFooter className="flex justify-center">
+      <CardFooter className="p-[30px] pt-0 flex justify-start">
         {!isAnalyzing && (
           <Button 
             onClick={handleAnalyze} 

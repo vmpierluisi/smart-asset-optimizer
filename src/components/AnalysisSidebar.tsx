@@ -60,7 +60,7 @@ export function AnalysisSidebar({
     <div 
       className={cn(
         "h-full transition-all duration-300 bg-sidebar text-sidebar-foreground border-r flex",
-        isExpanded ? "w-[24rem] min-w-[24rem]" : "w-[3rem] min-w-[3rem]"
+        isExpanded ? "w-[20rem] min-w-[20rem]" : "w-[3rem] min-w-[3rem]"
       )}
     >
       <div className="flex flex-col h-full w-full">
