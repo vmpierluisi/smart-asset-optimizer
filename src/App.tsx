@@ -14,7 +14,7 @@ const App = () => (
       <div className="flex min-h-screen w-full">
         <SidebarProvider>
           <AppSidebar />
-          <div className="flex-1">
+          <div className="flex-1 w-full max-w-full overflow-auto">
             <SidebarProvider>
               <Outlet />
             </SidebarProvider>
