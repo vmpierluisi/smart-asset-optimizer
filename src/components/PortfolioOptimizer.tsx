@@ -50,9 +50,9 @@ export const PortfolioOptimizer: React.FC = () => {
         />
       </SidebarProvider>
       
-      <div className="flex-1 p-4 md:p-6 bg-gradient-to-br from-gray-50 to-gray-100 w-full flex justify-center items-center">
-        <div className="max-w-5xl w-full space-y-6 animate-fadeIn">
-          <header className="text-center space-y-3">
+      <div className="flex-1 p-4 md:p-6 bg-gradient-to-br from-gray-50 to-gray-100 w-full">
+        <div className="max-w-3xl mx-auto space-y-6 animate-fadeIn text-center">
+          <header className="space-y-3">
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Portfolio Optimizer</h1>
             <p className="text-md md:text-lg text-gray-600">Optimize your portfolio using modern portfolio theory</p>
           </header>
@@ -66,10 +66,10 @@ export const PortfolioOptimizer: React.FC = () => {
           {results && <OptimizationResults results={results} />}
           
           {!results && !error && (
-            <div className="flex items-center justify-center h-[60vh] text-center text-gray-500">
+            <div className="flex items-center justify-center h-[60vh]">
               <div>
-                <p className="mb-2">Configure your portfolio settings in the sidebar</p>
-                <p>Then click "Optimize Portfolio" to see results</p>
+                <p className="mb-2 text-gray-500">Configure your portfolio settings in the sidebar</p>
+                <p className="text-gray-500">Then click "Optimize Portfolio" to see results</p>
               </div>
             </div>
           )}
