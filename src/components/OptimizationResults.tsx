@@ -11,6 +11,11 @@ import { bisector } from 'd3-array';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { useResizeObserver } from '../hooks/useResizeObserver';
 import { PortfolioAnalysis } from './PortfolioAnalysis';
+import { usePortfolioAnalysis } from '@/hooks/usePortfolioAnalysis';
+import { usePortfolioAnalysisParsed } from '@/hooks/usePortfolioAnalysisParsed';
+import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 
 interface HistoricalData {
   date: Date;
@@ -63,6 +68,20 @@ const getBenchmarkName = (symbol: string): string => {
 const bisectDate = bisector<HistoricalData, Date>((d) => d.date).left;
 
 export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ results }) => {
+  const { analyzePortfolio, analysis, isAnalyzing, error, streamedContent, analysisResults } = usePortfolioAnalysis();
+  
+  // Use separate analyses directly to ensure proper content separation
+  const parsedAnalysis = usePortfolioAnalysisParsed(streamedContent, analysisResults);
+  
+  const displayContent = streamedContent;
+  
+  console.log("PARSED ANALYSIS:", parsedAnalysis);
+  console.log("ANALYSIS RESULTS:", analysisResults);
+  
+  const handleAnalyze = () => {
+    analyzePortfolio(results);
+  };
+
   const [tooltipData, setTooltipData] = React.useState<HistoricalData | null>(null);
   const [tooltipLeft, setTooltipLeft] = React.useState<number | null>(null);
   const [tooltipTop, setTooltipTop] = React.useState<number | null>(null);
@@ -215,7 +234,7 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
                 <line x1={0} y1={12} x2={10} y2={12} stroke="#059669" strokeWidth={2} />
                 
                 {results.benchmarkSymbols.map((symbol, index) => (
-                  <React.Fragment key={symbol}>
+                  <g key={symbol}>
                     <text 
                       x={15 + (index + 1) * Math.min(100, Math.max(60, width / (results.benchmarkSymbols.length + 1)))} 
                       y={0} 
@@ -233,7 +252,7 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
                       stroke={BENCHMARK_COLORS[symbol] || '#64748B'} 
                       strokeWidth={1.5} 
                     />
-                  </React.Fragment>
+                  </g>
                 ))}
               </Group>
 
@@ -321,6 +340,40 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
             </Tooltip>
           )}
         </div>
+
+        {/* Portfolio and Benchmark Performance Analysis */}
+        {(parsedAnalysis.portfolioPerformance || parsedAnalysis.benchmarkPerformance) && (
+          <div className="mt-2 border-t pt-4">
+            <div className="prose prose-sm max-w-none overflow-auto">
+              {parsedAnalysis.portfolioPerformance && (
+                <div className="mb-2 p-2 border-l-4 border-green-500">
+                  <h4 className="text-sm font-bold mb-2">Portfolio Performance Content:</h4>
+                  <MarkdownRenderer content={parsedAnalysis.portfolioPerformance} />
+                </div>
+              )}
+              
+              {parsedAnalysis.benchmarkPerformance && (
+                <div className="mb-2 p-2 border-l-4 border-blue-500">
+                  <h4 className="text-sm font-bold mb-2">Benchmark Performance Content:</h4>
+                  <MarkdownRenderer content={parsedAnalysis.benchmarkPerformance} />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {/* Analysis Button */}
+        {!displayContent && !isAnalyzing && (
+          <div className="mt-0 flex justify-start">
+            <Button 
+              onClick={handleAnalyze} 
+              disabled={isAnalyzing}
+              className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700"
+            >
+              Analyze My Portfolio
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Key Metrics Card */}
@@ -352,6 +405,18 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
             </span>
           </div>
         </div>
+        
+        {/* Risk Metrics Analysis */}
+        {parsedAnalysis.riskMetrics && (
+          <div className="mt-2 border-t pt-4">
+            <div className="prose prose-sm max-w-none overflow-auto">
+              <div className="p-2 border-l-4 border-purple-500">
+                <h4 className="text-sm font-bold mb-2">Risk Metrics Content:</h4>
+                <MarkdownRenderer content={parsedAnalysis.riskMetrics} />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Asset Allocation Card */}
@@ -398,8 +463,70 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
         </div>
       </div>
 
-      {/* Portfolio Analysis */}
-      <PortfolioAnalysis results={results} />
+      {/* Portfolio Insights Card - With debug info */}
+      {parsedAnalysis.portfolioInsights && (
+        <Card className="bg-white rounded-xl shadow-sm my-6 w-full">
+          <CardHeader className="p-[30px] pb-0 text-left">
+            <CardTitle className="text-xl font-semibold">AI Portfolio Insights</CardTitle>
+            <CardDescription>
+              Detailed analysis of your portfolio composition and stock recommendations
+            </CardDescription>
+          </CardHeader>
+          
+          <CardContent className="p-[30px]">
+            {/* Debug info */}
+            {isAnalyzing && !streamedContent && (
+              <div className="text-left">
+                <div className="animate-pulse flex space-x-4 mb-4">
+                  <div className="flex-1 space-y-6 py-1">
+                    <div className="h-2 bg-gray-200 rounded"></div>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="h-2 bg-gray-200 rounded col-span-2"></div>
+                        <div className="h-2 bg-gray-200 rounded col-span-1"></div>
+                      </div>
+                      <div className="h-2 bg-gray-200 rounded"></div>
+                    </div>
+                  </div>
+                </div>
+                <p className="text-gray-600">Analyzing your portfolio performance...</p>
+              </div>
+            )}
+            
+            {error && (
+              <div className="text-center p-6">
+                <p className="text-red-500 mb-4">
+                  Error: {error.message}
+                </p>
+                <Button onClick={handleAnalyze} variant="outline">
+                  Try Again
+                </Button>
+              </div>
+            )}
+            
+            {parsedAnalysis.portfolioInsights && (
+              <div className="prose prose-sm max-w-none overflow-auto">
+                <div className="p-2 border-l-4 border-amber-500">
+                  <h4 className="text-sm font-bold mb-2">Portfolio Insights Content:</h4>
+                  <MarkdownRenderer content={parsedAnalysis.portfolioInsights} />
+                </div>
+              </div>
+            )}
+          </CardContent>
+          
+          <CardFooter className="p-[30px] pt-0 flex justify-start">
+            {!isAnalyzing && (
+              <Button 
+                onClick={handleAnalyze} 
+                disabled={isAnalyzing}
+                className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700"
+              >
+                {displayContent ? "Refresh Analysis" : "Analyze My Portfolio"}
+              </Button>
+            )}
+          </CardFooter>
+        </Card>
+      )}
     </div>
   );
 };

@@ -2,7 +2,8 @@ import React from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePortfolioAnalysis } from '@/hooks/usePortfolioAnalysis';
-import ReactMarkdown from 'react-markdown';
+import { usePortfolioAnalysisParsed } from '@/hooks/usePortfolioAnalysisParsed';
+import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 
 interface PortfolioAnalysisProps {
   results: {
@@ -24,7 +25,8 @@ interface PortfolioAnalysisProps {
 }
 
 export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results }) => {
-  const { analyzePortfolio, analysis, isAnalyzing, error, streamedContent } = usePortfolioAnalysis();
+  const { analyzePortfolio, analysis, analysisResults, isAnalyzing, error, streamedContent } = usePortfolioAnalysis();
+  const { portfolioPerformance, benchmarkPerformance, riskMetrics, portfolioInsights } = usePortfolioAnalysisParsed(analysis, analysisResults);
 
   const handleAnalyze = () => {
     analyzePortfolio(results);
@@ -80,37 +82,54 @@ export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results })
           </div>
         )}
         
-        {displayContent && (
-          <div className="prose prose-sm max-w-none overflow-auto">
-            <ReactMarkdown 
-              components={{
-                a: ({ node, ...props }) => (
-                  <a 
-                    {...props} 
-                    className="text-blue-600 hover:underline" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                  />
-                ),
-                h2: ({ node, ...props }) => (
-                  <h2 {...props} className="text-lg font-bold mt-6 mb-2" />
-                ),
-                h3: ({ node, ...props }) => (
-                  <h3 {...props} className="text-md font-semibold mt-4 mb-2" />
-                ),
-                p: ({ node, ...props }) => (
-                  <p {...props} className="my-2" />
-                ),
-                ul: ({ node, ...props }) => (
-                  <ul {...props} className="list-disc pl-5 my-2" />
-                ),
-                li: ({ node, ...props }) => (
-                  <li {...props} className="mb-1" />
-                ),
-              }}
-            >
-              {displayContent}
-            </ReactMarkdown>
+        {displayContent && !error && (
+          <div className="space-y-6">
+            {/* Performance Section */}
+            {(portfolioPerformance || benchmarkPerformance) && (
+              <Card className="bg-gray-50 overflow-hidden">
+                <CardHeader className="bg-white p-4">
+                  <CardTitle className="text-md">Performance Analysis</CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 prose prose-sm max-w-none overflow-auto">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {portfolioPerformance && (
+                      <div>
+                        <MarkdownRenderer content={portfolioPerformance} />
+                      </div>
+                    )}
+                    {benchmarkPerformance && (
+                      <div>
+                        <MarkdownRenderer content={benchmarkPerformance} />
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            
+            {/* Risk Metrics Section */}
+            {riskMetrics && (
+              <Card className="bg-gray-50 overflow-hidden">
+                <CardHeader className="bg-white p-4">
+                  <CardTitle className="text-md">Key Metrics</CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 prose prose-sm max-w-none overflow-auto">
+                  <MarkdownRenderer content={riskMetrics} />
+                </CardContent>
+              </Card>
+            )}
+            
+            {/* Stock Analysis Section */}
+            {portfolioInsights && (
+              <Card className="bg-gray-50 overflow-hidden">
+                <CardHeader className="bg-white p-4">
+                  <CardTitle className="text-md">Stock Analysis</CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 prose prose-sm max-w-none overflow-auto">
+                  <MarkdownRenderer content={portfolioInsights} />
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
       </CardContent>

@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
@@ -28,9 +27,9 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    console.log("Received data:", body);
+    console.log("Received data for performance analysis:", body);
 
-    const { portfolioData, benchmarkData, stocks, weights, metrics } = body;
+    const { portfolioData, benchmarkData, allBenchmarksData, benchmarkSymbols } = body;
 
     // Portfolio performance calculations
     const portfolioPerformance = {
@@ -41,55 +40,38 @@ serve(async (req) => {
     };
 
     // Benchmark performance calculations
+    const primaryBenchmark = benchmarkSymbols[0] || "SPY";
     const benchmarkPerformance = {
       startValue: benchmarkData[0],
       endValue: benchmarkData[benchmarkData.length - 1],
       percentageChange: ((benchmarkData[benchmarkData.length - 1] - benchmarkData[0]) / benchmarkData[0]) * 100,
     };
 
-    // Stock weight summary
-    const stockWeightsSummary = stocks
-      .map((stock) => `${stock}: ${(weights[stock] * 100).toFixed(2)}%`)
-      .join(", ");
-
-    // **Enhanced Prompt for OpenAI**
+    // Enhanced Prompt for OpenAI - Focus on Portfolio and Benchmark Performance
     const prompt = `
-    You are a professional portfolio analyst assistant with access to the latest financial news and data. Please analyze the following and give detailed insights for a non technical audience:
 
-    📈 **PORTFOLIO PERFORMANCE & BENCHMARK PERFORMANCE:**
+    📈 **PORTFOLIO PERFORMANCE:**
     - Start value: **$${portfolioPerformance.startValue.toFixed(2)}**
     - End value: **$${portfolioPerformance.endValue.toFixed(2)}**
     - **Percentage change:** ${portfolioPerformance.percentageChange.toFixed(2)}%
 
+    📉 **BENCHMARK PERFORMANCE (${primaryBenchmark}):**
     - Start value: **$${benchmarkPerformance.startValue.toFixed(2)}**
     - End value: **$${benchmarkPerformance.endValue.toFixed(2)}**
     - **Percentage change:** ${benchmarkPerformance.percentageChange.toFixed(2)}%
 
-    🏗 **PORTFOLIO COMPOSITION:**
-    ${stockWeightsSummary}
-
-    📉 **RISK METRICS:**
-    - **Expected Return:** ${(metrics.expectedReturn * 100).toFixed(2)}%
-    - **Volatility:** $${metrics.volatility.toFixed(2)}
-    - **Value at Risk (95%):** $${Math.abs(metrics.var).toFixed(2)}
-    - **Expected Shortfall:** $${Math.abs(metrics.es).toFixed(2)}
-
-    🔎 **STOCKS IN PORTFOLIO:** ${stocks.join(", ")}
+    ${benchmarkSymbols.length > 1 ? `Additional benchmarks: ${benchmarkSymbols.slice(1).join(", ")}` : ""}
 
     ---
     💡 **Please provide:**
-    1. A detailed summary of how the optimized portfolio performed compared to the benchmark. Interpret the Expected Return, Volatility, Value at Risk and the Expected Shortfall.
-
-    2. For each stock in the portfolio:
-       - Key characteristics (market cap, sector, business model)
-       - Recent performance relative to the market
-       - Current analyst consensus (if available)
-       - Include 5 links per firm being analyzed. The news articles used should not be more than 6 months old.
-
-    3. Explain how these stocks work together as a portfolio - discuss diversification benefits or concentration risks.
-
-    4. Provide your professional opinion on the portfolio's risk/reward profile based on the metrics.
-
+    A detailed comparison of how the portfolio performed against the benchmark(s). Include relevant metrics and insights about performance trends. Structure your response in markdown with clear sections:
+    
+    1. ## Portfolio Performance
+       A detailed analysis of the portfolio's performance
+    
+    2. ## Benchmark Performance
+       A detailed analysis of the benchmark's performance
+    
     `;
 
     if (!openAIApiKey) {
@@ -108,16 +90,13 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-search-preview",
+        model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: "You are a financial analyst that provides comprehensive, detailed stock analysis with supporting news article links. Format your response in markdown with clear headings for each section." },
+          { role: "system", content: "You are a financial analyst that provides comprehensive, detailed portfolio performance analysis for a non technical audience. Make it intuitive and accessible. Format your response in markdown with clear headings for each section. Avoid repetition of the same information." },
           { role: "user", content: prompt },
         ],
-        max_tokens: 2000,
+        max_tokens: 600,
         stream: true, // Enable streaming
-        web_search_options: {
-          search_context_size: "high",
-        },
       }),
     });
 
@@ -180,7 +159,7 @@ serve(async (req) => {
         writer.write(new TextEncoder().encode(`error: ${e.message}`));
       } finally {
         writer.close();
-        console.log("Analysis completed, stream closed");
+        console.log("Performance analysis completed, stream closed");
       }
     }).catch(error => {
       console.error("Fetch error:", error);
@@ -198,10 +177,10 @@ serve(async (req) => {
       },
     });
   } catch (error) {
-    console.error("Error processing portfolio analysis:", error);
+    console.error("Error processing portfolio performance analysis:", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}); 
