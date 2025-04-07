@@ -1,4 +1,4 @@
-import { Home, BarChart } from "lucide-react";
+import { Home, BarChart, LineChart, BarChart2 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -28,6 +28,16 @@ export function AppSidebar() {
       title: "Portfolio Optimizer",
       path: "/optimizer",
       icon: BarChart,
+    },
+    {
+      title: "Market News",
+      path: "/market-news",
+      icon: LineChart,
+    },
+    {
+      title: "Stock Analysis",
+      path: "/stock-analysis",
+      icon: BarChart2,
     },
   ];
 

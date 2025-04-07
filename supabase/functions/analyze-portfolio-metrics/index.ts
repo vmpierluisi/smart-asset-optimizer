@@ -78,7 +78,7 @@ serve(async (req) => {
           { role: "system", content: "You are a financial risk analyst that provides comprehensive, detailed risk metric analysis for a non technical audience. Make it intuitive and accessible. Format your response in markdown with clear headings for each section. Avoid repetition of the same information." },
           { role: "user", content: prompt },
         ],
-        max_tokens: 800,
+        max_tokens: 600,
         stream: true, // Enable streaming
       }),
     });
