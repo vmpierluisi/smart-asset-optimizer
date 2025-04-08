@@ -1,6 +1,5 @@
-
 import React, { forwardRef } from 'react';
-import { StockSuggestion } from '../utils/yahooFinanceUtils';
+import { StockSuggestion } from '../utils/fmpFinanceUtils';
 
 interface StockSuggestionsListProps {
   suggestions: StockSuggestion[];

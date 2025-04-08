@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
   Card, 
   CardContent, 
@@ -27,6 +27,10 @@ import {
   TrendingUp 
 } from "lucide-react";
 import { AIExplanationPopup } from "@/components/AIExplanationPopup";
+import { searchStocks, StockSuggestion, fetchStockQuote, StockQuote, fetchStockPriceChanges, StockPriceChanges } from "@/utils/fmpFinanceUtils";
+import { PriceChart } from "@/components/PriceChart";
+import { useStockPrices } from "@/hooks/useStockPrices";
+import { toast } from "@/hooks/use-toast";
 
 // Mock chart component - would be replaced with actual chart library
 const MockChart = ({ type, height = 200 }: { type: string, height?: number }) => {
@@ -80,6 +84,12 @@ const StockAnalysis = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStock, setSelectedStock] = useState<string | null>("AAPL");
   const [timeframe, setTimeframe] = useState("1Y");
+  const [suggestions, setSuggestions] = useState<StockSuggestion[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [stockData, setStockData] = useState<StockQuote | null>(null);
+  const [isLoadingQuote, setIsLoadingQuote] = useState(false);
+  const [priceChanges, setPriceChanges] = useState<StockPriceChanges | null>(null);
+  const [isLoadingPriceChanges, setIsLoadingPriceChanges] = useState(false);
   const [showAIExplanation, setShowAIExplanation] = useState<{
     isOpen: boolean;
     title: string;
@@ -92,24 +102,124 @@ const StockAnalysis = () => {
     section: ""
   });
 
-  // Mock stock data
-  const stockData = {
-    ticker: "AAPL",
-    name: "Apple Inc.",
-    price: 187.68,
-    change: 1.25,
-    changePercent: 0.67,
-    marketCap: "2.94T",
-    peRatio: 29.12,
-    dividendYield: 0.54,
-    weekRange: "123.45 - 198.23",
-    volume: "45.2M",
-    avgVolume: "62.8M"
+  // Get historical price data using our custom hook
+  const { data: priceData, loading: priceLoading, error: priceError } = useStockPrices(selectedStock, timeframe);
+
+  // Fetch stock suggestions when search query changes
+  useEffect(() => {
+    const fetchSuggestions = async () => {
+      if (searchQuery.trim().length < 2) {
+        setSuggestions([]);
+        return;
+      }
+
+      setIsLoading(true);
+      const stockSuggestions = await searchStocks(searchQuery.trim());
+      setSuggestions(stockSuggestions);
+      setIsLoading(false);
+    };
+
+    const debounceTimer = setTimeout(() => {
+      if (searchQuery.trim().length >= 2) {
+        fetchSuggestions();
+      }
+    }, 300);
+
+    return () => clearTimeout(debounceTimer);
+  }, [searchQuery]);
+
+  // Fetch stock quote data when selected stock changes
+  useEffect(() => {
+    const getStockQuote = async () => {
+      if (!selectedStock) return;
+      
+      setIsLoadingQuote(true);
+      try {
+        const quote = await fetchStockQuote(selectedStock);
+        setStockData(quote);
+      } catch (error) {
+        console.error('Error fetching stock quote:', error);
+        toast({
+          title: "Error",
+          description: `Failed to fetch quote for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingQuote(false);
+      }
+    };
+    
+    getStockQuote();
+  }, [selectedStock]);
+
+  // Fetch stock price changes when selected stock changes
+  useEffect(() => {
+    const getStockPriceChanges = async () => {
+      if (!selectedStock) return;
+      
+      setIsLoadingPriceChanges(true);
+      try {
+        const changes = await fetchStockPriceChanges(selectedStock);
+        setPriceChanges(changes);
+      } catch (error) {
+        console.error('Error fetching stock price changes:', error);
+        toast({
+          title: "Error",
+          description: `Failed to fetch price changes for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingPriceChanges(false);
+      }
+    };
+    
+    getStockPriceChanges();
+  }, [selectedStock]);
+
+  // Handle selection of a stock suggestion
+  const handleSelectSuggestion = (suggestion: StockSuggestion) => {
+    setSelectedStock(suggestion.symbol);
+    setSearchQuery("");
+    setSuggestions([]);
+    toast({
+      title: "Stock Selected",
+      description: `${suggestion.name} (${suggestion.symbol}) selected for analysis.`,
+    });
   };
 
-  // Mock performance data
+  // Handle search input key press (Enter)
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && searchQuery.trim()) {
+      e.preventDefault();
+      
+      // First check if there's an exact match in suggestions
+      const exactMatch = suggestions.find(
+        s => s.symbol.toUpperCase() === searchQuery.trim().toUpperCase()
+      );
+      
+      if (exactMatch) {
+        handleSelectSuggestion(exactMatch);
+      } else if (suggestions.length > 0) {
+        // If no exact match but we have suggestions, use the first one
+        handleSelectSuggestion(suggestions[0]);
+      } else {
+        // Try to use the input as a stock symbol directly
+        setSelectedStock(searchQuery.trim().toUpperCase());
+        setSearchQuery("");
+        setSuggestions([]);
+      }
+    }
+  };
+
+  // Week range formatting
+  const formatWeekRange = () => {
+    if (!stockData) return "N/A";
+    return `$${stockData.low52Week.toFixed(2)} - $${stockData.high52Week.toFixed(2)}`;
+  };
+
+  // Replace mock performance data with real data or use mock as fallback
   const performanceData = {
-    returns: [
+    returns: priceChanges?.returns || [
       { period: "1D", value: 0.67, direction: "up" },
       { period: "1W", value: 1.23, direction: "up" },
       { period: "1M", value: -2.45, direction: "down" },
@@ -259,25 +369,31 @@ const StockAnalysis = () => {
                 className="pl-8"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleKeyDown}
               />
-              {searchQuery && (
+              {isLoading && (
+                <div className="absolute right-3 top-2.5">
+                  <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full"></div>
+                </div>
+              )}
+              {suggestions.length > 0 && (
                 <div className="absolute z-10 mt-1 w-full rounded-md border bg-background shadow-lg">
                   <div className="p-2">
-                    <div 
-                      className="flex items-center space-x-2 rounded-md p-2 hover:bg-muted cursor-pointer"
-                      onClick={() => {
-                        setSelectedStock("AAPL");
-                        setSearchQuery("");
-                      }}
-                    >
-                      <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                        <span className="text-xs font-semibold">AAPL</span>
+                    {suggestions.map((suggestion) => (
+                      <div 
+                        key={suggestion.symbol}
+                        className="flex items-center space-x-2 rounded-md p-2 hover:bg-muted cursor-pointer"
+                        onClick={() => handleSelectSuggestion(suggestion)}
+                      >
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                          <span className="text-xs font-semibold">{suggestion.symbol}</span>
+                        </div>
+                        <div>
+                          <div className="font-medium">{suggestion.name}</div>
+                          <div className="text-sm text-muted-foreground">{suggestion.exchange}: {suggestion.symbol}</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="font-medium">Apple Inc.</div>
-                        <div className="text-sm text-muted-foreground">NASDAQ: AAPL</div>
-                      </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -302,22 +418,36 @@ const StockAnalysis = () => {
               <div>
                 <div className="flex items-center">
                   <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mr-3">
-                    <span className="text-sm font-semibold">{stockData.ticker}</span>
+                    <span className="text-sm font-semibold">{selectedStock}</span>
                   </div>
                   <div>
                     <CardTitle className="text-xl flex items-center">
-                      {stockData.name} ({stockData.ticker})
+                      {isLoadingQuote ? (
+                        <div className="h-6 w-32 animate-pulse bg-muted rounded"></div>
+                      ) : (
+                        <>
+                          {stockData?.name || "Loading..."} ({selectedStock})
+                        </>
+                      )}
                     </CardTitle>
                     <div className="flex items-center mt-1">
-                      <span className="text-2xl font-bold mr-2">${stockData.price}</span>
-                      <span className={`flex items-center ${stockData.change > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {stockData.change > 0 ? (
-                          <ArrowUp className="h-4 w-4 mr-1" />
-                        ) : (
-                          <ArrowDown className="h-4 w-4 mr-1" />
-                        )}
-                        ${Math.abs(stockData.change)} ({Math.abs(stockData.changePercent)}%)
-                      </span>
+                      {isLoadingQuote ? (
+                        <div className="h-8 w-24 animate-pulse bg-muted rounded"></div>
+                      ) : (
+                        <>
+                          <span className="text-2xl font-bold mr-2">
+                            ${stockData?.price.toFixed(2) || "0.00"}
+                          </span>
+                          <span className={`flex items-center ${(stockData?.change || 0) > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {(stockData?.change || 0) > 0 ? (
+                              <ArrowUp className="h-4 w-4 mr-1" />
+                            ) : (
+                              <ArrowDown className="h-4 w-4 mr-1" />
+                            )}
+                            ${Math.abs(stockData?.change || 0).toFixed(2)} ({Math.abs(stockData?.changePercent || 0).toFixed(2)}%)
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -355,34 +485,42 @@ const StockAnalysis = () => {
                   ))}
                 </div>
                 
-                {/* Price chart */}
-                <MockChart type="Price" height={250} />
+                {/* Price chart - using the real data */}
+                <PriceChart 
+                  data={priceData} 
+                  height={250} 
+                  loading={priceLoading} 
+                  timeframe={timeframe}
+                />
+                {priceError && (
+                  <div className="text-red-500 text-sm">{priceError}</div>
+                )}
                 
                 {/* Key metrics */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
                   <div>
                     <div className="text-sm text-muted-foreground">Market Cap</div>
-                    <div className="font-medium">${stockData.marketCap}</div>
+                    <div className="font-medium">${stockData?.marketCap || "N/A"}</div>
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">P/E Ratio</div>
-                    <div className="font-medium">{stockData.peRatio}</div>
+                    <div className="font-medium">{stockData?.peRatio || "N/A"}</div>
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Dividend Yield</div>
-                    <div className="font-medium">{stockData.dividendYield}%</div>
+                    <div className="font-medium">{stockData?.dividendYield || 0}%</div>
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">52-Week Range</div>
-                    <div className="font-medium">${stockData.weekRange}</div>
+                    <div className="font-medium">{formatWeekRange()}</div>
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Volume</div>
-                    <div className="font-medium">{stockData.volume}</div>
+                    <div className="font-medium">{stockData?.volume || "N/A"}</div>
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Avg. Volume</div>
-                    <div className="font-medium">{stockData.avgVolume}</div>
+                    <div className="font-medium">{stockData?.avgVolume || "N/A"}</div>
                   </div>
                 </div>
               </div>
@@ -413,26 +551,42 @@ const StockAnalysis = () => {
                 <div>
                   <h4 className="font-medium mb-3">Historical Returns</h4>
                   <div className="space-y-2">
-                    {performanceData.returns.map((item) => (
-                      <div key={item.period} className="flex items-center justify-between">
-                        <span className="text-sm">{item.period}</span>
-                        <div className="flex items-center">
-                          <div className="w-32 h-2 bg-muted rounded-full mr-3 overflow-hidden">
-                            <div 
-                              className={`h-full ${item.direction === 'up' ? 'bg-green-500' : 'bg-red-500'}`}
-                              style={{ width: `${Math.min(Math.abs(item.value) * 2, 100)}%` }}
-                            ></div>
+                    {isLoadingPriceChanges ? (
+                      // Loading skeleton for price changes
+                      Array(9).fill(0).map((_, index) => (
+                        <div key={index} className="flex items-center justify-between">
+                          <div className="w-6 h-4 bg-muted animate-pulse rounded"></div>
+                          <div className="flex items-center">
+                            <div className="w-32 h-2 bg-muted animate-pulse rounded-full mr-3"></div>
+                            <div className="w-16 h-4 bg-muted animate-pulse rounded"></div>
                           </div>
-                          <span 
-                            className={`text-sm font-medium ${
-                              item.direction === 'up' ? 'text-green-600' : 'text-red-600'
-                            }`}
-                          >
-                            {item.direction === 'up' ? '+' : '-'}{Math.abs(item.value)}%
-                          </span>
                         </div>
-                      </div>
-                    ))}
+                      ))
+                    ) : (
+                      performanceData.returns.map((item) => (
+                        <div key={item.period} className="flex items-center justify-between">
+                          <span className="text-sm w-10">{item.period}</span>
+                          <div className="flex items-center flex-1">
+                            <div className="w-full h-2 bg-muted rounded-full mr-3 relative">
+                              <div className="absolute top-0 left-1/2 w-px h-full bg-gray-300"></div>
+                              <div 
+                                className={`absolute top-0 h-full ${item.direction === 'up' ? 'bg-green-500 left-1/2' : 'bg-red-500 right-1/2'}`}
+                                style={{ 
+                                  width: `${Math.min(Math.abs(item.value) * 0.5, 50)}%`
+                                }}
+                              ></div>
+                            </div>
+                            <span 
+                              className={`text-sm font-medium ${
+                                item.direction === 'up' ? 'text-green-600' : 'text-red-600'
+                              } w-20 text-right`}
+                            >
+                              {item.direction === 'up' ? '+' : '-'}{Math.abs(item.value).toFixed(2)}%
+                            </span>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
                 
@@ -632,7 +786,7 @@ const StockAnalysis = () => {
                       <div className="h-2 bg-muted rounded-full w-full"></div>
                       <div 
                         className="absolute bottom-0 h-6 w-1 bg-black"
-                        style={{ left: `${(stockData.price - valuationData.fairValueLow) / (valuationData.fairValueHigh - valuationData.fairValueLow) * 100}%` }}
+                        style={{ left: `${(stockData?.price - valuationData.fairValueLow) / (valuationData.fairValueHigh - valuationData.fairValueLow) * 100}%` }}
                       ></div>
                       <div 
                         className="absolute -top-1 text-xs"
@@ -648,9 +802,9 @@ const StockAnalysis = () => {
                       </div>
                       <div 
                         className="absolute -bottom-6 text-xs font-medium"
-                        style={{ left: `${(stockData.price - valuationData.fairValueLow) / (valuationData.fairValueHigh - valuationData.fairValueLow) * 100}%`, transform: 'translateX(-50%)' }}
+                        style={{ left: `${(stockData?.price - valuationData.fairValueLow) / (valuationData.fairValueHigh - valuationData.fairValueLow) * 100}%`, transform: 'translateX(-50%)' }}
                       >
-                        Current: ${stockData.price}
+                        Current: ${stockData?.price.toFixed(2) || "0.00"}
                       </div>
                     </div>
                   </div>
@@ -687,23 +841,23 @@ const StockAnalysis = () => {
                   <div className="mt-4 space-y-2">
                     <div className="flex justify-between">
                       <span className="text-sm">50-Day MA</span>
-                      <span className={`text-sm font-medium ${stockData.price > technicalData.ma50 ? 'text-green-600' : 'text-red-600'}`}>
-                        ${technicalData.ma50}
+                      <span className={`text-sm font-medium ${stockData?.price > technicalData.ma50 ? 'text-green-600' : 'text-red-600'}`}>
+                        ${technicalData.ma50.toFixed(2)}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm">200-Day MA</span>
-                      <span className={`text-sm font-medium ${stockData.price > technicalData.ma200 ? 'text-green-600' : 'text-red-600'}`}>
-                        ${technicalData.ma200}
+                      <span className={`text-sm font-medium ${stockData?.price > technicalData.ma200 ? 'text-green-600' : 'text-red-600'}`}>
+                        ${technicalData.ma200.toFixed(2)}
                       </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm">Support Level</span>
-                      <span className="text-sm font-medium">${technicalData.support}</span>
+                      <span className="text-sm font-medium">${technicalData.support.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm">Resistance Level</span>
-                      <span className="text-sm font-medium">${technicalData.resistance}</span>
+                      <span className="text-sm font-medium">${technicalData.resistance.toFixed(2)}</span>
                     </div>
                   </div>
                 </div>
@@ -858,9 +1012,9 @@ const StockAnalysis = () => {
                   
                   <div className="mt-4">
                     <div className="text-sm text-muted-foreground">Average Price Target</div>
-                    <div className="font-medium">${newsData.averagePriceTarget}</div>
+                    <div className="font-medium">${newsData.averagePriceTarget.toFixed(2)}</div>
                     <div className="text-xs text-muted-foreground">
-                      {((newsData.averagePriceTarget - stockData.price) / stockData.price * 100).toFixed(2)}% from current price
+                      {((newsData.averagePriceTarget - stockData?.price || 0) / stockData?.price || 0 * 100).toFixed(2)}% from current price
                     </div>
                   </div>
                 </div>
@@ -895,35 +1049,35 @@ const StockAnalysis = () => {
                     <div>
                       <div className="flex justify-between mb-1">
                         <span className="text-sm">Beta</span>
-                        <span className="text-sm font-medium">{riskData.beta}</span>
+                        <span className="text-sm font-medium">{riskData.beta.toFixed(2)}</span>
                       </div>
                       <Progress value={riskData.beta * 50} className="h-2" />
                     </div>
                     <div>
                       <div className="flex justify-between mb-1">
                         <span className="text-sm">Standard Deviation</span>
-                        <span className="text-sm font-medium">{riskData.standardDeviation}%</span>
+                        <span className="text-sm font-medium">{riskData.standardDeviation.toFixed(2)}%</span>
                       </div>
                       <Progress value={riskData.standardDeviation * 2} className="h-2" />
                     </div>
                     <div>
                       <div className="flex justify-between mb-1">
                         <span className="text-sm">Value at Risk (Daily)</span>
-                        <span className="text-sm font-medium">{riskData.valueAtRisk}%</span>
+                        <span className="text-sm font-medium">{riskData.valueAtRisk.toFixed(2)}%</span>
                       </div>
                       <Progress value={riskData.valueAtRisk * 10} className="h-2" />
                     </div>
                     <div>
                       <div className="flex justify-between mb-1">
                         <span className="text-sm">Max Drawdown</span>
-                        <span className="text-sm font-medium">{riskData.maxDrawdown}%</span>
+                        <span className="text-sm font-medium">{riskData.maxDrawdown.toFixed(2)}%</span>
                       </div>
                       <Progress value={Math.abs(riskData.maxDrawdown) * 2} className="h-2" />
                     </div>
                     <div>
                       <div className="flex justify-between mb-1">
                         <span className="text-sm">Correlation to S&P 500</span>
-                        <span className="text-sm font-medium">{riskData.correlationSP500}</span>
+                        <span className="text-sm font-medium">{riskData.correlationSP500.toFixed(2)}</span>
                       </div>
                       <Progress value={riskData.correlationSP500 * 100} className="h-2" />
                     </div>
@@ -941,7 +1095,7 @@ const StockAnalysis = () => {
                     <div className="text-center">
                       <div className="inline-flex items-center justify-center w-32 h-32 rounded-full border-8 border-muted mb-4">
                         <div className="text-center">
-                          <div className="text-3xl font-bold">{riskData.riskScore}</div>
+                          <div className="text-3xl font-bold">{riskData.riskScore.toFixed(2)}</div>
                           <div className="text-sm text-muted-foreground">Risk Score</div>
                         </div>
                       </div>

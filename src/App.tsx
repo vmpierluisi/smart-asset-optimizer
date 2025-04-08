@@ -15,8 +15,8 @@ const App = () => (
         <SidebarProvider>
           <AppSidebar />
           <main className="flex-1 w-full h-full overflow-hidden">
-            <div className="w-full h-full overflow-auto">
-              <div className="flex-1 h-screen w-screen mx-auto pr-10">
+            <div className="flex w-screen h-screen overflow-auto">
+              <div className="flex-1 h-full w-full mx-auto pr-10">
                 <Outlet />
               </div>
             </div>

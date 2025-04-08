@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Search } from 'lucide-react';
 import { toast } from "@/hooks/use-toast";
-import { searchStocks, StockSuggestion } from '../utils/yahooFinanceUtils';
+import { searchStocks, StockSuggestion } from '../utils/fmpFinanceUtils';
 import { StockSuggestionsList } from './StockSuggestionsList';
 import { StockTag } from './StockTag';
 
