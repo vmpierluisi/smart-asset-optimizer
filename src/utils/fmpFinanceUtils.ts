@@ -76,6 +76,82 @@ export interface StockPriceChanges {
     value: number;
     direction: 'up' | 'down';
   }[];
+  volatility?: number;
+  sharpeRatio?: number;
+  beta?: number;
+  alpha?: number;
+}
+
+export interface ValuationData {
+  peRatio: string;
+  forwardPE: string;
+  pegRatio: string;
+  priceToBook: string;
+  priceToSales: string;
+  evToEbitda: string;
+  dividendYield: string;
+  dividendGrowth5Y: string;
+  fairValueLow: number;
+  fairValueHigh: number;
+  eps: string;
+}
+
+// New Interfaces
+export interface FinancialHealthData {
+  symbol: string;
+  debtToEquity: number | null;
+  currentRatio: number | null;
+  quickRatio: number | null;
+  returnOnEquity: number | null;
+  returnOnAssets: number | null;
+  grossMargin: number | null;
+  operatingMargin: number | null;
+  netMargin: number | null;
+  healthScore: number | null; // Calculated or from FMP? Assuming calculated for now
+}
+
+export interface TechnicalIndicatorData {
+  symbol: string;
+  ma50: number | null;
+  ma200: number | null;
+  rsi: number | null;
+  macdSignal: 'Bullish' | 'Bearish' | 'Neutral' | null; // Or specific values
+  bollingerPosition: 'Upper' | 'Middle' | 'Lower' | null; // Example
+  support: number | null;
+  resistance: number | null;
+  signalSummary: 'Buy' | 'Sell' | 'Neutral' | null; // Example
+}
+
+export interface NewsItem {
+  title: string;
+  sentiment: 'positive' | 'negative' | 'neutral';
+  source: string;
+  date: string; // Or Date object if needed
+}
+
+export interface AnalystRatings {
+  buy: number;
+  hold: number;
+  sell: number;
+}
+
+export interface NewsSentimentData {
+  symbol: string;
+  recentNews: NewsItem[];
+  analystRatings: AnalystRatings | null;
+  averagePriceTarget: number | null;
+  sentimentScore: number | null; // 0-100
+}
+
+export interface RiskAnalysisData {
+  symbol: string;
+  beta: number | null;
+  maxDrawdown: number | null; // Percentage
+  valueAtRisk: number | null; // Percentage
+  standardDeviation: number | null; // Percentage
+  downsideRisk: number | null; // Percentage
+  correlationSP500: number | null;
+  riskScore: number | null; // Calculated or from FMP? Assuming calculated
 }
 
 // Search for stocks using the FMP API through Supabase Edge Function
@@ -266,5 +342,199 @@ export const fetchStockPriceChanges = async (symbol: string): Promise<StockPrice
   } catch (error) {
     console.error('Error fetching stock price changes with FMP API:', error);
     throw error;
+  }
+};
+
+// Fetch valuation ratios using the FMP API
+export const fetchValuationRatios = async (symbol: string): Promise<ValuationData> => {
+  try {
+    // Call the Supabase Edge Function that interfaces with FMP API
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      throw new Error('Supabase environment variables are missing');
+    }
+    
+    // Call the stock-ratios edge function
+    const response = await fetch(`${supabaseUrl}/functions/v1/stock-ratios`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ symbol }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`FMP API error: ${response.status} ${errorText}`);
+    }
+    
+    const valuationData = await response.json();
+    return valuationData as ValuationData;
+    
+  } catch (error) {
+    console.error('Error fetching valuation ratios with FMP API:', error);
+    
+    // Return default/fallback values if API call fails
+    return {
+      peRatio: 'N/A',
+      forwardPE: 'N/A',
+      pegRatio: 'N/A',
+      priceToBook: 'N/A',
+      priceToSales: 'N/A',
+      evToEbitda: 'N/A',
+      dividendYield: '0.00',
+      dividendGrowth5Y: '0.00',
+      fairValueLow: 0,
+      fairValueHigh: 0,
+      eps: 'N/A'
+    };
+  }
+};
+
+// Fetch Financial Health Data
+export const fetchFinancialHealth = async (symbol: string): Promise<FinancialHealthData | null> => {
+  try {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      return null; // Return null or throw error based on desired handling
+    }
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/financial-health`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ symbol }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Error fetching financial health for ${symbol}: ${response.status} ${errorText}`);
+      return null;
+    }
+
+    const data = await response.json();
+    return data as FinancialHealthData;
+
+  } catch (error) {
+    console.error('Error fetching financial health data:', error);
+    return null; // Return null on fetch error
+  }
+};
+
+// Fetch Technical Indicator Data
+export const fetchTechnicalIndicators = async (symbol: string): Promise<TechnicalIndicatorData | null> => {
+  try {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      return null;
+    }
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/technical-indicators`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ symbol }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Error fetching technical indicators for ${symbol}: ${response.status} ${errorText}`);
+      return null;
+    }
+
+    const data = await response.json();
+    return data as TechnicalIndicatorData;
+
+  } catch (error) {
+    console.error('Error fetching technical indicator data:', error);
+    return null;
+  }
+};
+
+// Fetch News and Sentiment Data
+export const fetchNewsSentiment = async (symbol: string): Promise<NewsSentimentData | null> => {
+  try {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      return null;
+    }
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/news-sentiment`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ symbol }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Error fetching news and sentiment for ${symbol}: ${response.status} ${errorText}`);
+      return null;
+    }
+
+    const data = await response.json();
+    // Ensure recentNews is always an array
+    if (data && !Array.isArray(data.recentNews)) {
+        data.recentNews = [];
+    }
+    return data as NewsSentimentData;
+
+  } catch (error) {
+    console.error('Error fetching news and sentiment data:', error);
+    return null;
+  }
+};
+
+// Fetch Risk Analysis Data
+export const fetchRiskAnalysis = async (symbol: string): Promise<RiskAnalysisData | null> => {
+  try {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      return null;
+    }
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/risk-analysis`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ symbol }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Error fetching risk analysis for ${symbol}: ${response.status} ${errorText}`);
+      return null;
+    }
+
+    const data = await response.json();
+    return data as RiskAnalysisData;
+
+  } catch (error) {
+    console.error('Error fetching risk analysis data:', error);
+    return null;
   }
 };

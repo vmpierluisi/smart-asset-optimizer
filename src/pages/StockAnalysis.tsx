@@ -16,7 +16,9 @@ import {
   ArrowDown, 
   ArrowUp, 
   BarChart2, 
+  Briefcase,
   ChevronDown,
+  ChevronLeft,
   Cpu, 
   DollarSign, 
   LineChart, 
@@ -24,13 +26,66 @@ import {
   Search, 
   Star,
   TrendingDown, 
-  TrendingUp 
+  TrendingUp,
+  Building,
+  Building2,
+  Factory,
+  Heart,
+  Home,
+  Lightbulb,
+  ShoppingBag,
+  ShoppingCart,
+  Smartphone,
+  Truck,
+  Wallet
 } from "lucide-react";
 import { AIExplanationPopup } from "@/components/AIExplanationPopup";
-import { searchStocks, StockSuggestion, fetchStockQuote, StockQuote, fetchStockPriceChanges, StockPriceChanges } from "@/utils/fmpFinanceUtils";
+import { 
+  searchStocks, 
+  StockSuggestion, 
+  fetchStockQuote, 
+  StockQuote, 
+  fetchStockPriceChanges, 
+  StockPriceChanges, 
+  fetchValuationRatios, 
+  ValuationData,
+  FinancialHealthData,
+  fetchFinancialHealth,
+  TechnicalIndicatorData,
+  fetchTechnicalIndicators,
+  NewsSentimentData,
+  fetchNewsSentiment,
+  RiskAnalysisData,
+  fetchRiskAnalysis
+} from "@/utils/fmpFinanceUtils";
 import { PriceChart } from "@/components/PriceChart";
 import { useStockPrices } from "@/hooks/useStockPrices";
 import { toast } from "@/hooks/use-toast";
+
+// Define CSS keyframes for animations
+const fadeGrowKeyframes = `
+  @keyframes fadeGrow {
+    0% {
+      opacity: 0;
+      transform: scale(0.7);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+`;
+
+// Move SkeletonLoader definition here
+const SkeletonLoader = ({ className = '', count = 1 }: { className?: string, count?: number }) => {
+  return (
+    <>
+      {Array(count).fill(0).map((_, index) => (
+        <div key={index} className={`animate-pulse bg-muted rounded ${className}`}></div>
+      ))}
+    </>
+  );
+};
 
 // Mock chart component - would be replaced with actual chart library
 const MockChart = ({ type, height = 200 }: { type: string, height?: number }) => {
@@ -79,10 +134,147 @@ const GaugeChart = ({ value, min = 0, max = 100, label }: { value: number, min?:
   );
 };
 
+// Define market sectors based on GICS
+const marketSectors = [
+  { 
+    id: "energy", 
+    name: "Energy", 
+    icon: <Lightbulb size={40} strokeWidth={1.5} />,
+    stocks: [
+      { symbol: "XOM", name: "Exxon Mobil Corp." },
+      { symbol: "CVX", name: "Chevron Corp." },
+      { symbol: "COP", name: "ConocoPhillips" },
+      { symbol: "SLB", name: "Schlumberger Ltd." },
+      { symbol: "EOG", name: "EOG Resources Inc." },
+    ]
+  },
+  { 
+    id: "materials", 
+    name: "Materials", 
+    icon: <Truck size={40} strokeWidth={1.5} />,
+    stocks: [
+      { symbol: "LIN", name: "Linde plc" },
+      { symbol: "APD", name: "Air Products & Chemicals" },
+      { symbol: "FCX", name: "Freeport-McMoRan Inc." },
+      { symbol: "NEM", name: "Newmont Corp." },
+      { symbol: "DOW", name: "Dow Inc." },
+    ]
+  },
+  { 
+    id: "industrials", 
+    name: "Industrials", 
+    icon: <Factory size={40} strokeWidth={1.5} />,
+    stocks: [
+      { symbol: "HON", name: "Honeywell International" },
+      { symbol: "UPS", name: "United Parcel Service" },
+      { symbol: "UNP", name: "Union Pacific Corp." },
+      { symbol: "RTX", name: "Raytheon Technologies" },
+      { symbol: "CAT", name: "Caterpillar Inc." },
+    ]
+  },
+  { 
+    id: "utilities", 
+    name: "Utilities", 
+    icon: <Building2 size={40} strokeWidth={1.5} />,
+    stocks: [
+      { symbol: "NEE", name: "NextEra Energy Inc." },
+      { symbol: "DUK", name: "Duke Energy Corp." },
+      { symbol: "SO", name: "Southern Company" },
+      { symbol: "D", name: "Dominion Energy" },
+      { symbol: "AEP", name: "American Electric Power" },
+    ]
+  },
+  { 
+    id: "healthcare", 
+    name: "Healthcare", 
+    icon: <Heart size={40} strokeWidth={1.5} />,
+    stocks: [
+      { symbol: "JNJ", name: "Johnson & Johnson" },
+      { symbol: "UNH", name: "UnitedHealth Group" },
+      { symbol: "PFE", name: "Pfizer Inc." },
+      { symbol: "MRK", name: "Merck & Co." },
+      { symbol: "ABT", name: "Abbott Laboratories" },
+    ]
+  },
+  { 
+    id: "financials", 
+    name: "Financials", 
+    icon: <Wallet size={40} strokeWidth={1.5} />,
+    stocks: [
+      { symbol: "JPM", name: "JPMorgan Chase & Co." },
+      { symbol: "BAC", name: "Bank of America Corp." },
+      { symbol: "WFC", name: "Wells Fargo & Co." },
+      { symbol: "MS", name: "Morgan Stanley" },
+      { symbol: "GS", name: "Goldman Sachs Group" },
+    ]
+  },
+  { 
+    id: "discretionary", 
+    name: "Consumer Discretionary", 
+    icon: <ShoppingBag size={40} strokeWidth={1.5} />,
+    stocks: [
+      { symbol: "AMZN", name: "Amazon.com Inc." },
+      { symbol: "TSLA", name: "Tesla Inc." },
+      { symbol: "HD", name: "Home Depot Inc." },
+      { symbol: "MCD", name: "McDonald's Corp." },
+      { symbol: "NKE", name: "Nike Inc." },
+    ]
+  },
+  { 
+    id: "staples", 
+    name: "Consumer Staples", 
+    icon: <ShoppingCart size={40} strokeWidth={1.5} />,
+    stocks: [
+      { symbol: "PG", name: "Procter & Gamble Co." },
+      { symbol: "KO", name: "Coca-Cola Co." },
+      { symbol: "PEP", name: "PepsiCo Inc." },
+      { symbol: "WMT", name: "Walmart Inc." },
+      { symbol: "COST", name: "Costco Wholesale" },
+    ]
+  },
+  { 
+    id: "technology", 
+    name: "Information Technology", 
+    icon: <Cpu size={40} strokeWidth={1.5} />,
+    stocks: [
+      { symbol: "AAPL", name: "Apple Inc." },
+      { symbol: "MSFT", name: "Microsoft Corp." },
+      { symbol: "NVDA", name: "NVIDIA Corp." },
+      { symbol: "AVGO", name: "Broadcom Inc." },
+      { symbol: "ADBE", name: "Adobe Inc." },
+    ]
+  },
+  { 
+    id: "communications", 
+    name: "Communication Services", 
+    icon: <Smartphone size={40} strokeWidth={1.5} />,
+    stocks: [
+      { symbol: "GOOGL", name: "Alphabet Inc. Class A" },
+      { symbol: "META", name: "Meta Platforms Inc." },
+      { symbol: "NFLX", name: "Netflix Inc." },
+      { symbol: "DIS", name: "Walt Disney Co." },
+      { symbol: "CMCSA", name: "Comcast Corp." },
+    ]
+  },
+  { 
+    id: "realestate", 
+    name: "Real Estate", 
+    icon: <Home size={40} strokeWidth={1.5} />,
+    stocks: [
+      { symbol: "AMT", name: "American Tower Corp." },
+      { symbol: "PLD", name: "Prologis Inc." },
+      { symbol: "CCI", name: "Crown Castle Inc." },
+      { symbol: "EQIX", name: "Equinix Inc." },
+      { symbol: "PSA", name: "Public Storage" },
+    ]
+  },
+];
+
 // First part of the component declaration - we'll complete it in subsequent edits
 const StockAnalysis = () => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedStock, setSelectedStock] = useState<string | null>("AAPL");
+  const [selectedStock, setSelectedStock] = useState<string | null>(null);
+  const [selectedSector, setSelectedSector] = useState<string | null>(null);
   const [timeframe, setTimeframe] = useState("1Y");
   const [suggestions, setSuggestions] = useState<StockSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -90,6 +282,16 @@ const StockAnalysis = () => {
   const [isLoadingQuote, setIsLoadingQuote] = useState(false);
   const [priceChanges, setPriceChanges] = useState<StockPriceChanges | null>(null);
   const [isLoadingPriceChanges, setIsLoadingPriceChanges] = useState(false);
+  const [valuationData, setValuationData] = useState<ValuationData | null>(null);
+  const [isLoadingValuation, setIsLoadingValuation] = useState(false);
+  const [financialHealthData, setFinancialHealthData] = useState<FinancialHealthData | null>(null);
+  const [isLoadingFinancialHealth, setIsLoadingFinancialHealth] = useState(false);
+  const [technicalData, setTechnicalData] = useState<TechnicalIndicatorData | null>(null);
+  const [isLoadingTechnical, setIsLoadingTechnical] = useState(false);
+  const [newsData, setNewsData] = useState<NewsSentimentData | null>(null);
+  const [isLoadingNews, setIsLoadingNews] = useState(false);
+  const [riskData, setRiskData] = useState<RiskAnalysisData | null>(null);
+  const [isLoadingRisk, setIsLoadingRisk] = useState(false);
   const [showAIExplanation, setShowAIExplanation] = useState<{
     isOpen: boolean;
     title: string;
@@ -101,6 +303,10 @@ const StockAnalysis = () => {
     content: "",
     section: ""
   });
+
+  // Animation states
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [visibleView, setVisibleView] = useState<'sectors' | 'stocks' | 'transition'>('sectors');
 
   // Get historical price data using our custom hook
   const { data: priceData, loading: priceLoading, error: priceError } = useStockPrices(selectedStock, timeframe);
@@ -176,15 +382,182 @@ const StockAnalysis = () => {
     getStockPriceChanges();
   }, [selectedStock]);
 
-  // Handle selection of a stock suggestion
-  const handleSelectSuggestion = (suggestion: StockSuggestion) => {
-    setSelectedStock(suggestion.symbol);
+  // Fetch valuation ratios when selected stock changes
+  useEffect(() => {
+    const getValuationRatios = async () => {
+      if (!selectedStock) return;
+      
+      setIsLoadingValuation(true);
+      try {
+        const ratios = await fetchValuationRatios(selectedStock);
+        setValuationData(ratios);
+      } catch (error) {
+        console.error('Error fetching valuation ratios:', error);
+        toast({
+          title: "Error",
+          description: `Failed to fetch valuation ratios for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingValuation(false);
+      }
+    };
+    
+    getValuationRatios();
+  }, [selectedStock]);
+
+  // Fetch Financial Health data
+  useEffect(() => {
+    const getFinancialHealth = async () => {
+      if (!selectedStock) return;
+      
+      setIsLoadingFinancialHealth(true);
+      try {
+        const data = await fetchFinancialHealth(selectedStock);
+        setFinancialHealthData(data);
+      } catch (error) {
+        console.error('Error fetching financial health data:', error);
+        toast({
+          title: "Error",
+          description: `Failed to fetch financial health for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          variant: "destructive",
+        });
+        setFinancialHealthData(null); // Clear data on error
+      } finally {
+        setIsLoadingFinancialHealth(false);
+      }
+    };
+    
+    getFinancialHealth();
+  }, [selectedStock]);
+
+  // Fetch Technical Indicator data
+  useEffect(() => {
+    const getTechnicalIndicators = async () => {
+      if (!selectedStock) return;
+      
+      setIsLoadingTechnical(true);
+      try {
+        const data = await fetchTechnicalIndicators(selectedStock);
+        setTechnicalData(data);
+      } catch (error) {
+        console.error('Error fetching technical indicators:', error);
+        toast({
+          title: "Error",
+          description: `Failed to fetch technical indicators for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          variant: "destructive",
+        });
+        setTechnicalData(null);
+      } finally {
+        setIsLoadingTechnical(false);
+      }
+    };
+    
+    getTechnicalIndicators();
+  }, [selectedStock]);
+
+  // Fetch News and Sentiment data
+  useEffect(() => {
+    const getNewsSentiment = async () => {
+      if (!selectedStock) return;
+      
+      setIsLoadingNews(true);
+      try {
+        const data = await fetchNewsSentiment(selectedStock);
+        setNewsData(data);
+      } catch (error) {
+        console.error('Error fetching news & sentiment:', error);
+        toast({
+          title: "Error",
+          description: `Failed to fetch news & sentiment for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          variant: "destructive",
+        });
+        setNewsData(null);
+      } finally {
+        setIsLoadingNews(false);
+      }
+    };
+    
+    getNewsSentiment();
+  }, [selectedStock]);
+
+  // Fetch Risk Analysis data
+  useEffect(() => {
+    const getRiskAnalysis = async () => {
+      if (!selectedStock) return;
+      
+      setIsLoadingRisk(true);
+      try {
+        const data = await fetchRiskAnalysis(selectedStock);
+        setRiskData(data);
+      } catch (error) {
+        console.error('Error fetching risk analysis:', error);
+        toast({
+          title: "Error",
+          description: `Failed to fetch risk analysis for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          variant: "destructive",
+        });
+        setRiskData(null);
+      } finally {
+        setIsLoadingRisk(false);
+      }
+    };
+    
+    getRiskAnalysis();
+  }, [selectedStock]);
+
+  // Handle selection of a stock suggestion from search or sector list
+  const handleSelectStock = (symbol: string, name: string) => {
+    setSelectedStock(symbol);
     setSearchQuery("");
     setSuggestions([]);
     toast({
       title: "Stock Selected",
-      description: `${suggestion.name} (${suggestion.symbol}) selected for analysis.`,
+      description: `${name} (${symbol}) selected for analysis.`,
     });
+  };
+
+  // Handle selection from search suggestions list
+  const handleSelectSuggestion = (suggestion: StockSuggestion) => {
+    handleSelectStock(suggestion.symbol, suggestion.name);
+  };
+
+  // Handle sector selection with animation
+  const handleSelectSector = (sectorId: string) => {
+    setIsAnimating(true);
+    
+    // Slide out sectors
+    setVisibleView('transition');
+    
+    // After sectors slide out, switch to stocks view
+    setTimeout(() => {
+      setSelectedSector(sectorId);
+      setVisibleView('stocks');
+      
+      // End animation after stocks have appeared
+      setTimeout(() => {
+        setIsAnimating(false);
+      }, 500);
+    }, 300);
+  };
+
+  // Handle back to sectors with animation
+  const handleBackToSectors = () => {
+    setIsAnimating(true);
+    
+    // Fade out stocks
+    setVisibleView('transition');
+    
+    // After stocks fade out, switch to sectors view
+    setTimeout(() => {
+      setVisibleView('sectors');
+      
+      // Only reset the selected sector after animation completes
+      setTimeout(() => {
+        setSelectedSector(null);
+        setIsAnimating(false);
+      }, 300);
+    }, 300);
   };
 
   // Handle search input key press (Enter)
@@ -203,10 +576,8 @@ const StockAnalysis = () => {
         // If no exact match but we have suggestions, use the first one
         handleSelectSuggestion(suggestions[0]);
       } else {
-        // Try to use the input as a stock symbol directly
-        setSelectedStock(searchQuery.trim().toUpperCase());
-        setSearchQuery("");
-        setSuggestions([]);
+        // Try to use the input as a stock symbol directly, assuming name is same as symbol for toast
+        handleSelectStock(searchQuery.trim().toUpperCase(), searchQuery.trim().toUpperCase());
       }
     }
   };
@@ -215,91 +586,6 @@ const StockAnalysis = () => {
   const formatWeekRange = () => {
     if (!stockData) return "N/A";
     return `$${stockData.low52Week.toFixed(2)} - $${stockData.high52Week.toFixed(2)}`;
-  };
-
-  // Replace mock performance data with real data or use mock as fallback
-  const performanceData = {
-    returns: priceChanges?.returns || [
-      { period: "1D", value: 0.67, direction: "up" },
-      { period: "1W", value: 1.23, direction: "up" },
-      { period: "1M", value: -2.45, direction: "down" },
-      { period: "3M", value: 5.67, direction: "up" },
-      { period: "6M", value: 8.92, direction: "up" },
-      { period: "YTD", value: 12.34, direction: "up" },
-      { period: "1Y", value: 15.67, direction: "up" },
-      { period: "3Y", value: 67.89, direction: "up" },
-      { period: "5Y", value: 112.45, direction: "up" }
-    ],
-    volatility: 18.5,
-    sharpeRatio: 1.2,
-    beta: 1.15,
-    alpha: 2.3
-  };
-
-  // Mock financial health data
-  const financialHealthData = {
-    debtToEquity: 1.2,
-    currentRatio: 1.5,
-    quickRatio: 1.3,
-    returnOnEquity: 35.6,
-    returnOnAssets: 12.8,
-    grossMargin: 43.2,
-    operatingMargin: 30.1,
-    netMargin: 25.4,
-    healthScore: 82
-  };
-
-  // Mock valuation data
-  const valuationData = {
-    peRatio: 29.12,
-    forwardPE: 25.6,
-    pegRatio: 1.8,
-    priceToBook: 32.4,
-    priceToSales: 7.2,
-    evToEbitda: 18.5,
-    dividendYield: 0.54,
-    dividendGrowth5Y: 8.2,
-    fairValueLow: 165.0,
-    fairValueHigh: 210.0
-  };
-
-  // Mock technical indicators
-  const technicalData = {
-    ma50: 182.45,
-    ma200: 175.67,
-    rsi: 58,
-    macdSignal: "Bullish",
-    bollingerPosition: "Middle",
-    support: 180.0,
-    resistance: 195.0,
-    signalSummary: "Neutral"
-  };
-
-  // Mock news and sentiment data
-  const newsData = {
-    recentNews: [
-      { title: "Apple announces new product line", sentiment: "positive", source: "TechCrunch", date: "2 hours ago" },
-      { title: "Analysts raise price target on Apple stock", sentiment: "positive", source: "CNBC", date: "5 hours ago" },
-      { title: "Supply chain issues may impact production", sentiment: "negative", source: "Bloomberg", date: "1 day ago" }
-    ],
-    analystRatings: {
-      buy: 25,
-      hold: 8,
-      sell: 2
-    },
-    averagePriceTarget: 205.0,
-    sentimentScore: 72
-  };
-
-  // Mock risk data
-  const riskData = {
-    beta: 1.15,
-    maxDrawdown: -28.5,
-    valueAtRisk: 3.2,
-    standardDeviation: 22.4,
-    downside: 15.8,
-    correlationSP500: 0.82,
-    riskScore: 65
   };
 
   // AI explanation content for different sections
@@ -350,14 +636,50 @@ const StockAnalysis = () => {
     });
   };
 
-  // Beginning of the return statement - we'll complete it in subsequent edits
+  // Replace the mock valuation data with the real one or fallback to default values
+  const getValuationDataOrDefault = (): ValuationData & { eps: string } => {
+    if (isLoadingValuation) {
+      return {
+        peRatio: "Loading...",
+        forwardPE: "Loading...",
+        pegRatio: "Loading...",
+        priceToBook: "Loading...",
+        priceToSales: "Loading...",
+        evToEbitda: "Loading...",
+        dividendYield: "Loading...",
+        dividendGrowth5Y: "Loading...",
+        fairValueLow: 0,
+        fairValueHigh: 0,
+        eps: "Loading..."
+      };
+    }
+    
+    return valuationData as (ValuationData & { eps: string }) || {
+      peRatio: "N/A",
+      forwardPE: "N/A",
+      pegRatio: "N/A",
+      priceToBook: "N/A",
+      priceToSales: "N/A",
+      evToEbitda: "N/A",
+      dividendYield: "0.00",
+      dividendGrowth5Y: "0.00",
+      fairValueLow: 0,
+      fairValueHigh: 0,
+      eps: "N/A"
+    };
+  };
+
+  // Beginning of the return statement
   return (
     <div className="container mx-auto p-4 space-y-6">
+      {/* Add CSS keyframes */}
+      <style dangerouslySetInnerHTML={{ __html: fadeGrowKeyframes }} />
+      
       {/* Stock Search Section */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle>Stock Analysis</CardTitle>
-          <CardDescription>Search and analyze individual stocks</CardDescription>
+          <CardDescription>Search or select a stock to analyze</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex space-x-2">
@@ -376,8 +698,8 @@ const StockAnalysis = () => {
                   <div className="animate-spin h-4 w-4 border-2 border-primary border-t-transparent rounded-full"></div>
                 </div>
               )}
-              {suggestions.length > 0 && (
-                <div className="absolute z-10 mt-1 w-full rounded-md border bg-background shadow-lg">
+              {suggestions.length > 0 && searchQuery.trim() && (
+                <div className="absolute z-10 mt-1 w-full rounded-md border bg-background shadow-lg max-h-60 overflow-y-auto">
                   <div className="p-2">
                     {suggestions.map((suggestion) => (
                       <div 
@@ -385,12 +707,12 @@ const StockAnalysis = () => {
                         className="flex items-center space-x-2 rounded-md p-2 hover:bg-muted cursor-pointer"
                         onClick={() => handleSelectSuggestion(suggestion)}
                       >
-                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
-                          <span className="text-xs font-semibold">{suggestion.symbol}</span>
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                          <span className="text-xs font-semibold">{suggestion.symbol.substring(0, 4)}</span>
                         </div>
-                        <div>
-                          <div className="font-medium">{suggestion.name}</div>
-                          <div className="text-sm text-muted-foreground">{suggestion.exchange}: {suggestion.symbol}</div>
+                        <div className="overflow-hidden">
+                          <div className="font-medium truncate">{suggestion.name}</div>
+                          <div className="text-sm text-muted-foreground truncate">{suggestion.exchange}: {suggestion.symbol}</div>
                         </div>
                       </div>
                     ))}
@@ -410,7 +732,99 @@ const StockAnalysis = () => {
         </CardContent>
       </Card>
 
-      {selectedStock && (
+      {/* Conditional Rendering: Show Sectors, Sector Stocks, or Analysis */}
+      {!selectedStock ? (
+        // Animation Container for Sectors/Stocks
+        <div className="relative min-h-[400px] pb-12">
+          {/* Sectors Grid with Animation */}
+          <div 
+            className={`
+              absolute w-full transition-all duration-300 ease-in-out
+              ${visibleView === 'sectors' 
+                ? 'opacity-100 translate-x-0' 
+                : visibleView === 'transition' 
+                  ? 'opacity-0 -translate-x-20' 
+                  : 'opacity-0 -translate-x-full pointer-events-none'}
+            `}
+          >
+            <div className="mb-4">
+              <h2 className="text-2xl font-semibold">Market Sectors</h2>
+              <p className="text-sm text-muted-foreground">Select a sector to explore stocks</p>
+            </div>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-w-4xl mx-auto pb-8">
+              {marketSectors.map((sector) => (
+                <div 
+                  key={sector.id} 
+                  className="bg-amber-300 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-amber-400 transition-colors text-black aspect-square transform hover:scale-105 transition-transform duration-200"
+                  onClick={() => !isAnimating && handleSelectSector(sector.id)}
+                >
+                  <div className="mb-3">
+                    {sector.icon}
+                  </div>
+                  <span className="font-medium text-center">{sector.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          {/* Stocks in Selected Sector with Animation */}
+          <div 
+            className={`
+              absolute w-full transition-all duration-300 ease-in-out
+              ${visibleView === 'stocks' 
+                ? 'opacity-100 translate-x-0' 
+                : visibleView === 'transition' 
+                  ? 'opacity-0 translate-x-20' 
+                  : 'opacity-0 translate-x-full pointer-events-none'}
+            `}
+          >
+            <div className="mb-4 flex items-center">
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="mr-2"
+                onClick={() => !isAnimating && handleBackToSectors()}
+                disabled={isAnimating}
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Back
+              </Button>
+              <h2 className="text-2xl font-semibold">
+                {marketSectors.find(s => s.id === selectedSector)?.name} Stocks
+              </h2>
+            </div>
+            
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-w-4xl mx-auto pb-8">
+              {selectedSector && marketSectors
+                .find(s => s.id === selectedSector)
+                ?.stocks.map((stock, index) => (
+                  <Card 
+                    key={stock.symbol} 
+                    className="hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => handleSelectStock(stock.symbol, stock.name)}
+                    style={{
+                      opacity: 0,
+                      transform: 'scale(0.7)',
+                      animation: visibleView === 'stocks' ? `fadeGrow 0.5s forwards` : 'none',
+                      animationDelay: `${index * 100}ms`,
+                      animationFillMode: 'forwards'
+                    }}
+                  >
+                    <CardContent className="p-4 flex flex-col items-center text-center">
+                      <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3">
+                        <span className="text-lg font-semibold">{stock.symbol.charAt(0)}</span>
+                      </div>
+                      <span className="font-semibold">{stock.symbol}</span>
+                      <span className="text-sm text-muted-foreground truncate w-full">{stock.name}</span>
+                    </CardContent>
+                  </Card>
+                ))}
+            </div>
+          </div>
+        </div>
+      ) : (
+        // Analysis Sections (Rendered only when a stock is selected)
         <>
           {/* Stock Overview Section */}
           <Card>
@@ -504,11 +918,11 @@ const StockAnalysis = () => {
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">P/E Ratio</div>
-                    <div className="font-medium">{stockData?.peRatio || "N/A"}</div>
+                    <div className="font-medium">{isLoadingValuation ? <SkeletonLoader className="h-5 w-16" /> : getValuationDataOrDefault().peRatio}</div>
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">Dividend Yield</div>
-                    <div className="font-medium">{stockData?.dividendYield || 0}%</div>
+                    <div className="font-medium">{isLoadingValuation ? <SkeletonLoader className="h-5 w-16" /> : `${getValuationDataOrDefault().dividendYield}%`}</div>
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">52-Week Range</div>
@@ -563,7 +977,7 @@ const StockAnalysis = () => {
                         </div>
                       ))
                     ) : (
-                      performanceData.returns.map((item) => (
+                      priceChanges?.returns?.map((item) => (
                         <div key={item.period} className="flex items-center justify-between">
                           <span className="text-sm w-10">{item.period}</span>
                           <div className="flex items-center flex-1">
@@ -597,19 +1011,19 @@ const StockAnalysis = () => {
                   <div className="grid grid-cols-2 gap-4 mt-4">
                     <div>
                       <div className="text-sm text-muted-foreground">Volatility (Annual)</div>
-                      <div className="font-medium">{performanceData.volatility}%</div>
+                      <div className="font-medium">{priceChanges?.volatility ? priceChanges.volatility.toFixed(2) : "N/A"}%</div>
                     </div>
                     <div>
                       <div className="text-sm text-muted-foreground">Sharpe Ratio</div>
-                      <div className="font-medium">{performanceData.sharpeRatio}</div>
+                      <div className="font-medium">{priceChanges?.sharpeRatio ? priceChanges.sharpeRatio.toFixed(2) : "N/A"}</div>
                     </div>
                     <div>
                       <div className="text-sm text-muted-foreground">Beta</div>
-                      <div className="font-medium">{performanceData.beta}</div>
+                      <div className="font-medium">{priceChanges?.beta ? priceChanges.beta.toFixed(2) : "N/A"}</div>
                     </div>
                     <div>
                       <div className="text-sm text-muted-foreground">Alpha</div>
-                      <div className="font-medium">{performanceData.alpha}%</div>
+                      <div className="font-medium">{priceChanges?.alpha ? priceChanges.alpha.toFixed(2) : "N/A"}%</div>
                     </div>
                   </div>
                 </div>
@@ -640,67 +1054,92 @@ const StockAnalysis = () => {
               <div className="grid md:grid-cols-3 gap-6">
                 <div className="flex flex-col items-center justify-center">
                   <div className="relative w-40 h-40">
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="text-3xl font-bold">{financialHealthData.healthScore}</div>
-                        <div className="text-sm text-muted-foreground">Health Score</div>
+                    {isLoadingFinancialHealth ? (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
                       </div>
-                    </div>
-                    <MockChart type="Financial Health Radar" height={160} />
+                    ) : (
+                      <>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <div className="text-center">
+                            <div className="text-3xl font-bold">{financialHealthData?.healthScore ?? 'N/A'}</div>
+                            <div className="text-sm text-muted-foreground">Health Score</div>
+                          </div>
+                        </div>
+                        {/* Replace MockChart if you have a real radar chart component */}
+                        <MockChart type="Financial Health Radar" height={160} />
+                      </>
+                    )}
                   </div>
                 </div>
                 
                 <div>
                   <h4 className="font-medium mb-3">Balance Sheet Metrics</h4>
                   <div className="space-y-3">
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm">Debt-to-Equity</span>
-                        <span className="text-sm font-medium">{financialHealthData.debtToEquity}</span>
-                      </div>
-                      <Progress value={financialHealthData.debtToEquity * 25} className="h-2" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm">Current Ratio</span>
-                        <span className="text-sm font-medium">{financialHealthData.currentRatio}</span>
-                      </div>
-                      <Progress value={financialHealthData.currentRatio * 33} className="h-2" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm">Quick Ratio</span>
-                        <span className="text-sm font-medium">{financialHealthData.quickRatio}</span>
-                      </div>
-                      <Progress value={financialHealthData.quickRatio * 33} className="h-2" />
-                    </div>
+                    {isLoadingFinancialHealth ? (
+                      <>
+                        <SkeletonLoader className="h-6" count={3} />
+                      </>
+                    ) : (
+                      <>
+                        <div>
+                          <div className="flex justify-between mb-1">
+                            <span className="text-sm">Debt-to-Equity</span>
+                            <span className="text-sm font-medium">{financialHealthData?.debtToEquity?.toFixed(2) ?? 'N/A'}</span>
+                          </div>
+                          <Progress value={(financialHealthData?.debtToEquity ?? 0) * 25} className="h-2" /> 
+                        </div>
+                        <div>
+                          <div className="flex justify-between mb-1">
+                            <span className="text-sm">Current Ratio</span>
+                            <span className="text-sm font-medium">{financialHealthData?.currentRatio?.toFixed(2) ?? 'N/A'}</span>
+                          </div>
+                          <Progress value={(financialHealthData?.currentRatio ?? 0) * 33} className="h-2" />
+                        </div>
+                        <div>
+                          <div className="flex justify-between mb-1">
+                            <span className="text-sm">Quick Ratio</span>
+                            <span className="text-sm font-medium">{financialHealthData?.quickRatio?.toFixed(2) ?? 'N/A'}</span>
+                          </div>
+                          <Progress value={(financialHealthData?.quickRatio ?? 0) * 33} className="h-2" />
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
                 
                 <div>
                   <h4 className="font-medium mb-3">Profitability Metrics</h4>
                   <div className="space-y-3">
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm">Return on Equity</span>
-                        <span className="text-sm font-medium">{financialHealthData.returnOnEquity}%</span>
+                    {isLoadingFinancialHealth ? (
+                      <>
+                        <SkeletonLoader className="h-6" count={3} />
+                      </>
+                    ) : (
+                      <>
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm">Return on Equity</span>
+                          <span className="text-sm font-medium">{financialHealthData?.returnOnEquity ? financialHealthData.returnOnEquity.toFixed(2) + '%' : 'N/A'}</span>
+                        </div>
+                        <Progress value={financialHealthData?.returnOnEquity ?? 0} className="h-2" />
                       </div>
-                      <Progress value={financialHealthData.returnOnEquity} className="h-2" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm">Return on Assets</span>
-                        <span className="text-sm font-medium">{financialHealthData.returnOnAssets}%</span>
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm">Return on Assets</span>
+                          <span className="text-sm font-medium">{financialHealthData?.returnOnAssets ? financialHealthData.returnOnAssets.toFixed(2) + '%' : 'N/A'}</span>
+                        </div>
+                        <Progress value={(financialHealthData?.returnOnAssets ?? 0) * 2} className="h-2" /> 
                       </div>
-                      <Progress value={financialHealthData.returnOnAssets * 2} className="h-2" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm">Net Margin</span>
-                        <span className="text-sm font-medium">{financialHealthData.netMargin}%</span>
+                      <div>
+                        <div className="flex justify-between mb-1">
+                          <span className="text-sm">Net Margin</span>
+                          <span className="text-sm font-medium">{financialHealthData?.netMargin ? financialHealthData.netMargin.toFixed(2) + '%' : 'N/A'}</span>
+                        </div>
+                        <Progress value={(financialHealthData?.netMargin ?? 0) * 2} className="h-2" />
                       </div>
-                      <Progress value={financialHealthData.netMargin * 2} className="h-2" />
-                    </div>
+                    </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -734,27 +1173,27 @@ const StockAnalysis = () => {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <div className="text-sm text-muted-foreground">P/E Ratio</div>
-                        <div className="font-medium">{valuationData.peRatio}</div>
+                        <div className="font-medium">{isLoadingValuation ? <SkeletonLoader className="h-5 w-16" /> : getValuationDataOrDefault().peRatio}</div>
                       </div>
                       <div>
-                        <div className="text-sm text-muted-foreground">Forward P/E</div>
-                        <div className="font-medium">{valuationData.forwardPE}</div>
+                        <div className="text-sm text-muted-foreground">Earnings Per Share</div>
+                        <div className="font-medium">{isLoadingValuation ? <SkeletonLoader className="h-5 w-16" /> : `$${getValuationDataOrDefault().eps}`}</div>
                       </div>
                       <div>
                         <div className="text-sm text-muted-foreground">PEG Ratio</div>
-                        <div className="font-medium">{valuationData.pegRatio}</div>
+                        <div className="font-medium">{isLoadingValuation ? <SkeletonLoader className="h-5 w-16" /> : getValuationDataOrDefault().pegRatio}</div>
                       </div>
                       <div>
                         <div className="text-sm text-muted-foreground">Price/Book</div>
-                        <div className="font-medium">{valuationData.priceToBook}</div>
+                        <div className="font-medium">{isLoadingValuation ? <SkeletonLoader className="h-5 w-16" /> : getValuationDataOrDefault().priceToBook}</div>
                       </div>
                       <div>
                         <div className="text-sm text-muted-foreground">Price/Sales</div>
-                        <div className="font-medium">{valuationData.priceToSales}</div>
+                        <div className="font-medium">{isLoadingValuation ? <SkeletonLoader className="h-5 w-16" /> : getValuationDataOrDefault().priceToSales}</div>
                       </div>
                       <div>
                         <div className="text-sm text-muted-foreground">EV/EBITDA</div>
-                        <div className="font-medium">{valuationData.evToEbitda}</div>
+                        <div className="font-medium">{isLoadingValuation ? <SkeletonLoader className="h-5 w-16" /> : getValuationDataOrDefault().evToEbitda}</div>
                       </div>
                     </div>
                     
@@ -765,11 +1204,11 @@ const StockAnalysis = () => {
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <div className="text-sm text-muted-foreground">Dividend Yield</div>
-                          <div className="font-medium">{valuationData.dividendYield}%</div>
+                           <div className="font-medium">{isLoadingValuation ? <SkeletonLoader className="h-5 w-16" /> : `${getValuationDataOrDefault().dividendYield}%`}</div>
                         </div>
                         <div>
                           <div className="text-sm text-muted-foreground">5Y Dividend Growth</div>
-                          <div className="font-medium">{valuationData.dividendGrowth5Y}%</div>
+                           <div className="font-medium">{isLoadingValuation ? <SkeletonLoader className="h-5 w-16" /> : `${getValuationDataOrDefault().dividendGrowth5Y}%`}</div>
                         </div>
                       </div>
                     </div>
@@ -784,28 +1223,41 @@ const StockAnalysis = () => {
                     <h4 className="font-medium mb-2">Fair Value Estimate</h4>
                     <div className="relative pt-5">
                       <div className="h-2 bg-muted rounded-full w-full"></div>
-                      <div 
-                        className="absolute bottom-0 h-6 w-1 bg-black"
-                        style={{ left: `${(stockData?.price - valuationData.fairValueLow) / (valuationData.fairValueHigh - valuationData.fairValueLow) * 100}%` }}
-                      ></div>
+                      {stockData?.price && getValuationDataOrDefault().fairValueHigh > 0 && getValuationDataOrDefault().fairValueLow > 0 && (
+                        <div 
+                          className="absolute bottom-0 h-6 w-1 bg-black"
+                          style={{ 
+                            left: `${Math.min(Math.max(((stockData.price - getValuationDataOrDefault().fairValueLow) / 
+                              (getValuationDataOrDefault().fairValueHigh - getValuationDataOrDefault().fairValueLow)) * 100, 0), 100)}%` 
+                          }}
+                        ></div>
+                      )}
                       <div 
                         className="absolute -top-1 text-xs"
                         style={{ left: '0%' }}
                       >
-                        ${valuationData.fairValueLow}
+                        ${getValuationDataOrDefault().fairValueLow > 0 ? getValuationDataOrDefault().fairValueLow.toFixed(2) : "N/A"}
                       </div>
                       <div 
                         className="absolute -top-1 text-xs text-right"
                         style={{ right: '0%' }}
                       >
-                        ${valuationData.fairValueHigh}
+                        ${getValuationDataOrDefault().fairValueHigh > 0 ? getValuationDataOrDefault().fairValueHigh.toFixed(2) : "N/A"}
                       </div>
-                      <div 
-                        className="absolute -bottom-6 text-xs font-medium"
-                        style={{ left: `${(stockData?.price - valuationData.fairValueLow) / (valuationData.fairValueHigh - valuationData.fairValueLow) * 100}%`, transform: 'translateX(-50%)' }}
-                      >
-                        Current: ${stockData?.price.toFixed(2) || "0.00"}
-                      </div>
+                      {stockData?.price && (
+                        <div 
+                          className="absolute -bottom-6 text-xs font-medium"
+                          style={{ 
+                            left: getValuationDataOrDefault().fairValueHigh > 0 && getValuationDataOrDefault().fairValueLow > 0 ? 
+                              `${Math.min(Math.max(((stockData.price - getValuationDataOrDefault().fairValueLow) / 
+                                (getValuationDataOrDefault().fairValueHigh - getValuationDataOrDefault().fairValueLow)) * 100, 0), 100)}%` : 
+                              '50%',
+                            transform: 'translateX(-50%)' 
+                          }}
+                        >
+                          Current: ${stockData?.price.toFixed(2) || "0.00"}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -839,86 +1291,105 @@ const StockAnalysis = () => {
                   <MockChart type="Moving Averages" height={150} />
                   
                   <div className="mt-4 space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm">50-Day MA</span>
-                      <span className={`text-sm font-medium ${stockData?.price > technicalData.ma50 ? 'text-green-600' : 'text-red-600'}`}>
-                        ${technicalData.ma50.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">200-Day MA</span>
-                      <span className={`text-sm font-medium ${stockData?.price > technicalData.ma200 ? 'text-green-600' : 'text-red-600'}`}>
-                        ${technicalData.ma200.toFixed(2)}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Support Level</span>
-                      <span className="text-sm font-medium">${technicalData.support.toFixed(2)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Resistance Level</span>
-                      <span className="text-sm font-medium">${technicalData.resistance.toFixed(2)}</span>
-                    </div>
+                    {isLoadingTechnical ? (
+                      <SkeletonLoader className="h-4" count={4} />
+                    ) : (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-sm">50-Day MA</span>
+                          <span className={`text-sm font-medium ${(stockData?.price ?? 0) > (technicalData?.ma50 ?? 0) ? 'text-green-600' : 'text-red-600'}`}>
+                            ${technicalData?.ma50?.toFixed(2) ?? 'N/A'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm">200-Day MA</span>
+                          <span className={`text-sm font-medium ${(stockData?.price ?? 0) > (technicalData?.ma200 ?? 0) ? 'text-green-600' : 'text-red-600'}`}>
+                            ${technicalData?.ma200?.toFixed(2) ?? 'N/A'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm">Support Level</span>
+                          <span className="text-sm font-medium">${technicalData?.support?.toFixed(2) ?? 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm">Resistance Level</span>
+                          <span className="text-sm font-medium">${technicalData?.resistance?.toFixed(2) ?? 'N/A'}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
                 
                 <div className="flex flex-col">
                   <h4 className="font-medium mb-3">Momentum Indicators</h4>
-                  <div className="flex-1 flex flex-col items-center justify-center space-y-6">
-                    <GaugeChart value={technicalData.rsi} min={0} max={100} label="RSI" />
-                    
-                    <div className="text-center">
-                      <div className="text-sm text-muted-foreground mb-1">MACD Signal</div>
-                      <Badge 
-                        variant="outline" 
-                        className={
-                          technicalData.macdSignal === "Bullish" 
-                            ? "bg-green-100 text-green-800 border-green-200" 
-                            : technicalData.macdSignal === "Bearish"
-                              ? "bg-red-100 text-red-800 border-red-200"
-                              : "bg-yellow-100 text-yellow-800 border-yellow-200"
-                        }
-                      >
-                        {technicalData.macdSignal}
-                      </Badge>
+                  {isLoadingTechnical ? (
+                    <div className="flex-1 flex items-center justify-center">
+                      <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
                     </div>
-                    
-                    <div className="text-center">
-                      <div className="text-sm text-muted-foreground mb-1">Bollinger Position</div>
-                      <div className="font-medium">{technicalData.bollingerPosition}</div>
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center space-y-6">
+                      <GaugeChart value={technicalData?.rsi ?? 50} min={0} max={100} label="RSI" />
+                      
+                      <div className="text-center">
+                        <div className="text-sm text-muted-foreground mb-1">MACD Signal</div>
+                        <Badge 
+                          variant="outline" 
+                          className={
+                            technicalData?.macdSignal === "Bullish" 
+                              ? "bg-green-100 text-green-800 border-green-200" 
+                              : technicalData?.macdSignal === "Bearish"
+                                ? "bg-red-100 text-red-800 border-red-200"
+                                : "bg-yellow-100 text-yellow-800 border-yellow-200" // Neutral or null
+                          }
+                        >
+                          {technicalData?.macdSignal ?? 'N/A'}
+                        </Badge>
+                      </div>
+                      
+                      <div className="text-center">
+                        <div className="text-sm text-muted-foreground mb-1">Bollinger Position</div>
+                        <div className="font-medium">{technicalData?.bollingerPosition ?? 'N/A'}</div>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
                 
                 <div className="flex flex-col">
                   <h4 className="font-medium mb-3">Signal Summary</h4>
-                  <div className="flex-1 flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="inline-flex items-center justify-center w-32 h-32 rounded-full border-8 border-muted mb-4">
-                        <div className="text-center">
-                          <div className="text-2xl font-bold">
-                            {technicalData.signalSummary}
+                  {isLoadingTechnical ? (
+                     <div className="flex-1 flex items-center justify-center">
+                      <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="inline-flex items-center justify-center w-32 h-32 rounded-full border-8 border-muted mb-4">
+                          <div className="text-center">
+                            <div className="text-2xl font-bold">
+                              {technicalData?.signalSummary ?? 'N/A'}
+                            </div>
+                            <div className="text-sm text-muted-foreground">Overall Signal</div>
                           </div>
-                          <div className="text-sm text-muted-foreground">Overall Signal</div>
                         </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-3 gap-2 mt-4">
-                        <div className="text-center">
-                          <div className="text-sm font-medium">Buy</div>
-                          <div className="text-2xl font-bold text-green-600">5</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-sm font-medium">Neutral</div>
-                          <div className="text-2xl font-bold text-yellow-600">3</div>
-                        </div>
-                        <div className="text-center">
-                          <div className="text-sm font-medium">Sell</div>
-                          <div className="text-2xl font-bold text-red-600">2</div>
+                        
+                        {/* Assuming signalSummary implies counts - adjust if API provides counts */}
+                        <div className="grid grid-cols-3 gap-2 mt-4">
+                          <div className="text-center">
+                            <div className="text-sm font-medium">Buy</div>
+                            <div className="text-2xl font-bold text-green-600">?</div> {/* Placeholder */}
+                          </div>
+                          <div className="text-center">
+                            <div className="text-sm font-medium">Neutral</div>
+                            <div className="text-2xl font-bold text-yellow-600">?</div> {/* Placeholder */}
+                          </div>
+                          <div className="text-center">
+                            <div className="text-sm font-medium">Sell</div>
+                            <div className="text-2xl font-bold text-red-600">?</div> {/* Placeholder */}
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -948,75 +1419,97 @@ const StockAnalysis = () => {
                 <div>
                   <h4 className="font-medium mb-3">Recent News</h4>
                   <div className="space-y-4">
-                    {newsData.recentNews.map((news, index) => (
-                      <div key={index} className="border rounded-md p-3">
-                        <div className="flex justify-between mb-1">
-                          <Badge 
-                            variant="outline" 
-                            className={
-                              news.sentiment === "positive" 
-                                ? "bg-green-100 text-green-800 border-green-200" 
-                                : news.sentiment === "negative"
-                                  ? "bg-red-100 text-red-800 border-red-200"
-                                  : "bg-yellow-100 text-yellow-800 border-yellow-200"
-                            }
-                          >
-                            {news.sentiment}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">{news.date}</span>
+                    {isLoadingNews ? (
+                       <SkeletonLoader className="h-20" count={3} />
+                    ) : newsData?.recentNews && newsData.recentNews.length > 0 ? (
+                      newsData.recentNews.map((news, index) => (
+                        <div key={index} className="border rounded-md p-3">
+                          <div className="flex justify-between mb-1">
+                            <Badge 
+                              variant="outline" 
+                              className={
+                                news.sentiment === "positive" 
+                                  ? "bg-green-100 text-green-800 border-green-200" 
+                                  : news.sentiment === "negative"
+                                    ? "bg-red-100 text-red-800 border-red-200"
+                                    : "bg-yellow-100 text-yellow-800 border-yellow-200" // neutral
+                              }
+                            >
+                              {news.sentiment}
+                            </Badge>
+                            <span className="text-xs text-muted-foreground">{news.date}</span> {/* Format date if needed */}
+                          </div>
+                          <h5 className="font-medium">{news.title}</h5>
+                          <div className="text-xs text-muted-foreground mt-1">Source: {news.source}</div>
                         </div>
-                        <h5 className="font-medium">{news.title}</h5>
-                        <div className="text-xs text-muted-foreground mt-1">Source: {news.source}</div>
-                      </div>
-                    ))}
+                      ))
+                    ) : (
+                      <div className="text-center text-muted-foreground py-4">No recent news found.</div>
+                    )}
                   </div>
                 </div>
                 
                 <div>
                   <h4 className="font-medium mb-3">Sentiment Analysis</h4>
-                  <div className="flex flex-col items-center mb-6">
-                    <GaugeChart value={newsData.sentimentScore} min={0} max={100} label="Sentiment Score" />
-                  </div>
+                  {isLoadingNews ? (
+                     <div className="flex flex-col items-center mb-6">
+                       <SkeletonLoader className="h-24 w-32" />
+                     </div>
+                  ) : (
+                    <div className="flex flex-col items-center mb-6">
+                      <GaugeChart value={newsData?.sentimentScore ?? 50} min={0} max={100} label="Sentiment Score" />
+                    </div>
+                  )}
                   
                   <h4 className="font-medium mb-3">Analyst Ratings</h4>
-                  <div className="flex items-center space-x-2 mb-2">
-                    <div className="w-full bg-muted h-4 rounded-full overflow-hidden flex">
-                      <div 
-                        className="bg-green-500 h-full"
-                        style={{ width: `${(newsData.analystRatings.buy / (newsData.analystRatings.buy + newsData.analystRatings.hold + newsData.analystRatings.sell)) * 100}%` }}
-                      ></div>
-                      <div 
-                        className="bg-yellow-500 h-full"
-                        style={{ width: `${(newsData.analystRatings.hold / (newsData.analystRatings.buy + newsData.analystRatings.hold + newsData.analystRatings.sell)) * 100}%` }}
-                      ></div>
-                      <div 
-                        className="bg-red-500 h-full"
-                        style={{ width: `${(newsData.analystRatings.sell / (newsData.analystRatings.buy + newsData.analystRatings.hold + newsData.analystRatings.sell)) * 100}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 text-center">
-                    <div>
-                      <div className="text-sm font-medium text-green-600">Buy</div>
-                      <div className="text-lg font-bold">{newsData.analystRatings.buy}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-yellow-600">Hold</div>
-                      <div className="text-lg font-bold">{newsData.analystRatings.hold}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm font-medium text-red-600">Sell</div>
-                      <div className="text-lg font-bold">{newsData.analystRatings.sell}</div>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-4">
-                    <div className="text-sm text-muted-foreground">Average Price Target</div>
-                    <div className="font-medium">${newsData.averagePriceTarget.toFixed(2)}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {((newsData.averagePriceTarget - stockData?.price || 0) / stockData?.price || 0 * 100).toFixed(2)}% from current price
-                    </div>
-                  </div>
+                  {isLoadingNews ? (
+                    <SkeletonLoader className="h-16" />
+                  ) : newsData?.analystRatings ? (
+                    <>
+                      <div className="flex items-center space-x-2 mb-2">
+                        <div className="w-full bg-muted h-4 rounded-full overflow-hidden flex">
+                          <div 
+                            className="bg-green-500 h-full"
+                            style={{ width: `${((newsData.analystRatings?.buy ?? 0) / ((newsData.analystRatings?.buy ?? 0) + (newsData.analystRatings?.hold ?? 0) + (newsData.analystRatings?.sell ?? 0))) * 100}%` }}
+                          ></div>
+                          <div 
+                            className="bg-yellow-500 h-full"
+                            style={{ width: `${((newsData.analystRatings?.hold ?? 0) / ((newsData.analystRatings?.buy ?? 0) + (newsData.analystRatings?.hold ?? 0) + (newsData.analystRatings?.sell ?? 0))) * 100}%` }}
+                          ></div>
+                          <div 
+                            className="bg-red-500 h-full"
+                            style={{ width: `${((newsData.analystRatings?.sell ?? 0) / ((newsData.analystRatings?.buy ?? 0) + (newsData.analystRatings?.hold ?? 0) + (newsData.analystRatings?.sell ?? 0))) * 100}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 text-center">
+                        <div>
+                          <div className="text-sm font-medium text-green-600">Buy</div>
+                          <div className="text-lg font-bold">{newsData.analystRatings?.buy ?? 'N/A'}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-yellow-600">Hold</div>
+                          <div className="text-lg font-bold">{newsData.analystRatings?.hold ?? 'N/A'}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm font-medium text-red-600">Sell</div>
+                          <div className="text-lg font-bold">{newsData.analystRatings?.sell ?? 'N/A'}</div>
+                        </div>
+                      </div>
+                      
+                      <div className="mt-4">
+                        <div className="text-sm text-muted-foreground">Average Price Target</div>
+                        <div className="font-medium">${newsData.averagePriceTarget?.toFixed(2) ?? 'N/A'}</div>
+                        {stockData?.price && newsData?.averagePriceTarget && (
+                          <div className="text-xs text-muted-foreground">
+                            {(((newsData.averagePriceTarget - stockData.price) / stockData.price) * 100).toFixed(2)}% from current price
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center text-muted-foreground py-4">No analyst ratings available.</div>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -1046,72 +1539,89 @@ const StockAnalysis = () => {
                 <div>
                   <h4 className="font-medium mb-3">Risk Metrics</h4>
                   <div className="space-y-3">
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm">Beta</span>
-                        <span className="text-sm font-medium">{riskData.beta.toFixed(2)}</span>
-                      </div>
-                      <Progress value={riskData.beta * 50} className="h-2" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm">Standard Deviation</span>
-                        <span className="text-sm font-medium">{riskData.standardDeviation.toFixed(2)}%</span>
-                      </div>
-                      <Progress value={riskData.standardDeviation * 2} className="h-2" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm">Value at Risk (Daily)</span>
-                        <span className="text-sm font-medium">{riskData.valueAtRisk.toFixed(2)}%</span>
-                      </div>
-                      <Progress value={riskData.valueAtRisk * 10} className="h-2" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm">Max Drawdown</span>
-                        <span className="text-sm font-medium">{riskData.maxDrawdown.toFixed(2)}%</span>
-                      </div>
-                      <Progress value={Math.abs(riskData.maxDrawdown) * 2} className="h-2" />
-                    </div>
-                    <div>
-                      <div className="flex justify-between mb-1">
-                        <span className="text-sm">Correlation to S&P 500</span>
-                        <span className="text-sm font-medium">{riskData.correlationSP500.toFixed(2)}</span>
-                      </div>
-                      <Progress value={riskData.correlationSP500 * 100} className="h-2" />
-                    </div>
+                    {isLoadingRisk ? (
+                      <SkeletonLoader className="h-6" count={5} />
+                    ) : (
+                      <>
+                        <div>
+                          <div className="flex justify-between mb-1">
+                            <span className="text-sm">Beta</span>
+                            <span className="text-sm font-medium">{riskData?.beta?.toFixed(2) ?? 'N/A'}</span>
+                          </div>
+                          <Progress value={(riskData?.beta ?? 0) * 50} className="h-2" /> 
+                        </div>
+                        <div>
+                          <div className="flex justify-between mb-1">
+                            <span className="text-sm">Standard Deviation</span>
+                            <span className="text-sm font-medium">{riskData?.standardDeviation ? riskData.standardDeviation.toFixed(2) + '%' : 'N/A'}</span>
+                          </div>
+                          <Progress value={(riskData?.standardDeviation ?? 0) * 2} className="h-2" />
+                        </div>
+                        <div>
+                          <div className="flex justify-between mb-1">
+                            <span className="text-sm">Value at Risk (Daily)</span>
+                            <span className="text-sm font-medium">{riskData?.valueAtRisk ? riskData.valueAtRisk.toFixed(2) + '%' : 'N/A'}</span>
+                          </div>
+                          <Progress value={(riskData?.valueAtRisk ?? 0) * 10} className="h-2" />
+                        </div>
+                        <div>
+                          <div className="flex justify-between mb-1">
+                            <span className="text-sm">Max Drawdown</span>
+                            <span className="text-sm font-medium">{riskData?.maxDrawdown ? riskData.maxDrawdown.toFixed(2) + '%' : 'N/A'}</span>
+                          </div>
+                          <Progress value={Math.abs(riskData?.maxDrawdown ?? 0) * 2} className="h-2" />
+                        </div>
+                        <div>
+                          <div className="flex justify-between mb-1">
+                            <span className="text-sm">Correlation to S&P 500</span>
+                            <span className="text-sm font-medium">{riskData?.correlationSP500?.toFixed(2) ?? 'N/A'}</span>
+                          </div>
+                          <Progress value={(riskData?.correlationSP500 ?? 0) * 100} className="h-2" />
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
                 
                 <div>
                   <h4 className="font-medium mb-3">Stress Test Scenarios</h4>
+                   {/* Replace MockChart if you have a real stress test chart component */}
                   <MockChart type="Stress Test" height={200} />
                 </div>
                 
                 <div className="flex flex-col">
                   <h4 className="font-medium mb-3">Risk Assessment</h4>
-                  <div className="flex-1 flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="inline-flex items-center justify-center w-32 h-32 rounded-full border-8 border-muted mb-4">
-                        <div className="text-center">
-                          <div className="text-3xl font-bold">{riskData.riskScore.toFixed(2)}</div>
-                          <div className="text-sm text-muted-foreground">Risk Score</div>
+                  {isLoadingRisk ? (
+                     <div className="flex-1 flex items-center justify-center">
+                       <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+                     </div>
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="inline-flex items-center justify-center w-32 h-32 rounded-full border-8 border-muted mb-4">
+                          <div className="text-center">
+                            <div className="text-3xl font-bold">{riskData?.riskScore?.toFixed(0) ?? 'N/A'}</div>
+                            <div className="text-sm text-muted-foreground">Risk Score</div>
+                          </div>
                         </div>
-                      </div>
-                      
-                      <div className="text-sm text-muted-foreground mt-2">
-                        {riskData.riskScore < 40 ? "Low Risk" : 
-                         riskData.riskScore < 70 ? "Moderate Risk" : "High Risk"}
-                      </div>
-                      
-                      <div className="mt-4 text-sm">
-                        This stock has {riskData.riskScore < 40 ? "lower" : 
-                                        riskData.riskScore < 70 ? "average" : "higher"} risk 
-                        compared to the overall market.
+                        
+                        {riskData?.riskScore !== null && riskData?.riskScore !== undefined && (
+                          <>
+                            <div className="text-sm text-muted-foreground mt-2">
+                              {riskData.riskScore < 40 ? "Low Risk" : 
+                               riskData.riskScore < 70 ? "Moderate Risk" : "High Risk"}
+                            </div>
+                            
+                            <div className="mt-4 text-sm">
+                              This stock has {riskData.riskScore < 40 ? "lower" : 
+                                              riskData.riskScore < 70 ? "average" : "higher"} risk 
+                              compared to the overall market.
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </CardContent>
