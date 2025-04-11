@@ -295,12 +295,12 @@ const StockAnalysis = () => {
   const [showAIExplanation, setShowAIExplanation] = useState<{
     isOpen: boolean;
     title: string;
-    content: string;
+    cardContext: any;
     section: string;
   }>({
     isOpen: false,
     title: "",
-    content: "",
+    cardContext: {},
     section: ""
   });
 
@@ -620,11 +620,11 @@ const StockAnalysis = () => {
     }
   };
 
-  const handleAIExplanationOpen = (title: string, content: string, section: string) => {
+  const handleAIExplanationOpen = (title: string, section: string, cardData: any) => {
     setShowAIExplanation({
       isOpen: true,
       title,
-      content,
+      cardContext: cardData,
       section
     });
   };
@@ -782,7 +782,7 @@ const StockAnalysis = () => {
             <div className="mb-4 flex items-center">
               <Button 
                 variant="ghost" 
-                size="sm" 
+                size="icon" 
                 className="mr-2"
                 onClick={() => !isAnimating && handleBackToSectors()}
                 disabled={isAnimating}
@@ -875,8 +875,22 @@ const StockAnalysis = () => {
                   size="icon"
                   onClick={() => handleAIExplanationOpen(
                     aiExplanations.overview.title,
-                    aiExplanations.overview.content,
-                    "overview"
+                    "overview",
+                    {
+                      ticker: selectedStock,
+                      companyName: stockData?.name,
+                      price: stockData?.price,
+                      change: stockData?.change,
+                      changePercent: stockData?.changePercent,
+                      marketCap: stockData?.marketCap,
+                      peRatio: getValuationDataOrDefault().peRatio,
+                      dividendYield: getValuationDataOrDefault().dividendYield,
+                      weekRange: formatWeekRange(),
+                      volume: stockData?.volume,
+                      avgVolume: stockData?.avgVolume,
+                      timeframe,
+                      chartData: priceData
+                    }
                   )}
                 >
                   <Cpu className="h-5 w-5" />
@@ -953,8 +967,15 @@ const StockAnalysis = () => {
                 size="icon"
                 onClick={() => handleAIExplanationOpen(
                   aiExplanations.performance.title,
-                  aiExplanations.performance.content,
-                  "performance"
+                  "performance",
+                  {
+                    ticker: selectedStock,
+                    returns: priceChanges?.returns || [],
+                    volatility: priceChanges?.volatility,
+                    sharpeRatio: priceChanges?.sharpeRatio,
+                    beta: priceChanges?.beta,
+                    alpha: priceChanges?.alpha
+                  }
                 )}
               >
                 <Cpu className="h-5 w-5" />
@@ -1043,8 +1064,17 @@ const StockAnalysis = () => {
                 size="icon"
                 onClick={() => handleAIExplanationOpen(
                   aiExplanations.financial.title,
-                  aiExplanations.financial.content,
-                  "financial"
+                  "financial",
+                  {
+                    ticker: selectedStock,
+                    healthScore: financialHealthData?.healthScore,
+                    debtToEquity: financialHealthData?.debtToEquity,
+                    currentRatio: financialHealthData?.currentRatio,
+                    quickRatio: financialHealthData?.quickRatio,
+                    returnOnEquity: financialHealthData?.returnOnEquity,
+                    returnOnAssets: financialHealthData?.returnOnAssets,
+                    netMargin: financialHealthData?.netMargin
+                  }
                 )}
               >
                 <Cpu className="h-5 w-5" />
@@ -1158,8 +1188,22 @@ const StockAnalysis = () => {
                 size="icon"
                 onClick={() => handleAIExplanationOpen(
                   aiExplanations.valuation.title,
-                  aiExplanations.valuation.content,
-                  "valuation"
+                  "valuation",
+                  {
+                    ticker: selectedStock,
+                    currentPrice: stockData?.price,
+                    peRatio: getValuationDataOrDefault().peRatio,
+                    forwardPE: getValuationDataOrDefault().forwardPE,
+                    pegRatio: getValuationDataOrDefault().pegRatio,
+                    priceToBook: getValuationDataOrDefault().priceToBook,
+                    priceToSales: getValuationDataOrDefault().priceToSales,
+                    evToEbitda: getValuationDataOrDefault().evToEbitda,
+                    dividendYield: getValuationDataOrDefault().dividendYield,
+                    dividendGrowth5Y: getValuationDataOrDefault().dividendGrowth5Y,
+                    fairValueLow: getValuationDataOrDefault().fairValueLow,
+                    fairValueHigh: getValuationDataOrDefault().fairValueHigh,
+                    eps: getValuationDataOrDefault().eps
+                  }
                 )}
               >
                 <Cpu className="h-5 w-5" />
@@ -1277,8 +1321,19 @@ const StockAnalysis = () => {
                 size="icon"
                 onClick={() => handleAIExplanationOpen(
                   aiExplanations.technical.title,
-                  aiExplanations.technical.content,
-                  "technical"
+                  "technical",
+                  {
+                    ticker: selectedStock,
+                    currentPrice: stockData?.price,
+                    ma50: technicalData?.ma50,
+                    ma200: technicalData?.ma200,
+                    support: technicalData?.support,
+                    resistance: technicalData?.resistance,
+                    rsi: technicalData?.rsi,
+                    macdSignal: technicalData?.macdSignal,
+                    bollingerPosition: technicalData?.bollingerPosition,
+                    signalSummary: technicalData?.signalSummary
+                  }
                 )}
               >
                 <Cpu className="h-5 w-5" />
@@ -1407,8 +1462,15 @@ const StockAnalysis = () => {
                 size="icon"
                 onClick={() => handleAIExplanationOpen(
                   aiExplanations.news.title,
-                  aiExplanations.news.content,
-                  "news"
+                  "news",
+                  {
+                    ticker: selectedStock,
+                    sentimentScore: newsData?.sentimentScore,
+                    recentNews: newsData?.recentNews,
+                    analystRatings: newsData?.analystRatings,
+                    averagePriceTarget: newsData?.averagePriceTarget,
+                    currentPrice: stockData?.price
+                  }
                 )}
               >
                 <Cpu className="h-5 w-5" />
@@ -1527,8 +1589,16 @@ const StockAnalysis = () => {
                 size="icon"
                 onClick={() => handleAIExplanationOpen(
                   aiExplanations.risk.title,
-                  aiExplanations.risk.content,
-                  "risk"
+                  "risk",
+                  {
+                    ticker: selectedStock,
+                    beta: riskData?.beta,
+                    standardDeviation: riskData?.standardDeviation,
+                    valueAtRisk: riskData?.valueAtRisk,
+                    maxDrawdown: riskData?.maxDrawdown,
+                    correlationSP500: riskData?.correlationSP500,
+                    riskScore: riskData?.riskScore
+                  }
                 )}
               >
                 <Cpu className="h-5 w-5" />
@@ -1633,7 +1703,7 @@ const StockAnalysis = () => {
       <AIExplanationPopup
         isOpen={showAIExplanation.isOpen}
         title={showAIExplanation.title}
-        content={showAIExplanation.content}
+        cardContext={showAIExplanation.cardContext}
         section={showAIExplanation.section}
         onClose={handleAIExplanationClose}
       />
