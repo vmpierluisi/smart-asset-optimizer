@@ -60,6 +60,7 @@ import {
 } from "@/utils/fmpFinanceUtils";
 import { PriceChart } from "@/components/PriceChart";
 import { useStockPrices } from "@/hooks/useStockPrices";
+import { useRsi } from "@/hooks/useRsi";
 import { toast } from "@/hooks/use-toast";
 
 // Define CSS keyframes for animations
@@ -102,33 +103,77 @@ const MockChart = ({ type, height = 200 }: { type: string, height?: number }) =>
   );
 };
 
-// Mock gauge component
+// RSI indicator component (simplified from previous GaugeChart)
 const GaugeChart = ({ value, min = 0, max = 100, label }: { value: number, min?: number, max?: number, label: string }) => {
-  const percentage = ((value - min) / (max - min)) * 100;
+  // Ensure value is within min/max range
+  const boundedValue = Math.min(Math.max(value, min), max);
+  
+  // For RSI-specific display
+  const isRsi = label === "RSI";
+  
+  // Determine RSI status and styling
+  const getRsiStatus = () => {
+    if (!isRsi) return { text: "", color: "", bgColor: "", borderColor: "" };
+    
+    if (boundedValue <= 30) {
+      return { 
+        text: "Oversold", 
+        color: "text-green-700", 
+        bgColor: "bg-green-100", 
+        borderColor: "border-green-300" 
+      };
+    }
+    if (boundedValue >= 70) {
+      return { 
+        text: "Overbought", 
+        color: "text-red-700", 
+        bgColor: "bg-red-100", 
+        borderColor: "border-red-300" 
+      };
+    }
+    return { 
+      text: "Neutral", 
+      color: "text-amber-700", 
+      bgColor: "bg-amber-100", 
+      borderColor: "border-amber-300" 
+    };
+  };
+  
+  const status = getRsiStatus();
   
   return (
-    <div className="flex flex-col items-center">
-      <div className="relative w-32 h-16 overflow-hidden">
-        <div className="absolute w-32 h-32 rounded-full border-8 border-muted bottom-0"></div>
-        <div 
-          className="absolute w-32 h-32 rounded-full border-8 border-primary bottom-0"
-          style={{ 
-            clipPath: `polygon(50% 50%, 0 50%, ${percentage < 50 ? percentage * 2 : 100}% 50%)` 
-          }}
-        ></div>
-        <div 
-          className="absolute w-32 h-32 rounded-full border-8 border-primary bottom-0"
-          style={{ 
-            clipPath: percentage > 50 
-              ? `polygon(50% 50%, 100% 50%, 100% ${100 - (percentage - 50) * 2}%, 50% 50%)` 
-              : 'none'
-          }}
-        ></div>
-        <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1 h-8 bg-black"></div>
+    <div className="flex flex-col items-center justify-center py-3">
+      <div className="text-4xl font-bold mb-2" style={{ 
+        color: boundedValue <= 30 ? "#16a34a" : boundedValue >= 70 ? "#dc2626" : "#d97706" 
+      }}>
+        {value.toFixed(1)}
       </div>
-      <div className="mt-2 text-center">
-        <div className="text-xl font-bold">{value}</div>
-        <div className="text-sm text-muted-foreground">{label}</div>
+      <div className="text-sm text-muted-foreground mb-3">{label}</div>
+      
+      {isRsi && (
+        <div className={`px-3 py-1 rounded-full text-sm border ${status.bgColor} ${status.color} ${status.borderColor}`}>
+          {status.text}
+        </div>
+      )}
+      
+      <div className="flex justify-between w-40 mt-3">
+        <div className="text-xs text-green-600">30</div>
+        <div className="text-xs text-amber-600">50</div>
+        <div className="text-xs text-red-600">70</div>
+      </div>
+      <div className="w-40 h-1 bg-gray-200 rounded-full mt-1 relative">
+        <div className="absolute inset-0 flex">
+          <div className="w-[30%] h-full bg-green-500 rounded-l-full"></div>
+          <div className="w-[40%] h-full bg-amber-500"></div>
+          <div className="w-[30%] h-full bg-red-500 rounded-r-full"></div>
+        </div>
+        <div 
+          className="absolute top-0 w-1 h-3 bg-black rounded-full -mt-1" 
+          style={{ 
+            left: `${((boundedValue - min) / (max - min)) * 100}%`,
+            transform: 'translateX(-50%)'
+          }}
+        ></div>
       </div>
     </div>
   );
@@ -310,6 +355,9 @@ const StockAnalysis = () => {
 
   // Get historical price data using our custom hook
   const { data: priceData, loading: priceLoading, error: priceError } = useStockPrices(selectedStock, timeframe);
+
+  // Get RSI data for the selected stock using our custom hook
+  const { rsi: polygonRsi, loading: rsiLoading, error: rsiError } = useRsi(selectedStock);
 
   // Fetch stock suggestions when search query changes
   useEffect(() => {
@@ -608,7 +656,7 @@ const StockAnalysis = () => {
     },
     technical: {
       title: "Technical Indicators",
-      content: "Technical analysis uses price and volume data to forecast future price movements. Moving averages show trend direction over different periods. RSI (Relative Strength Index) indicates overbought or oversold conditions. MACD signals potential trend changes. Bollinger Bands show volatility and potential price targets. Support and resistance levels are price points where the stock historically reverses direction."
+      content: "Technical analysis uses price and volume data to forecast future price movements. Moving averages show trend direction over different periods. RSI (Relative Strength Index) indicates overbought (>70) or oversold (<30) conditions, helping identify potential reversals. MACD (Moving Average Convergence Divergence) shows momentum changes and potential trend reversals - multiple MACD signals can occur simultaneously, such as bullish crossovers (MACD crossing above signal line), zero line crossovers, or histogram turns. Bollinger Bands show volatility and potential price targets. Support and resistance levels are price points where the stock historically reverses direction."
     },
     news: {
       title: "News & Sentiment",
@@ -1329,8 +1377,9 @@ const StockAnalysis = () => {
                     ma200: technicalData?.ma200,
                     support: technicalData?.support,
                     resistance: technicalData?.resistance,
-                    rsi: technicalData?.rsi,
+                    rsi: polygonRsi ?? technicalData?.rsi,
                     macdSignal: technicalData?.macdSignal,
+                    macdSignals: technicalData?.macdSignals,
                     bollingerPosition: technicalData?.bollingerPosition,
                     signalSummary: technicalData?.signalSummary
                   }
@@ -1377,28 +1426,76 @@ const StockAnalysis = () => {
                 
                 <div className="flex flex-col">
                   <h4 className="font-medium mb-3">Momentum Indicators</h4>
-                  {isLoadingTechnical ? (
+                  {isLoadingTechnical || rsiLoading ? (
                     <div className="flex-1 flex items-center justify-center">
                       <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
                     </div>
                   ) : (
                     <div className="flex-1 flex flex-col items-center justify-center space-y-6">
-                      <GaugeChart value={technicalData?.rsi ?? 50} min={0} max={100} label="RSI" />
+                      {(polygonRsi ?? technicalData?.rsi) ? (
+                        <>
+                          <GaugeChart 
+                            value={polygonRsi ?? technicalData?.rsi ?? 50} 
+                            min={0} 
+                            max={100} 
+                            label="RSI" 
+                          />
+                          
+                          {/* RSI interpretation */}
+                          <div className="text-xs text-center text-muted-foreground -mt-2 mb-3">
+                            {((polygonRsi ?? technicalData?.rsi) ?? 0) > 70 ? 
+                              'Overbought (>70): Potential sell signal' : 
+                              ((polygonRsi ?? technicalData?.rsi) ?? 0) < 30 ? 
+                              'Oversold (<30): Potential buy signal' : 
+                              ''}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-center">
+                          <div className="text-sm font-medium mb-1">RSI</div>
+                          <div className="text-2xl font-bold">N/A</div>
+                          <div className="text-xs text-muted-foreground mt-1">Data unavailable</div>
+                        </div>
+                      )}
                       
                       <div className="text-center">
-                        <div className="text-sm text-muted-foreground mb-1">MACD Signal</div>
-                        <Badge 
-                          variant="outline" 
-                          className={
-                            technicalData?.macdSignal === "Bullish" 
-                              ? "bg-green-100 text-green-800 border-green-200" 
-                              : technicalData?.macdSignal === "Bearish"
-                                ? "bg-red-100 text-red-800 border-red-200"
-                                : "bg-yellow-100 text-yellow-800 border-yellow-200" // Neutral or null
-                          }
-                        >
-                          {technicalData?.macdSignal ?? 'N/A'}
-                        </Badge>
+                        <div className="text-sm text-muted-foreground mb-1">MACD Signals</div>
+                        {technicalData?.macdSignals && technicalData.macdSignals.length > 0 ? (
+                          <div className="flex flex-wrap gap-1 justify-center">
+                            {technicalData.macdSignals.map((signal, index) => (
+                              <Badge 
+                                key={index}
+                                variant="outline" 
+                                className={
+                                  signal.toLowerCase().includes('bullish') || 
+                                  signal.toLowerCase().includes('above')
+                                    ? "bg-green-100 text-green-800 border-green-200" 
+                                    : signal.toLowerCase().includes('bearish') || 
+                                      signal.toLowerCase().includes('below')
+                                      ? "bg-red-100 text-red-800 border-red-200"
+                                      : "bg-yellow-100 text-yellow-800 border-yellow-200"
+                                }
+                              >
+                                {signal}
+                              </Badge>
+                            ))}
+                          </div>
+                        ) : technicalData?.macdSignal ? (
+                          <Badge 
+                            variant="outline" 
+                            className={
+                              technicalData.macdSignal === "Bullish" 
+                                ? "bg-green-100 text-green-800 border-green-200" 
+                                : technicalData.macdSignal === "Bearish"
+                                  ? "bg-red-100 text-red-800 border-red-200"
+                                  : "bg-yellow-100 text-yellow-800 border-yellow-200" // Neutral
+                            }
+                          >
+                            {technicalData.macdSignal}
+                          </Badge>
+                        ) : (
+                          <span className="text-sm">N/A</span>
+                        )}
                       </div>
                       
                       <div className="text-center">
@@ -1421,27 +1518,35 @@ const StockAnalysis = () => {
                         <div className="inline-flex items-center justify-center w-32 h-32 rounded-full border-8 border-muted mb-4">
                           <div className="text-center">
                             <div className="text-2xl font-bold">
-                              {technicalData?.signalSummary ?? 'N/A'}
+                              {newsData?.analystRatings?.consensus ?? 'N/A'}
                             </div>
                             <div className="text-sm text-muted-foreground">Overall Signal</div>
                           </div>
                         </div>
                         
-                        {/* Assuming signalSummary implies counts - adjust if API provides counts */}
-                        <div className="grid grid-cols-3 gap-2 mt-4">
-                          <div className="text-center">
-                            <div className="text-sm font-medium">Buy</div>
-                            <div className="text-2xl font-bold text-green-600">?</div> {/* Placeholder */}
+                        {/* Display counts of each rating type if available */}
+                        {newsData?.analystRatings && (
+                          <div className="grid grid-cols-3 gap-2 mt-4">
+                            <div className="text-center">
+                              <div className="text-sm font-medium">Buy</div>
+                              <div className="text-2xl font-bold text-green-600">
+                                {(newsData.analystRatings.strongBuy || 0) + (newsData.analystRatings.buy || 0)}
+                              </div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-sm font-medium">Neutral</div>
+                              <div className="text-2xl font-bold text-yellow-600">
+                                {newsData.analystRatings.hold || 0}
+                              </div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-sm font-medium">Sell</div>
+                              <div className="text-2xl font-bold text-red-600">
+                                {(newsData.analystRatings.sell || 0) + (newsData.analystRatings.strongSell || 0)}
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-center">
-                            <div className="text-sm font-medium">Neutral</div>
-                            <div className="text-2xl font-bold text-yellow-600">?</div> {/* Placeholder */}
-                          </div>
-                          <div className="text-center">
-                            <div className="text-sm font-medium">Sell</div>
-                            <div className="text-2xl font-bold text-red-600">?</div> {/* Placeholder */}
-                          </div>
-                        </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1490,19 +1595,52 @@ const StockAnalysis = () => {
                             <Badge 
                               variant="outline" 
                               className={
-                                news.sentiment === "positive" 
-                                  ? "bg-green-100 text-green-800 border-green-200" 
-                                  : news.sentiment === "negative"
-                                    ? "bg-red-100 text-red-800 border-red-200"
-                                    : "bg-yellow-100 text-yellow-800 border-yellow-200" // neutral
+                                news.sentimentColor ? `bg-opacity-20 text-opacity-90 border-opacity-30` : (
+                                  news.sentiment === "positive" 
+                                    ? "bg-green-100 text-green-800 border-green-200" 
+                                    : news.sentiment === "negative"
+                                      ? "bg-red-100 text-red-800 border-red-200"
+                                      : "bg-yellow-100 text-yellow-800 border-yellow-200" // neutral
+                                )
                               }
+                              style={news.sentimentColor ? {
+                                backgroundColor: `${news.sentimentColor}20`, // 20% opacity
+                                color: news.sentimentColor,
+                                borderColor: `${news.sentimentColor}30` // 30% opacity
+                              } : {}}
                             >
                               {news.sentiment}
                             </Badge>
-                            <span className="text-xs text-muted-foreground">{news.date}</span> {/* Format date if needed */}
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(news.date).toLocaleDateString()}
+                            </span>
                           </div>
-                          <h5 className="font-medium">{news.title}</h5>
-                          <div className="text-xs text-muted-foreground mt-1">Source: {news.source}</div>
+                          <div className="flex">
+                            {news.imageUrl && (
+                              <div className="mr-3 flex-shrink-0">
+                                <img 
+                                  src={news.imageUrl} 
+                                  alt="" 
+                                  className="h-16 w-16 object-cover rounded-md"
+                                  onError={(e) => {
+                                    // Hide the image on load error
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                              </div>
+                            )}
+                            <div>
+                              <a 
+                                href={news.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer" 
+                                className="font-medium hover:underline"
+                              >
+                                {news.title}
+                              </a>
+                              <div className="text-xs text-muted-foreground mt-1">Source: {news.source}</div>
+                            </div>
+                          </div>
                         </div>
                       ))
                     ) : (
@@ -1531,42 +1669,64 @@ const StockAnalysis = () => {
                       <div className="flex items-center space-x-2 mb-2">
                         <div className="w-full bg-muted h-4 rounded-full overflow-hidden flex">
                           <div 
-                            className="bg-green-500 h-full"
-                            style={{ width: `${((newsData.analystRatings?.buy ?? 0) / ((newsData.analystRatings?.buy ?? 0) + (newsData.analystRatings?.hold ?? 0) + (newsData.analystRatings?.sell ?? 0))) * 100}%` }}
+                            className="bg-green-600 h-full"
+                            style={{ width: `${((newsData.analystRatings?.strongBuy ?? 0) / ((newsData.analystRatings?.strongBuy ?? 0) + (newsData.analystRatings?.buy ?? 0) + (newsData.analystRatings?.hold ?? 0) + (newsData.analystRatings?.sell ?? 0) + (newsData.analystRatings?.strongSell ?? 0))) * 100}%` }}
+                          ></div>
+                          <div 
+                            className="bg-green-400 h-full"
+                            style={{ width: `${((newsData.analystRatings?.buy ?? 0) / ((newsData.analystRatings?.strongBuy ?? 0) + (newsData.analystRatings?.buy ?? 0) + (newsData.analystRatings?.hold ?? 0) + (newsData.analystRatings?.sell ?? 0) + (newsData.analystRatings?.strongSell ?? 0))) * 100}%` }}
                           ></div>
                           <div 
                             className="bg-yellow-500 h-full"
-                            style={{ width: `${((newsData.analystRatings?.hold ?? 0) / ((newsData.analystRatings?.buy ?? 0) + (newsData.analystRatings?.hold ?? 0) + (newsData.analystRatings?.sell ?? 0))) * 100}%` }}
+                            style={{ width: `${((newsData.analystRatings?.hold ?? 0) / ((newsData.analystRatings?.strongBuy ?? 0) + (newsData.analystRatings?.buy ?? 0) + (newsData.analystRatings?.hold ?? 0) + (newsData.analystRatings?.sell ?? 0) + (newsData.analystRatings?.strongSell ?? 0))) * 100}%` }}
                           ></div>
                           <div 
-                            className="bg-red-500 h-full"
-                            style={{ width: `${((newsData.analystRatings?.sell ?? 0) / ((newsData.analystRatings?.buy ?? 0) + (newsData.analystRatings?.hold ?? 0) + (newsData.analystRatings?.sell ?? 0))) * 100}%` }}
+                            className="bg-red-400 h-full"
+                            style={{ width: `${((newsData.analystRatings?.sell ?? 0) / ((newsData.analystRatings?.strongBuy ?? 0) + (newsData.analystRatings?.buy ?? 0) + (newsData.analystRatings?.hold ?? 0) + (newsData.analystRatings?.sell ?? 0) + (newsData.analystRatings?.strongSell ?? 0))) * 100}%` }}
+                          ></div>
+                          <div 
+                            className="bg-red-600 h-full"
+                            style={{ width: `${((newsData.analystRatings?.strongSell ?? 0) / ((newsData.analystRatings?.strongBuy ?? 0) + (newsData.analystRatings?.buy ?? 0) + (newsData.analystRatings?.hold ?? 0) + (newsData.analystRatings?.sell ?? 0) + (newsData.analystRatings?.strongSell ?? 0))) * 100}%` }}
                           ></div>
                         </div>
                       </div>
-                      <div className="grid grid-cols-3 text-center">
+                      <div className="grid grid-cols-5 text-center text-xs">
                         <div>
-                          <div className="text-sm font-medium text-green-600">Buy</div>
-                          <div className="text-lg font-bold">{newsData.analystRatings?.buy ?? 'N/A'}</div>
+                          <div className="font-medium text-green-600">Strong Buy</div>
+                          <div className="font-bold">{newsData.analystRatings?.strongBuy ?? 'N/A'}</div>
                         </div>
                         <div>
-                          <div className="text-sm font-medium text-yellow-600">Hold</div>
-                          <div className="text-lg font-bold">{newsData.analystRatings?.hold ?? 'N/A'}</div>
+                          <div className="font-medium text-green-500">Buy</div>
+                          <div className="font-bold">{newsData.analystRatings?.buy ?? 'N/A'}</div>
                         </div>
                         <div>
-                          <div className="text-sm font-medium text-red-600">Sell</div>
-                          <div className="text-lg font-bold">{newsData.analystRatings?.sell ?? 'N/A'}</div>
+                          <div className="font-medium text-yellow-600">Hold</div>
+                          <div className="font-bold">{newsData.analystRatings?.hold ?? 'N/A'}</div>
+                        </div>
+                        <div>
+                          <div className="font-medium text-red-500">Sell</div>
+                          <div className="font-bold">{newsData.analystRatings?.sell ?? 'N/A'}</div>
+                        </div>
+                        <div>
+                          <div className="font-medium text-red-600">Strong Sell</div>
+                          <div className="font-bold">{newsData.analystRatings?.strongSell ?? 'N/A'}</div>
                         </div>
                       </div>
                       
-                      <div className="mt-4">
-                        <div className="text-sm text-muted-foreground">Average Price Target</div>
-                        <div className="font-medium">${newsData.averagePriceTarget?.toFixed(2) ?? 'N/A'}</div>
-                        {stockData?.price && newsData?.averagePriceTarget && (
-                          <div className="text-xs text-muted-foreground">
-                            {(((newsData.averagePriceTarget - stockData.price) / stockData.price) * 100).toFixed(2)}% from current price
-                          </div>
-                        )}
+                      <div className="mt-4 flex justify-between items-center">
+                        <div>
+                          <div className="text-sm text-muted-foreground">Consensus</div>
+                          <div className="font-medium">{newsData.analystRatings?.consensus ?? 'N/A'}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Price Target</div>
+                          <div className="font-medium">${newsData.averagePriceTarget?.toFixed(2) ?? 'N/A'}</div>
+                          {stockData?.price && newsData?.averagePriceTarget && (
+                            <div className="text-xs text-muted-foreground">
+                              {(((newsData.averagePriceTarget - stockData.price) / stockData.price) * 100).toFixed(2)}% from current price
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </>
                   ) : (

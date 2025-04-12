@@ -116,6 +116,7 @@ export interface TechnicalIndicatorData {
   ma200: number | null;
   rsi: number | null;
   macdSignal: 'Bullish' | 'Bearish' | 'Neutral' | null; // Or specific values
+  macdSignals: string[] | null; // Array of MACD signal types
   bollingerPosition: 'Upper' | 'Middle' | 'Lower' | null; // Example
   support: number | null;
   resistance: number | null;
@@ -124,15 +125,22 @@ export interface TechnicalIndicatorData {
 
 export interface NewsItem {
   title: string;
-  sentiment: 'positive' | 'negative' | 'neutral';
+  sentiment: string; // Changed from enum to string to match Alpha Vantage labels
+  sentimentColor?: string; // Added for color coding based on sentiment
   source: string;
   date: string; // Or Date object if needed
+  rawDate?: string; // Original date format from API
+  url: string; // For news article links
+  imageUrl?: string; // Banner image URL
 }
 
 export interface AnalystRatings {
+  strongBuy: number;
   buy: number;
   hold: number;
   sell: number;
+  strongSell: number;
+  consensus: string;
 }
 
 export interface NewsSentimentData {
@@ -152,6 +160,33 @@ export interface RiskAnalysisData {
   downsideRisk: number | null; // Percentage
   correlationSP500: number | null;
   riskScore: number | null; // Calculated or from FMP? Assuming calculated
+}
+
+// Interface for MACD data
+export interface MacdData {
+  symbol: string;
+  timeframe: string;
+  signalStrength: 'strong_buy' | 'buy' | 'neutral' | 'sell' | 'strong_sell';
+  latestValues: {
+    macd: number | null;
+    signal: number | null;
+    histogram: number | null;
+    timestamp: number | null;
+  };
+  signals: {
+    bullish_crossover: number[];
+    bearish_crossover: number[];
+    bullish_zero_crossover: number[];
+    bearish_zero_crossover: number[];
+    histogram_bullish_turn: number[];
+    histogram_bearish_turn: number[];
+  };
+  values: {
+    timestamp: number;
+    value: number;
+    signal: number;
+    histogram: number;
+  }[];
 }
 
 // Search for stocks using the FMP API through Supabase Edge Function
@@ -441,6 +476,12 @@ export const fetchTechnicalIndicators = async (symbol: string): Promise<Technica
       return null;
     }
 
+    // Fetch the RSI from Polygon API
+    const rsiData = await fetchRsiFromPolygon(symbol);
+    
+    // Fetch the MACD data from dedicated endpoint
+    const macdData = await fetchMacdData(symbol);
+
     const response = await fetch(`${supabaseUrl}/functions/v1/technical-indicators`, {
       method: 'POST',
       headers: {
@@ -456,11 +497,143 @@ export const fetchTechnicalIndicators = async (symbol: string): Promise<Technica
       return null;
     }
 
-    const data = await response.json();
-    return data as TechnicalIndicatorData;
+    const data = await response.json() as TechnicalIndicatorData;
+    
+    // Override the RSI with the value from Polygon API if available
+    if (rsiData !== null) {
+      data.rsi = rsiData;
+    }
+    
+    // Set MACD data from dedicated endpoint if available
+    if (macdData !== null) {
+      // Convert signalStrength to macdSignal format
+      let macdSignal: 'Bullish' | 'Bearish' | 'Neutral' | null = null;
+      
+      switch (macdData.signalStrength) {
+        case 'strong_buy':
+        case 'buy':
+          macdSignal = 'Bullish';
+          break;
+        case 'strong_sell':
+        case 'sell':
+          macdSignal = 'Bearish';
+          break;
+        case 'neutral':
+        default:
+          macdSignal = 'Neutral';
+          break;
+      }
+      
+      data.macdSignal = macdSignal;
+      
+      // Generate array of MACD signals
+      const macdSignals: string[] = [];
+      
+      // Define a function to check if a timestamp is recent (within the last 3 days)
+      const isRecentSignal = (timestamp: number) => {
+        const now = new Date().getTime();
+        const threeDaysMs = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
+        return (now - timestamp) < threeDaysMs;
+      };
+      
+      // Check for active bullish signals - only add if the condition is fulfilled (array has elements)
+      // and if the signal occurred recently
+      const hasBullishCrossover = macdData.signals.bullish_crossover.some(isRecentSignal);
+      const hasBullishZeroCross = macdData.signals.bullish_zero_crossover.some(isRecentSignal);
+      const hasHistogramBullish = macdData.signals.histogram_bullish_turn.some(isRecentSignal);
+      
+      // Check for active bearish signals - only add if the condition is fulfilled (array has elements)
+      // and if the signal occurred recently
+      const hasBearishCrossover = macdData.signals.bearish_crossover.some(isRecentSignal);
+      const hasBearishZeroCross = macdData.signals.bearish_zero_crossover.some(isRecentSignal);
+      const hasHistogramBearish = macdData.signals.histogram_bearish_turn.some(isRecentSignal);
+      
+      // Add signals only if they are active and recent
+      if (hasBullishCrossover) {
+        macdSignals.push('Bullish Crossover');
+      }
+      if (hasBullishZeroCross) {
+        macdSignals.push('Bullish Zero Cross');
+      }
+      if (hasHistogramBullish) {
+        macdSignals.push('Histogram Bullish');
+      }
+      if (hasBearishCrossover) {
+        macdSignals.push('Bearish Crossover');
+      }
+      if (hasBearishZeroCross) {
+        macdSignals.push('Bearish Zero Cross');
+      }
+      if (hasHistogramBearish) {
+        macdSignals.push('Histogram Bearish');
+      }
+      
+      // Check current MACD position - only add if the condition is fulfilled
+      if (macdData.latestValues.macd !== null && macdData.latestValues.signal !== null) {
+        // Only add one of these position signals
+        if (macdData.latestValues.macd > macdData.latestValues.signal) {
+          macdSignals.push('MACD Above Signal');
+        } else if (macdData.latestValues.macd < macdData.latestValues.signal) {
+          macdSignals.push('MACD Below Signal');
+        }
+        
+        // Only add one of these zero line signals
+        if (macdData.latestValues.macd > 0) {
+          macdSignals.push('MACD Above Zero');
+        } else if (macdData.latestValues.macd < 0) {
+          macdSignals.push('MACD Below Zero');
+        }
+      }
+      
+      data.macdSignals = macdSignals.length > 0 ? macdSignals : null;
+    }
+    
+    return data;
 
   } catch (error) {
     console.error('Error fetching technical indicator data:', error);
+    return null;
+  }
+};
+
+// Fetch RSI from Polygon.io API
+export const fetchRsiFromPolygon = async (symbol: string): Promise<number | null> => {
+  try {
+    // Get Supabase environment variables
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      return null;
+    }
+    
+    // Call the rsi-indicator edge function that interfaces with Polygon API
+    const response = await fetch(`${supabaseUrl}/functions/v1/rsi-indicator`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ symbol }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Error fetching RSI for ${symbol}: ${response.status} ${errorText}`);
+      return null;
+    }
+    
+    const data = await response.json();
+    
+    // Extract the RSI values from the response structure
+    if (data && data.rsiValues && Array.isArray(data.rsiValues) && data.rsiValues.length > 0) {
+      return Number(data.averageRsi.toFixed(2)); // Return the average RSI from the edge function
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error fetching RSI from edge function:', error);
     return null;
   }
 };
@@ -535,6 +708,41 @@ export const fetchRiskAnalysis = async (symbol: string): Promise<RiskAnalysisDat
 
   } catch (error) {
     console.error('Error fetching risk analysis data:', error);
+    return null;
+  }
+};
+
+// Fetch MACD data from dedicated edge function
+export const fetchMacdData = async (symbol: string): Promise<MacdData | null> => {
+  try {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      return null;
+    }
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/macd-analysis`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ symbol }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Error fetching MACD data for ${symbol}: ${response.status} ${errorText}`);
+      return null;
+    }
+
+    const data = await response.json();
+    return data as MacdData;
+
+  } catch (error) {
+    console.error('Error fetching MACD data:', error);
     return null;
   }
 };

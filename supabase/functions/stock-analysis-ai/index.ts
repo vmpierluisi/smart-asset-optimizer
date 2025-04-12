@@ -47,7 +47,7 @@ serve(async (req) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              model: 'google/gemini-2.0-flash-001:online',
+              model: 'google/gemini-2.0-flash-001',
               messages: [{ role: 'user', content: prompt }],
               stream: true,
             }),

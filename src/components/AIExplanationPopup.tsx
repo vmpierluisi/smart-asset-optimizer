@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Cpu, Send, ChevronRight } from "lucide-react";
 import { sendAIRequest } from '@/utils/aiApiClient';
+import { Badge } from "@/components/ui/badge";
+import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
 
 type Message = {
   role: 'user' | 'assistant' | 'system';
@@ -238,13 +240,18 @@ export function AIExplanationPopup({
                       : 'bg-muted'
                   } ${message.role === 'assistant' && message.content === '' && isLoading ? 'min-h-[2rem]' : ''}`}
                 >
-                  {message.content}
-                  {message.role === 'assistant' && message.content === '' && isLoading && (
-                    <div className="flex items-center h-4 space-x-1 ml-1">
-                      <span className="w-1.5 h-1.5 bg-current rounded-full animate-typing-dot-1"></span>
-                      <span className="w-1.5 h-1.5 bg-current rounded-full animate-typing-dot-2"></span>
-                      <span className="w-1.5 h-1.5 bg-current rounded-full animate-typing-dot-3"></span>
-                    </div>
+                  {message.role === 'assistant' ? (
+                    message.content ? (
+                      <MarkdownRenderer content={message.content} />
+                    ) : isLoading ? (
+                      <div className="flex items-center h-4 space-x-1 ml-1">
+                        <span className="w-1.5 h-1.5 bg-current rounded-full animate-typing-dot-1"></span>
+                        <span className="w-1.5 h-1.5 bg-current rounded-full animate-typing-dot-2"></span>
+                        <span className="w-1.5 h-1.5 bg-current rounded-full animate-typing-dot-3"></span>
+                      </div>
+                    ) : null
+                  ) : (
+                    message.content
                   )}
                 </div>
               </div>

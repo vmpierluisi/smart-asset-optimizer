@@ -25,68 +25,113 @@ serve(async (req) => {
     if (!symbol) throw new Error('Missing stock symbol')
     if (!FMP_API_KEY) throw new Error('Missing FMP API key')
 
+    console.log(`Processing risk analysis request for symbol: ${symbol}`);
+
     // --- Fetch Data ---
-    // Beta is often available in company profile or key stats endpoints
+    // Try company profile first for beta
     const profileUrl = `${FMP_BASE_URL}/v3/profile/${symbol}?apikey=${FMP_API_KEY}`
-    // Standard Deviation (Volatility) might be in a technical endpoint or require historical data calc
-    // Correlation to SP500 often requires historical data calculation comparing to ^GSPC or SPY
+    // Try key metrics for additional data
+    const metricsUrl = `${FMP_BASE_URL}/v3/key-metrics-ttm/${symbol}?apikey=${FMP_API_KEY}`
+    
+    console.log(`Fetching from profile URL: ${profileUrl.replace(FMP_API_KEY, 'HIDDEN_API_KEY')}`);
+    
+    try {
+      const profileResponse = await fetch(profileUrl);
+      const profileData = await profileResponse.json();
 
-    const profileResponse = await fetch(profileUrl);
+      if (!profileResponse.ok || !Array.isArray(profileData) || profileData.length === 0) {
+        console.warn(`No profile data found for ${symbol}, status: ${profileResponse.status}`);
+        // Return fallback data without failing
+        return new Response(JSON.stringify({
+          symbol: symbol,
+          beta: null,
+          maxDrawdown: null,
+          valueAtRisk: null,
+          standardDeviation: null,
+          downsideRisk: null, 
+          correlationSP500: null,
+          riskScore: null
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        });
+      }
 
-    if (!profileResponse.ok) {
-        console.error(`Failed to fetch profile (for beta) for ${symbol}: ${profileResponse.status} ${await profileResponse.text()}`);
-         // Decide how to handle - throw, return null, etc.
-         // Returning null for now if profile fetch fails
-         return new Response(JSON.stringify(null), {
-             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-             status: 404 // Or another appropriate status
-         });
-    }
+      // --- Process and Map Data ---
+      const profile = profileData[0] || {};
+      
+      // Try to fetch additional metrics if profile was successful
+      let metrics = {};
+      try {
+        const metricsResponse = await fetch(metricsUrl);
+        const metricsData = await metricsResponse.json();
+        if (metricsResponse.ok && Array.isArray(metricsData) && metricsData.length > 0) {
+          metrics = metricsData[0];
+        }
+      } catch (metricsError) {
+        console.warn(`Failed to fetch metrics for ${symbol}: ${metricsError.message}`);
+        // Continue with just profile data
+      }
 
-    const profileData = await profileResponse.json();
+      const beta = profile.beta ?? null;
+      const standardDeviation = metrics.volatility ?? null; // Use volatility if available
 
-    // --- Process and Map Data ---
-    const latestProfile = profileData?.[0];
-
-    const beta = latestProfile?.beta ?? null;
-
-    // --- Placeholder values for complex metrics ---
-    const maxDrawdown = null; // Requires historical data calculation
-    const valueAtRisk = null; // Requires historical data calculation & assumptions
-    const standardDeviation = latestProfile?.volAvg ?? null; // Use average volume as a rough proxy? Or calc volatility
-    const downsideRisk = null; // Requires historical data calculation
-    const correlationSP500 = null; // Requires historical data calculation
-    const riskScore = null; // Requires aggregation and calculation logic
-
-     // TODO: Implement Risk Score Calculation (if desired)
-    const calculateRiskScore = (beta: number | null /*, other metrics */): number | null => {
-        if (beta === null) return null;
-        // Example: Score based primarily on Beta. Needs refinement.
-        let score = 50;
-        if (beta < 0.8) score -= 15;
-        else if (beta < 1.0) score -= 5;
-        else if (beta > 1.2) score += 5;
-        else if (beta > 1.5) score += 15;
-        // Add points based on volatility, drawdown etc. if calculated
+      // --- Calculate Risk Score ---
+      const calculateRiskScore = (beta: number | null, standardDeviation: number | null): number | null => {
+        if (beta === null && standardDeviation === null) return null;
+        
+        let score = 50; // Start at neutral risk
+        
+        // Add points based on beta
+        if (beta !== null) {
+          if (beta < 0.8) score -= 15;
+          else if (beta < 1.0) score -= 5;
+          else if (beta > 1.2) score += 5;
+          else if (beta > 1.5) score += 15;
+        }
+        
+        // Add points based on volatility/standardDeviation if available
+        if (standardDeviation !== null) {
+          if (standardDeviation < 0.15) score -= 10;
+          else if (standardDeviation > 0.30) score += 10;
+        }
+        
         return Math.max(0, Math.min(100, score)); // Clamp score 0-100
+      };
+
+      const riskData: RiskAnalysisData = {
+        symbol: symbol,
+        beta: beta,
+        maxDrawdown: null, // Not available from basic API
+        valueAtRisk: null, // Not available from basic API
+        standardDeviation: standardDeviation,
+        downsideRisk: null, // Not available from basic API
+        correlationSP500: null, // Not available from basic API
+        riskScore: calculateRiskScore(beta, standardDeviation)
+      };
+
+      return new Response(JSON.stringify(riskData), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      });
+      
+    } catch (apiError) {
+      console.error(`API fetch error: ${apiError.message}`);
+      // Return fallback data without failing
+      return new Response(JSON.stringify({
+        symbol: symbol,
+        beta: null,
+        maxDrawdown: null,
+        valueAtRisk: null,
+        standardDeviation: null,
+        downsideRisk: null,
+        correlationSP500: null,
+        riskScore: null
+      }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      });
     }
-
-
-    const riskData: RiskAnalysisData = {
-      symbol: symbol,
-      beta: beta,
-      maxDrawdown: maxDrawdown,
-      valueAtRisk: valueAtRisk,
-      standardDeviation: standardDeviation, // Needs proper volatility calc ideally
-      downsideRisk: downsideRisk,
-      correlationSP500: correlationSP500,
-      riskScore: calculateRiskScore(beta /*, other metrics... */)
-    };
-
-    return new Response(JSON.stringify(riskData), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    });
 
   } catch (error) {
     console.error('Error processing request:', error.message);

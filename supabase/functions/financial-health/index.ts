@@ -15,7 +15,7 @@ interface FinancialHealthData {
   grossMargin: number | null;
   operatingMargin: number | null;
   netMargin: number | null;
-  healthScore: number | null; // Needs calculation logic
+  healthScore: number | null; // Calculated score
 }
 
 serve(async (req) => {
@@ -33,66 +33,111 @@ serve(async (req) => {
       throw new Error('Missing FMP API key')
     }
 
+    console.log(`Processing financial health request for symbol: ${symbol}`);
+
     // --- Fetch data from FMP ---
-    const ratiosUrl = `${FMP_BASE_URL}/v3/ratios/${symbol}?limit=1&apikey=${FMP_API_KEY}`
-    const metricsUrl = `${FMP_BASE_URL}/v3/key-metrics/${symbol}?limit=1&apikey=${FMP_API_KEY}`
+    // Try using key-metrics endpoint which should be more reliable
+    const metricsUrl = `${FMP_BASE_URL}/v3/key-metrics-ttm/${symbol}?apikey=${FMP_API_KEY}`
+    const ratiosUrl = `${FMP_BASE_URL}/v3/ratios-ttm/${symbol}?apikey=${FMP_API_KEY}`
 
-    const [ratiosResponse, metricsResponse] = await Promise.all([
-      fetch(ratiosUrl),
-      fetch(metricsUrl),
-    ])
-
-    if (!ratiosResponse.ok || !metricsResponse.ok) {
-      console.error(`FMP API Error: Ratios ${ratiosResponse.status}, Metrics ${metricsResponse.status}`);
-      // Consider returning partial data or a more specific error
-      throw new Error('Failed to fetch data from FMP API')
-    }
-
-    const ratiosData = await ratiosResponse.json()
-    const metricsData = await metricsResponse.json()
-
-    // --- Process and Map Data ---
-    // FMP returns arrays, take the first element (most recent)
-    const latestRatios = ratiosData?.[0]
-    const latestMetrics = metricsData?.[0]
-
-    if (!latestRatios || !latestMetrics) {
-      console.warn(`No recent ratios or metrics found for ${symbol}`);
-      // Return null or default values if data is missing
-       return new Response(JSON.stringify(null), {
-         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-         status: 404 // Not Found might be appropriate
-       })
-    }
-
-    // TODO: Implement Health Score Calculation
-    const calculateHealthScore = (ratios: any, metrics: any): number | null => {
-        // Example: Simple scoring based on a few metrics. Needs refinement.
-        let score = 50; // Start mid-range
-        if (ratios.debtEquityRatio < 1) score += 10; else if (ratios.debtEquityRatio > 2) score -= 10;
-        if (ratios.currentRatio > 1.5) score += 10; else if (ratios.currentRatio < 1) score -= 10;
-        if (metrics.returnOnEquity > 0.15) score += 10; else if (metrics.returnOnEquity < 0) score -= 10;
-        if (metrics.netProfitMargin > 0.1) score += 10; else if (metrics.netProfitMargin < 0) score -=10;
-        return Math.max(0, Math.min(100, score)); // Clamp score between 0-100
-    }
-
-    const healthData: FinancialHealthData = {
+    console.log(`Fetching metrics data from: ${metricsUrl.replace(FMP_API_KEY, 'HIDDEN')}`);
+    
+    // Return a default empty response if we can't get data
+    const defaultResponse = {
       symbol: symbol,
-      debtToEquity: latestRatios?.debtEquityRatio ?? null,
-      currentRatio: latestRatios?.currentRatio ?? null,
-      quickRatio: latestRatios?.quickRatio ?? null,
-      returnOnEquity: latestMetrics?.roe ?? latestRatios?.returnOnEquity ?? null, // Check both sources
-      returnOnAssets: latestMetrics?.roa ?? latestRatios?.returnOnAssets ?? null, // Check both sources
-      grossMargin: latestRatios?.grossProfitMargin ?? null,
-      operatingMargin: latestRatios?.operatingProfitMargin ?? null,
-      netMargin: latestMetrics?.netProfitMargin ?? latestRatios?.netProfitMargin ?? null, // Check both sources
-      healthScore: calculateHealthScore(latestRatios, latestMetrics)
-    }
+      debtToEquity: null,
+      currentRatio: null,
+      quickRatio: null,
+      returnOnEquity: null,
+      returnOnAssets: null,
+      grossMargin: null,
+      operatingMargin: null,
+      netMargin: null,
+      healthScore: null
+    };
 
-    return new Response(JSON.stringify(healthData), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    })
+    try {
+      // Try fetching from metrics first 
+      const metricsResponse = await fetch(metricsUrl);
+      const metricsData = await metricsResponse.json();
+      
+      if (!metricsResponse.ok || !metricsData || metricsData.length === 0) {
+        console.warn(`No metrics data found for ${symbol}, status: ${metricsResponse.status}`);
+        // Return graceful fallback
+        return new Response(JSON.stringify(defaultResponse), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        });
+      }
+
+      // Try ratios if metrics succeeded
+      const ratiosResponse = await fetch(ratiosUrl);
+      const ratiosData = await ratiosResponse.json();
+
+      // --- Process and Map Data ---
+      const metrics = metricsData[0] || {};
+      const ratios = ratiosData && ratiosData.length > 0 ? ratiosData[0] : {};
+
+      // Calculate health score
+      const calculateHealthScore = (metrics: any, ratios: any): number | null => {
+        if (!metrics && !ratios) return null;
+        
+        let score = 50; // Start mid-range
+        
+        // Use either source depending on what's available
+        const debtToEquity = metrics.debtToEquity || ratios.debtEquityRatio || null;
+        const currentRatio = metrics.currentRatio || ratios.currentRatio || null;
+        const roe = metrics.returnOnEquity || ratios.returnOnEquity || null;
+        const netMargin = metrics.netProfitMargin || ratios.netProfitMargin || null;
+        
+        if (debtToEquity !== null) {
+          if (debtToEquity < 1) score += 10;
+          else if (debtToEquity > 2) score -= 10;
+        }
+        
+        if (currentRatio !== null) {
+          if (currentRatio > 1.5) score += 10;
+          else if (currentRatio < 1) score -= 10;
+        }
+        
+        if (roe !== null) {
+          if (roe > 0.15) score += 10;
+          else if (roe < 0) score -= 10;
+        }
+        
+        if (netMargin !== null) {
+          if (netMargin > 0.1) score += 10;
+          else if (netMargin < 0) score -= 10;
+        }
+        
+        return Math.max(0, Math.min(100, score)); // Clamp score between 0-100
+      }
+
+      const healthData: FinancialHealthData = {
+        symbol: symbol,
+        debtToEquity: metrics.debtToEquity || ratios.debtEquityRatio || null,
+        currentRatio: metrics.currentRatio || ratios.currentRatio || null,
+        quickRatio: metrics.quickRatio || ratios.quickRatio || null,
+        returnOnEquity: metrics.returnOnEquity || ratios.returnOnEquity || null,
+        returnOnAssets: metrics.returnOnAssets || ratios.returnOnAssets || null,
+        grossMargin: metrics.grossProfitMargin || ratios.grossProfitMargin || null,
+        operatingMargin: metrics.operatingProfitMargin || ratios.operatingProfitMargin || null,
+        netMargin: metrics.netProfitMargin || ratios.netProfitMargin || null,
+        healthScore: calculateHealthScore(metrics, ratios)
+      };
+
+      return new Response(JSON.stringify(healthData), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      });
+    } catch (apiError) {
+      console.error(`API fetch error: ${apiError.message}`);
+      // Return fallback data instead of error
+      return new Response(JSON.stringify(defaultResponse), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      });
+    }
   } catch (error) {
     console.error('Error processing request:', error.message)
     return new Response(JSON.stringify({ error: error.message }), {
