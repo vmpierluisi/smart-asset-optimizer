@@ -1,10 +1,6 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { corsHeaders } from '../_shared/cors.ts'
 
-// Assuming FMP_API_KEY is set in Supabase secrets
-const FMP_API_KEY = Deno.env.get('FMP_API_KEY')
-const FMP_BASE_URL = 'https://financialmodelingprep.com/api'
-
 interface FinancialHealthData {
   symbol: string;
   debtToEquity: number | null;
@@ -29,18 +25,8 @@ serve(async (req) => {
     if (!symbol) {
       throw new Error('Missing stock symbol')
     }
-    if (!FMP_API_KEY) {
-      throw new Error('Missing FMP API key')
-    }
 
     console.log(`Processing financial health request for symbol: ${symbol}`);
-
-    // --- Fetch data from FMP ---
-    // Try using key-metrics endpoint which should be more reliable
-    const metricsUrl = `${FMP_BASE_URL}/v3/key-metrics-ttm/${symbol}?apikey=${FMP_API_KEY}`
-    const ratiosUrl = `${FMP_BASE_URL}/v3/ratios-ttm/${symbol}?apikey=${FMP_API_KEY}`
-
-    console.log(`Fetching metrics data from: ${metricsUrl.replace(FMP_API_KEY, 'HIDDEN')}`);
     
     // Return a default empty response if we can't get data
     const defaultResponse = {
@@ -57,26 +43,41 @@ serve(async (req) => {
     };
 
     try {
-      // Try fetching from metrics first 
-      const metricsResponse = await fetch(metricsUrl);
-      const metricsData = await metricsResponse.json();
+      // Call our consolidated FMP data service
+      const dataServiceUrl = new URL('/functions/v1/fmp-data-service', Deno.env.get('SUPABASE_URL'))
+      const dataServiceResponse = await fetch(dataServiceUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        },
+        body: JSON.stringify({
+          symbol,
+          endpoints: ['ratios-ttm', 'key-metrics-ttm']
+        }),
+      })
       
-      if (!metricsResponse.ok || !metricsData || metricsData.length === 0) {
-        console.warn(`No metrics data found for ${symbol}, status: ${metricsResponse.status}`);
-        // Return graceful fallback
+      if (!dataServiceResponse.ok) {
+        console.warn(`Error from data service: ${dataServiceResponse.status}`)
         return new Response(JSON.stringify(defaultResponse), {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 200,
-        });
+        })
+      }
+      
+      const serviceData = await dataServiceResponse.json()
+      
+      if (serviceData.status !== 'success' || !serviceData.data) {
+        console.warn(`No data returned from service for ${symbol}`)
+        return new Response(JSON.stringify(defaultResponse), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        })
       }
 
-      // Try ratios if metrics succeeded
-      const ratiosResponse = await fetch(ratiosUrl);
-      const ratiosData = await ratiosResponse.json();
-
-      // --- Process and Map Data ---
-      const metrics = metricsData[0] || {};
-      const ratios = ratiosData && ratiosData.length > 0 ? ratiosData[0] : {};
+      // Extract data from service response
+      const metrics = serviceData.data['key-metrics-ttm'] || {}
+      const ratios = serviceData.data['ratios-ttm'] || {}
 
       // Calculate health score
       const calculateHealthScore = (metrics: any, ratios: any): number | null => {
@@ -85,10 +86,10 @@ serve(async (req) => {
         let score = 50; // Start mid-range
         
         // Use either source depending on what's available
-        const debtToEquity = metrics.debtToEquity || ratios.debtEquityRatio || null;
-        const currentRatio = metrics.currentRatio || ratios.currentRatio || null;
-        const roe = metrics.returnOnEquity || ratios.returnOnEquity || null;
-        const netMargin = metrics.netProfitMargin || ratios.netProfitMargin || null;
+        const debtToEquity = metrics.debtToEquity || ratios.debtEquityRatioTTM || null;
+        const currentRatio = metrics.currentRatioTTM || ratios.currentRatioTTM || null;
+        const roe = metrics.returnOnEquityTTM || ratios.returnOnEquityTTM || null;
+        const netMargin = metrics.netProfitMarginTTM || ratios.netProfitMarginTTM || null;
         
         if (debtToEquity !== null) {
           if (debtToEquity < 1) score += 10;
@@ -115,14 +116,14 @@ serve(async (req) => {
 
       const healthData: FinancialHealthData = {
         symbol: symbol,
-        debtToEquity: metrics.debtToEquity || ratios.debtEquityRatio || null,
-        currentRatio: metrics.currentRatio || ratios.currentRatio || null,
-        quickRatio: metrics.quickRatio || ratios.quickRatio || null,
-        returnOnEquity: metrics.returnOnEquity || ratios.returnOnEquity || null,
-        returnOnAssets: metrics.returnOnAssets || ratios.returnOnAssets || null,
-        grossMargin: metrics.grossProfitMargin || ratios.grossProfitMargin || null,
-        operatingMargin: metrics.operatingProfitMargin || ratios.operatingProfitMargin || null,
-        netMargin: metrics.netProfitMargin || ratios.netProfitMargin || null,
+        debtToEquity: metrics.debtToEquityTTM || ratios.debtEquityRatioTTM || null,
+        currentRatio: metrics.currentRatioTTM || ratios.currentRatioTTM || null,
+        quickRatio: metrics.quickRatioTTM || ratios.quickRatioTTM || null,
+        returnOnEquity: metrics.returnOnEquityTTM || ratios.returnOnEquityTTM || null,
+        returnOnAssets: metrics.returnOnAssetsTTM || ratios.returnOnAssetsTTM || null,
+        grossMargin: metrics.grossProfitMarginTTM || ratios.grossProfitMarginTTM || null,
+        operatingMargin: metrics.operatingProfitMarginTTM || ratios.operatingProfitMarginTTM || null,
+        netMargin: metrics.netProfitMarginTTM || ratios.netProfitMarginTTM || null,
         healthScore: calculateHealthScore(metrics, ratios)
       };
 

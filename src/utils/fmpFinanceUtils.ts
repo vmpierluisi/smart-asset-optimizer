@@ -121,6 +121,7 @@ export interface TechnicalIndicatorData {
   support: number | null;
   resistance: number | null;
   signalSummary: 'Buy' | 'Sell' | 'Neutral' | null; // Example
+  priceTarget: PriceTarget | null; // Added price target data
 }
 
 export interface NewsItem {
@@ -141,6 +142,13 @@ export interface AnalystRatings {
   sell: number;
   strongSell: number;
   consensus: string;
+}
+
+export interface PriceTarget {
+  targetHigh: number;
+  targetLow: number;
+  targetConsensus: number;
+  targetMedian: number;
 }
 
 export interface NewsSentimentData {
@@ -481,6 +489,9 @@ export const fetchTechnicalIndicators = async (symbol: string): Promise<Technica
     
     // Fetch the MACD data from dedicated endpoint
     const macdData = await fetchMacdData(symbol);
+    
+    // Fetch analyst ratings and price target data
+    const { priceTarget } = await fetchAnalystRatings(symbol);
 
     const response = await fetch(`${supabaseUrl}/functions/v1/technical-indicators`, {
       method: 'POST',
@@ -498,6 +509,9 @@ export const fetchTechnicalIndicators = async (symbol: string): Promise<Technica
     }
 
     const data = await response.json() as TechnicalIndicatorData;
+    
+    // Add price target data
+    data.priceTarget = priceTarget;
     
     // Override the RSI with the value from Polygon API if available
     if (rsiData !== null) {
@@ -744,5 +758,46 @@ export const fetchMacdData = async (symbol: string): Promise<MacdData | null> =>
   } catch (error) {
     console.error('Error fetching MACD data:', error);
     return null;
+  }
+};
+
+// Fetch Analyst Ratings and Price Target data
+export const fetchAnalystRatings = async (symbol: string): Promise<{
+  analystRatings: AnalystRatings | null;
+  priceTarget: PriceTarget | null;
+}> => {
+  try {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      return { analystRatings: null, priceTarget: null };
+    }
+
+    const response = await fetch(`${supabaseUrl}/functions/v1/analyst-ratings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ symbol }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Error fetching analyst ratings for ${symbol}: ${response.status} ${errorText}`);
+      return { analystRatings: null, priceTarget: null };
+    }
+
+    const data = await response.json();
+    return {
+      analystRatings: data.analystRatings,
+      priceTarget: data.priceTarget
+    };
+
+  } catch (error) {
+    console.error('Error fetching analyst ratings data:', error);
+    return { analystRatings: null, priceTarget: null };
   }
 };

@@ -22,7 +22,7 @@ import {
   Cpu, 
   DollarSign, 
   LineChart, 
-  PieChart,
+  PieChart as PieChartIcon,
   Search, 
   Star,
   TrendingDown, 
@@ -39,6 +39,13 @@ import {
   Truck,
   Wallet
 } from "lucide-react";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip
+} from "recharts";
 import { AIExplanationPopup } from "@/components/AIExplanationPopup";
 import { 
   searchStocks, 
@@ -110,6 +117,7 @@ const GaugeChart = ({ value, min = 0, max = 100, label }: { value: number, min?:
   
   // For RSI-specific display
   const isRsi = label === "RSI";
+  const isSentiment = label === "Sentiment Score";
   
   // Determine RSI status and styling
   const getRsiStatus = () => {
@@ -139,33 +147,75 @@ const GaugeChart = ({ value, min = 0, max = 100, label }: { value: number, min?:
     };
   };
   
-  const status = getRsiStatus();
+  // Determine Sentiment status and styling
+  const getSentimentStatus = () => {
+    if (!isSentiment) return { text: "", color: "", bgColor: "", borderColor: "" };
+    
+    if (boundedValue < 30) {
+      return { 
+        text: "Negative", 
+        color: "text-red-700", 
+        bgColor: "bg-red-100", 
+        borderColor: "border-red-300" 
+      };
+    }
+    if (boundedValue > 70) {
+      return { 
+        text: "Positive", 
+        color: "text-green-700", 
+        bgColor: "bg-green-100", 
+        borderColor: "border-green-300" 
+      };
+    }
+    return { 
+      text: "Neutral", 
+      color: "text-amber-700", 
+      bgColor: "bg-amber-100", 
+      borderColor: "border-amber-300" 
+    };
+  };
+  
+  const rsiStatus = getRsiStatus();
+  const sentimentStatus = getSentimentStatus();
   
   return (
     <div className="flex flex-col items-center justify-center py-3">
       <div className="text-4xl font-bold mb-2" style={{ 
-        color: boundedValue <= 30 ? "#16a34a" : boundedValue >= 70 ? "#dc2626" : "#d97706" 
+        color: isSentiment 
+          ? (boundedValue < 30 ? "#dc2626" : boundedValue > 70 ? "#16a34a" : "#d97706")
+          : (boundedValue <= 30 ? "#16a34a" : boundedValue >= 70 ? "#dc2626" : "#d97706")
       }}>
         {value.toFixed(1)}
       </div>
       <div className="text-sm text-muted-foreground mb-3">{label}</div>
       
       {isRsi && (
-        <div className={`px-3 py-1 rounded-full text-sm border ${status.bgColor} ${status.color} ${status.borderColor}`}>
-          {status.text}
+        <div className={`px-3 py-1 rounded-full text-sm border ${rsiStatus.bgColor} ${rsiStatus.color} ${rsiStatus.borderColor}`}>
+          {rsiStatus.text}
         </div>
       )}
       
-      <div className="flex justify-between w-40 mt-3">
-        <div className="text-xs text-green-600">30</div>
-        <div className="text-xs text-amber-600">50</div>
-        <div className="text-xs text-red-600">70</div>
-      </div>
-      <div className="w-40 h-1 bg-gray-200 rounded-full mt-1 relative">
+      {isSentiment && (
+        <div className={`px-3 py-1 rounded-full text-sm border ${sentimentStatus.bgColor} ${sentimentStatus.color} ${sentimentStatus.borderColor}`}>
+          {sentimentStatus.text}
+        </div>
+      )}
+      
+      <div className="w-40 h-1 bg-gray-200 rounded-full relative mt-4">
         <div className="absolute inset-0 flex">
-          <div className="w-[30%] h-full bg-green-500 rounded-l-full"></div>
-          <div className="w-[40%] h-full bg-amber-500"></div>
-          <div className="w-[30%] h-full bg-red-500 rounded-r-full"></div>
+          {isSentiment ? (
+            <>
+              <div className="w-[30%] h-full bg-red-500 rounded-l-full"></div>
+              <div className="w-[40%] h-full bg-amber-500"></div>
+              <div className="w-[30%] h-full bg-green-500 rounded-r-full"></div>
+            </>
+          ) : (
+            <>
+              <div className="w-[30%] h-full bg-green-500 rounded-l-full"></div>
+              <div className="w-[40%] h-full bg-amber-500"></div>
+              <div className="w-[30%] h-full bg-red-500 rounded-r-full"></div>
+            </>
+          )}
         </div>
         <div 
           className="absolute top-0 w-1 h-3 bg-black rounded-full -mt-1" 
@@ -313,6 +363,16 @@ const marketSectors = [
       { symbol: "PSA", name: "Public Storage" },
     ]
   },
+];
+
+// Colors for the analyst ratings pie chart
+const RATING_COLORS = [
+  "#22c55e", // Strong Buy - Green
+  "#4ade80", // Buy - Light Green
+  "#facc15", // Hold - Yellow
+  "#f87171", // Sell - Light Red
+  "#ef4444", // Strong Sell - Red
+  "#d1d5db"  // No data - Gray
 ];
 
 // First part of the component declaration - we'll complete it in subsequent edits
@@ -656,7 +716,7 @@ const StockAnalysis = () => {
     },
     technical: {
       title: "Technical Indicators",
-      content: "Technical analysis uses price and volume data to forecast future price movements. Moving averages show trend direction over different periods. RSI (Relative Strength Index) indicates overbought (>70) or oversold (<30) conditions, helping identify potential reversals. MACD (Moving Average Convergence Divergence) shows momentum changes and potential trend reversals - multiple MACD signals can occur simultaneously, such as bullish crossovers (MACD crossing above signal line), zero line crossovers, or histogram turns. Bollinger Bands show volatility and potential price targets. Support and resistance levels are price points where the stock historically reverses direction."
+      content: "Technical analysis uses price and volume data to forecast future price movements. Moving averages show trend direction over different periods. RSI (Relative Strength Index) indicates overbought (>70) or oversold (<30) conditions, helping identify potential reversals. MACD (Moving Average Convergence Divergence) shows momentum changes and potential trend reversals - multiple MACD signals can occur simultaneously, such as bullish crossovers (MACD crossing above signal line), zero line crossovers, or histogram turns. Bollinger Bands show volatility and potential price targets. Support and resistance levels are price points where the stock historically reverses direction. The price target consensus shows the average, low, and high price targets from Wall Street analysts, providing context for potential future price levels."
     },
     news: {
       title: "News & Sentiment",
@@ -682,6 +742,117 @@ const StockAnalysis = () => {
       ...showAIExplanation,
       isOpen: false
     });
+  };
+
+  // Create section tags for the AI chat
+  const availableSections = {
+    overview: {
+      id: "overview",
+      name: "Overview",
+      getContext: () => ({
+        ticker: selectedStock,
+        companyName: stockData?.name,
+        price: stockData?.price,
+        change: stockData?.change,
+        changePercent: stockData?.changePercent,
+        marketCap: stockData?.marketCap,
+        peRatio: getValuationDataOrDefault().peRatio,
+        dividendYield: getValuationDataOrDefault().dividendYield,
+        weekRange: formatWeekRange(),
+        volume: stockData?.volume,
+        avgVolume: stockData?.avgVolume,
+        timeframe,
+        chartData: priceData
+      })
+    },
+    performance: {
+      id: "performance",
+      name: "Performance",
+      getContext: () => ({
+        ticker: selectedStock,
+        returns: priceChanges?.returns || [],
+        volatility: priceChanges?.volatility,
+        sharpeRatio: priceChanges?.sharpeRatio,
+        beta: priceChanges?.beta,
+        alpha: priceChanges?.alpha
+      })
+    },
+    financial: {
+      id: "financial",
+      name: "Financial",
+      getContext: () => ({
+        ticker: selectedStock,
+        healthScore: financialHealthData?.healthScore,
+        debtToEquity: financialHealthData?.debtToEquity,
+        currentRatio: financialHealthData?.currentRatio,
+        quickRatio: financialHealthData?.quickRatio,
+        returnOnEquity: financialHealthData?.returnOnEquity,
+        returnOnAssets: financialHealthData?.returnOnAssets,
+        netMargin: financialHealthData?.netMargin
+      })
+    },
+    valuation: {
+      id: "valuation",
+      name: "Valuation",
+      getContext: () => ({
+        ticker: selectedStock,
+        currentPrice: stockData?.price,
+        peRatio: getValuationDataOrDefault().peRatio,
+        forwardPE: getValuationDataOrDefault().forwardPE,
+        pegRatio: getValuationDataOrDefault().pegRatio,
+        priceToBook: getValuationDataOrDefault().priceToBook,
+        priceToSales: getValuationDataOrDefault().priceToSales,
+        evToEbitda: getValuationDataOrDefault().evToEbitda,
+        dividendYield: getValuationDataOrDefault().dividendYield,
+        dividendGrowth5Y: getValuationDataOrDefault().dividendGrowth5Y,
+        fairValueLow: getValuationDataOrDefault().fairValueLow,
+        fairValueHigh: getValuationDataOrDefault().fairValueHigh,
+        eps: getValuationDataOrDefault().eps
+      })
+    },
+    technical: {
+      id: "technical",
+      name: "Technical",
+      getContext: () => ({
+        ticker: selectedStock,
+        currentPrice: stockData?.price,
+        ma50: technicalData?.ma50,
+        ma200: technicalData?.ma200,
+        support: technicalData?.support,
+        resistance: technicalData?.resistance,
+        rsi: polygonRsi ?? technicalData?.rsi,
+        macdSignal: technicalData?.macdSignal,
+        macdSignals: technicalData?.macdSignals,
+        bollingerPosition: technicalData?.bollingerPosition,
+        signalSummary: technicalData?.signalSummary,
+        priceTarget: technicalData?.priceTarget
+      })
+    },
+    news: {
+      id: "news",
+      name: "News",
+      getContext: () => ({
+        ticker: selectedStock,
+        sentimentScore: newsData?.sentimentScore,
+        recentNews: newsData?.recentNews,
+        analystRatings: newsData?.analystRatings,
+        priceTarget: technicalData?.priceTarget,
+        currentPrice: stockData?.price
+      })
+    },
+    risk: {
+      id: "risk",
+      name: "Risk",
+      getContext: () => ({
+        ticker: selectedStock,
+        beta: riskData?.beta,
+        standardDeviation: riskData?.standardDeviation,
+        valueAtRisk: riskData?.valueAtRisk,
+        maxDrawdown: riskData?.maxDrawdown,
+        correlationSP500: riskData?.correlationSP500,
+        riskScore: riskData?.riskScore
+      })
+    }
   };
 
   // Replace the mock valuation data with the real one or fallback to default values
@@ -924,21 +1095,7 @@ const StockAnalysis = () => {
                   onClick={() => handleAIExplanationOpen(
                     aiExplanations.overview.title,
                     "overview",
-                    {
-                      ticker: selectedStock,
-                      companyName: stockData?.name,
-                      price: stockData?.price,
-                      change: stockData?.change,
-                      changePercent: stockData?.changePercent,
-                      marketCap: stockData?.marketCap,
-                      peRatio: getValuationDataOrDefault().peRatio,
-                      dividendYield: getValuationDataOrDefault().dividendYield,
-                      weekRange: formatWeekRange(),
-                      volume: stockData?.volume,
-                      avgVolume: stockData?.avgVolume,
-                      timeframe,
-                      chartData: priceData
-                    }
+                    availableSections.overview.getContext()
                   )}
                 >
                   <Cpu className="h-5 w-5" />
@@ -1016,14 +1173,7 @@ const StockAnalysis = () => {
                 onClick={() => handleAIExplanationOpen(
                   aiExplanations.performance.title,
                   "performance",
-                  {
-                    ticker: selectedStock,
-                    returns: priceChanges?.returns || [],
-                    volatility: priceChanges?.volatility,
-                    sharpeRatio: priceChanges?.sharpeRatio,
-                    beta: priceChanges?.beta,
-                    alpha: priceChanges?.alpha
-                  }
+                  availableSections.performance.getContext()
                 )}
               >
                 <Cpu className="h-5 w-5" />
@@ -1113,16 +1263,7 @@ const StockAnalysis = () => {
                 onClick={() => handleAIExplanationOpen(
                   aiExplanations.financial.title,
                   "financial",
-                  {
-                    ticker: selectedStock,
-                    healthScore: financialHealthData?.healthScore,
-                    debtToEquity: financialHealthData?.debtToEquity,
-                    currentRatio: financialHealthData?.currentRatio,
-                    quickRatio: financialHealthData?.quickRatio,
-                    returnOnEquity: financialHealthData?.returnOnEquity,
-                    returnOnAssets: financialHealthData?.returnOnAssets,
-                    netMargin: financialHealthData?.netMargin
-                  }
+                  availableSections.financial.getContext()
                 )}
               >
                 <Cpu className="h-5 w-5" />
@@ -1237,21 +1378,7 @@ const StockAnalysis = () => {
                 onClick={() => handleAIExplanationOpen(
                   aiExplanations.valuation.title,
                   "valuation",
-                  {
-                    ticker: selectedStock,
-                    currentPrice: stockData?.price,
-                    peRatio: getValuationDataOrDefault().peRatio,
-                    forwardPE: getValuationDataOrDefault().forwardPE,
-                    pegRatio: getValuationDataOrDefault().pegRatio,
-                    priceToBook: getValuationDataOrDefault().priceToBook,
-                    priceToSales: getValuationDataOrDefault().priceToSales,
-                    evToEbitda: getValuationDataOrDefault().evToEbitda,
-                    dividendYield: getValuationDataOrDefault().dividendYield,
-                    dividendGrowth5Y: getValuationDataOrDefault().dividendGrowth5Y,
-                    fairValueLow: getValuationDataOrDefault().fairValueLow,
-                    fairValueHigh: getValuationDataOrDefault().fairValueHigh,
-                    eps: getValuationDataOrDefault().eps
-                  }
+                  availableSections.valuation.getContext()
                 )}
               >
                 <Cpu className="h-5 w-5" />
@@ -1289,69 +1416,146 @@ const StockAnalysis = () => {
                       </div>
                     </div>
                     
-                    <Separator />
+                    {/* Removed Separator and dividend information section here */}
                     
-                    <div>
-                      <h4 className="font-medium mb-2">Dividend Information</h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <div className="text-sm text-muted-foreground">Dividend Yield</div>
-                           <div className="font-medium">{isLoadingValuation ? <SkeletonLoader className="h-5 w-16" /> : `${getValuationDataOrDefault().dividendYield}%`}</div>
-                        </div>
-                        <div>
-                          <div className="text-sm text-muted-foreground">5Y Dividend Growth</div>
-                           <div className="font-medium">{isLoadingValuation ? <SkeletonLoader className="h-5 w-16" /> : `${getValuationDataOrDefault().dividendGrowth5Y}%`}</div>
-                        </div>
-                      </div>
-                    </div>
                   </div>
                 </div>
                 
                 <div>
-                  <h4 className="font-medium mb-3">Valuation Comparison</h4>
-                  <MockChart type="Valuation Comparison" height={150} />
-                  
-                  <div className="mt-4">
-                    <h4 className="font-medium mb-2">Fair Value Estimate</h4>
-                    <div className="relative pt-5">
-                      <div className="h-2 bg-muted rounded-full w-full"></div>
-                      {stockData?.price && getValuationDataOrDefault().fairValueHigh > 0 && getValuationDataOrDefault().fairValueLow > 0 && (
-                        <div 
-                          className="absolute bottom-0 h-6 w-1 bg-black"
-                          style={{ 
-                            left: `${Math.min(Math.max(((stockData.price - getValuationDataOrDefault().fairValueLow) / 
-                              (getValuationDataOrDefault().fairValueHigh - getValuationDataOrDefault().fairValueLow)) * 100, 0), 100)}%` 
-                          }}
-                        ></div>
-                      )}
-                      <div 
-                        className="absolute -top-1 text-xs"
-                        style={{ left: '0%' }}
-                      >
-                        ${getValuationDataOrDefault().fairValueLow > 0 ? getValuationDataOrDefault().fairValueLow.toFixed(2) : "N/A"}
+                  <h4 className="font-medium mb-3">Price Target</h4>
+                  {isLoadingTechnical ? (
+                     <div className="flex-1 flex items-center justify-center">
+                      <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+                     </div>
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center">
+                      {/* Display current stock price or N/A */}
+                      <div className="text-4xl font-bold mb-2">
+                        {stockData?.price ? `$${stockData.price.toFixed(2)}` : "N/A"}
                       </div>
-                      <div 
-                        className="absolute -top-1 text-xs text-right"
-                        style={{ right: '0%' }}
-                      >
-                        ${getValuationDataOrDefault().fairValueHigh > 0 ? getValuationDataOrDefault().fairValueHigh.toFixed(2) : "N/A"}
-                      </div>
-                      {stockData?.price && (
-                        <div 
-                          className="absolute -bottom-6 text-xs font-medium"
-                          style={{ 
-                            left: getValuationDataOrDefault().fairValueHigh > 0 && getValuationDataOrDefault().fairValueLow > 0 ? 
-                              `${Math.min(Math.max(((stockData.price - getValuationDataOrDefault().fairValueLow) / 
-                                (getValuationDataOrDefault().fairValueHigh - getValuationDataOrDefault().fairValueLow)) * 100, 0), 100)}%` : 
-                              '50%',
-                            transform: 'translateX(-50%)' 
-                          }}
-                        >
-                          Current: ${stockData?.price.toFixed(2) || "0.00"}
+                      <div className="text-sm text-muted-foreground mb-3">Current Price</div>
+                      
+                      {/* Display valuation tag */}
+                      {technicalData?.priceTarget && stockData?.price ? (
+                        <div className={`px-3 py-1 rounded-full text-sm border mb-3 ${
+                          stockData.price < technicalData.priceTarget.targetConsensus * 0.9 
+                            ? "bg-green-100 text-green-700 border-green-300" 
+                            : stockData.price > technicalData.priceTarget.targetConsensus * 1.1
+                              ? "bg-red-100 text-red-700 border-red-300"
+                              : "bg-amber-100 text-amber-700 border-amber-300"
+                        }`}>
+                          {stockData.price < technicalData.priceTarget.targetConsensus * 0.9 
+                            ? "Undervalued" 
+                            : stockData.price > technicalData.priceTarget.targetConsensus * 1.1
+                              ? "Overvalued"
+                              : "Fair Value"}
+                        </div>
+                      ) : (
+                        <div className="px-3 py-1 rounded-full text-sm border mb-3 bg-gray-100 text-gray-700 border-gray-300">
+                          No Data
                         </div>
                       )}
+                      
+                      {/* Price Target Gauge */}
+                      <div className="w-full mt-3">
+                        {technicalData?.priceTarget && stockData?.price ? (
+                          <div className="relative pt-5">
+                            {/* Colored background zones */}
+                            <div className="w-40 h-1 bg-gray-200 rounded-full relative mx-auto">
+                              <div className="absolute inset-0 flex">
+                                <div className="w-[30%] h-full bg-green-500 rounded-l-full"></div>
+                                <div className="w-[40%] h-full bg-amber-500"></div>
+                                <div className="w-[30%] h-full bg-red-500 rounded-r-full"></div>
+                              </div>
+                              
+                              {/* Current price marker */}
+                              <div 
+                                className="absolute top-0 w-1 h-3 bg-black rounded-full -mt-1" 
+                                style={{ 
+                                  left: `${Math.min(Math.max(((stockData.price - technicalData.priceTarget.targetLow) / 
+                                    (technicalData.priceTarget.targetHigh - technicalData.priceTarget.targetLow)) * 100, 0), 100)}%`,
+                                  transform: 'translateX(-50%)'
+                                }}
+                              ></div>
+                            </div>
+                            
+                            {/* Target low label */}
+                            <div 
+                              className="absolute -top-1 text-xs"
+                              style={{ left: 'calc(50% - 70px)' }}
+                            >
+                              ${technicalData.priceTarget.targetLow.toFixed(2)}
+                            </div>
+                            
+                            {/* Target high label */}
+                            <div 
+                              className="absolute -top-1 text-xs text-right"
+                              style={{ right: 'calc(50% - 70px)' }}
+                            >
+                              ${technicalData.priceTarget.targetHigh.toFixed(2)}
+                            </div>
+                            
+                            {/* Consensus marker */}
+                            <div 
+                              className="absolute bottom-6 text-xs font-medium"
+                              style={{ 
+                                left: `calc(50% + ${Math.min(Math.max(((technicalData.priceTarget.targetConsensus - technicalData.priceTarget.targetLow) / 
+                                  (technicalData.priceTarget.targetHigh - technicalData.priceTarget.targetLow)) * 80 - 40, -40), 40)}px)`,
+                                transform: 'translateX(-50%)' 
+                              }}
+                            >
+                              Consensus: ${technicalData.priceTarget.targetConsensus.toFixed(2)}
+                            </div>
+                            
+                            {/* Current price label */}
+                            <div 
+                              className="absolute -bottom-6 text-xs font-medium"
+                              style={{ 
+                                left: `calc(50% + ${Math.min(Math.max(((stockData.price - technicalData.priceTarget.targetLow) / 
+                                  (technicalData.priceTarget.targetHigh - technicalData.priceTarget.targetLow)) * 80 - 40, -40), 40)}px)`,
+                                transform: 'translateX(-50%)' 
+                              }}
+                            >
+                              Current: ${stockData.price.toFixed(2)}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="relative pt-5">
+                            <div className="w-40 h-1 bg-gray-200 rounded-full relative mx-auto">
+                              {/* Empty default gauge */}
+                              <div 
+                                className="absolute top-0 w-1 h-3 bg-black rounded-full -mt-1" 
+                                style={{ 
+                                  left: '50%',
+                                  transform: 'translateX(-50%)'
+                                }}
+                              ></div>
+                            </div>
+                            
+                            <div 
+                              className="absolute -top-1 text-xs text-muted-foreground"
+                              style={{ left: 'calc(50% - 70px)' }}
+                            >
+                              $0
+                            </div>
+                            
+                            <div 
+                              className="absolute -top-1 text-xs text-right text-muted-foreground"
+                              style={{ right: 'calc(50% - 70px)' }}
+                            >
+                              $0
+                            </div>
+                            
+                            <div 
+                              className="absolute -bottom-6 text-xs font-medium text-muted-foreground text-center w-full"
+                            >
+                              No price target data available
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -1370,26 +1574,14 @@ const StockAnalysis = () => {
                 onClick={() => handleAIExplanationOpen(
                   aiExplanations.technical.title,
                   "technical",
-                  {
-                    ticker: selectedStock,
-                    currentPrice: stockData?.price,
-                    ma50: technicalData?.ma50,
-                    ma200: technicalData?.ma200,
-                    support: technicalData?.support,
-                    resistance: technicalData?.resistance,
-                    rsi: polygonRsi ?? technicalData?.rsi,
-                    macdSignal: technicalData?.macdSignal,
-                    macdSignals: technicalData?.macdSignals,
-                    bollingerPosition: technicalData?.bollingerPosition,
-                    signalSummary: technicalData?.signalSummary
-                  }
+                  availableSections.technical.getContext()
                 )}
               >
                 <Cpu className="h-5 w-5" />
               </Button>
             </CardHeader>
             <CardContent>
-              <div className="grid md:grid-cols-3 gap-6">
+              <div className="grid md:grid-cols-2 gap-6">
                 <div>
                   <h4 className="font-medium mb-3">Moving Averages</h4>
                   <MockChart type="Moving Averages" height={150} />
@@ -1505,52 +1697,6 @@ const StockAnalysis = () => {
                     </div>
                   )}
                 </div>
-                
-                <div className="flex flex-col">
-                  <h4 className="font-medium mb-3">Signal Summary</h4>
-                  {isLoadingTechnical ? (
-                     <div className="flex-1 flex items-center justify-center">
-                      <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
-                    </div>
-                  ) : (
-                    <div className="flex-1 flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="inline-flex items-center justify-center w-32 h-32 rounded-full border-8 border-muted mb-4">
-                          <div className="text-center">
-                            <div className="text-2xl font-bold">
-                              {newsData?.analystRatings?.consensus ?? 'N/A'}
-                            </div>
-                            <div className="text-sm text-muted-foreground">Overall Signal</div>
-                          </div>
-                        </div>
-                        
-                        {/* Display counts of each rating type if available */}
-                        {newsData?.analystRatings && (
-                          <div className="grid grid-cols-3 gap-2 mt-4">
-                            <div className="text-center">
-                              <div className="text-sm font-medium">Buy</div>
-                              <div className="text-2xl font-bold text-green-600">
-                                {(newsData.analystRatings.strongBuy || 0) + (newsData.analystRatings.buy || 0)}
-                              </div>
-                            </div>
-                            <div className="text-center">
-                              <div className="text-sm font-medium">Neutral</div>
-                              <div className="text-2xl font-bold text-yellow-600">
-                                {newsData.analystRatings.hold || 0}
-                              </div>
-                            </div>
-                            <div className="text-center">
-                              <div className="text-sm font-medium">Sell</div>
-                              <div className="text-2xl font-bold text-red-600">
-                                {(newsData.analystRatings.sell || 0) + (newsData.analystRatings.strongSell || 0)}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
             </CardContent>
           </Card>
@@ -1568,14 +1714,7 @@ const StockAnalysis = () => {
                 onClick={() => handleAIExplanationOpen(
                   aiExplanations.news.title,
                   "news",
-                  {
-                    ticker: selectedStock,
-                    sentimentScore: newsData?.sentimentScore,
-                    recentNews: newsData?.recentNews,
-                    analystRatings: newsData?.analystRatings,
-                    averagePriceTarget: newsData?.averagePriceTarget,
-                    currentPrice: stockData?.price
-                  }
+                  availableSections.news.getContext()
                 )}
               >
                 <Cpu className="h-5 w-5" />
@@ -1657,7 +1796,12 @@ const StockAnalysis = () => {
                      </div>
                   ) : (
                     <div className="flex flex-col items-center mb-6">
-                      <GaugeChart value={newsData?.sentimentScore ?? 50} min={0} max={100} label="Sentiment Score" />
+                      <GaugeChart 
+                        value={newsData?.sentimentScore ?? 50} 
+                        min={0} 
+                        max={100} 
+                        label="Sentiment Score" 
+                      />
                     </div>
                   )}
                   
@@ -1665,31 +1809,58 @@ const StockAnalysis = () => {
                   {isLoadingNews ? (
                     <SkeletonLoader className="h-16" />
                   ) : newsData?.analystRatings ? (
-                    <>
-                      <div className="flex items-center space-x-2 mb-2">
-                        <div className="w-full bg-muted h-4 rounded-full overflow-hidden flex">
-                          <div 
-                            className="bg-green-600 h-full"
-                            style={{ width: `${((newsData.analystRatings?.strongBuy ?? 0) / ((newsData.analystRatings?.strongBuy ?? 0) + (newsData.analystRatings?.buy ?? 0) + (newsData.analystRatings?.hold ?? 0) + (newsData.analystRatings?.sell ?? 0) + (newsData.analystRatings?.strongSell ?? 0))) * 100}%` }}
-                          ></div>
-                          <div 
-                            className="bg-green-400 h-full"
-                            style={{ width: `${((newsData.analystRatings?.buy ?? 0) / ((newsData.analystRatings?.strongBuy ?? 0) + (newsData.analystRatings?.buy ?? 0) + (newsData.analystRatings?.hold ?? 0) + (newsData.analystRatings?.sell ?? 0) + (newsData.analystRatings?.strongSell ?? 0))) * 100}%` }}
-                          ></div>
-                          <div 
-                            className="bg-yellow-500 h-full"
-                            style={{ width: `${((newsData.analystRatings?.hold ?? 0) / ((newsData.analystRatings?.strongBuy ?? 0) + (newsData.analystRatings?.buy ?? 0) + (newsData.analystRatings?.hold ?? 0) + (newsData.analystRatings?.sell ?? 0) + (newsData.analystRatings?.strongSell ?? 0))) * 100}%` }}
-                          ></div>
-                          <div 
-                            className="bg-red-400 h-full"
-                            style={{ width: `${((newsData.analystRatings?.sell ?? 0) / ((newsData.analystRatings?.strongBuy ?? 0) + (newsData.analystRatings?.buy ?? 0) + (newsData.analystRatings?.hold ?? 0) + (newsData.analystRatings?.sell ?? 0) + (newsData.analystRatings?.strongSell ?? 0))) * 100}%` }}
-                          ></div>
-                          <div 
-                            className="bg-red-600 h-full"
-                            style={{ width: `${((newsData.analystRatings?.strongSell ?? 0) / ((newsData.analystRatings?.strongBuy ?? 0) + (newsData.analystRatings?.buy ?? 0) + (newsData.analystRatings?.hold ?? 0) + (newsData.analystRatings?.sell ?? 0) + (newsData.analystRatings?.strongSell ?? 0))) * 100}%` }}
-                          ></div>
-                        </div>
+                    <div className="flex flex-col space-y-4">
+                      <div className="h-56">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={[
+                                { 
+                                  name: "Strong Buy", 
+                                  value: newsData.analystRatings.strongBuy || 0 
+                                },
+                                { 
+                                  name: "Buy", 
+                                  value: newsData.analystRatings.buy || 0 
+                                },
+                                { 
+                                  name: "Hold", 
+                                  value: newsData.analystRatings.hold || 0 
+                                },
+                                { 
+                                  name: "Sell", 
+                                  value: newsData.analystRatings.sell || 0 
+                                },
+                                { 
+                                  name: "Strong Sell", 
+                                  value: newsData.analystRatings.strongSell || 0 
+                                }
+                              ]}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={60}
+                              outerRadius={80}
+                              paddingAngle={2}
+                              dataKey="value"
+                            >
+                              {[
+                                { name: "Strong Buy", color: RATING_COLORS[0] },
+                                { name: "Buy", color: RATING_COLORS[1] },
+                                { name: "Hold", color: RATING_COLORS[2] },
+                                { name: "Sell", color: RATING_COLORS[3] },
+                                { name: "Strong Sell", color: RATING_COLORS[4] }
+                              ].map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <RechartsTooltip 
+                              formatter={(value: number, name: string) => [`${value} analyst${value !== 1 ? 's' : ''}`, name]} 
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
                       </div>
+                      
+                      {/* Legend */}
                       <div className="grid grid-cols-5 text-center text-xs">
                         <div>
                           <div className="font-medium text-green-600">Strong Buy</div>
@@ -1720,17 +1891,39 @@ const StockAnalysis = () => {
                         </div>
                         <div>
                           <div className="text-sm text-muted-foreground">Price Target</div>
-                          <div className="font-medium">${newsData.averagePriceTarget?.toFixed(2) ?? 'N/A'}</div>
-                          {stockData?.price && newsData?.averagePriceTarget && (
+                          <div className="font-medium">${technicalData?.priceTarget?.targetConsensus?.toFixed(2) ?? 'N/A'}</div>
+                          {stockData?.price && technicalData?.priceTarget?.targetConsensus && (
                             <div className="text-xs text-muted-foreground">
-                              {(((newsData.averagePriceTarget - stockData.price) / stockData.price) * 100).toFixed(2)}% from current price
+                              {(((technicalData.priceTarget.targetConsensus - stockData.price) / stockData.price) * 100).toFixed(2)}% from current price
                             </div>
                           )}
                         </div>
                       </div>
-                    </>
+                    </div>
                   ) : (
-                    <div className="text-center text-muted-foreground py-4">No analyst ratings available.</div>
+                    <div className="flex flex-col space-y-4">
+                      {/* Grey placeholder pie chart for no data */}
+                      <div className="h-56">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={[{ name: "No Data", value: 1 }]}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={60}
+                              outerRadius={80}
+                              paddingAngle={2}
+                              dataKey="value"
+                            >
+                              <Cell fill={RATING_COLORS[5]} />
+                            </Pie>
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="text-center text-muted-foreground">
+                        No analyst ratings available
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1750,15 +1943,7 @@ const StockAnalysis = () => {
                 onClick={() => handleAIExplanationOpen(
                   aiExplanations.risk.title,
                   "risk",
-                  {
-                    ticker: selectedStock,
-                    beta: riskData?.beta,
-                    standardDeviation: riskData?.standardDeviation,
-                    valueAtRisk: riskData?.valueAtRisk,
-                    maxDrawdown: riskData?.maxDrawdown,
-                    correlationSP500: riskData?.correlationSP500,
-                    riskScore: riskData?.riskScore
-                  }
+                  availableSections.risk.getContext()
                 )}
               >
                 <Cpu className="h-5 w-5" />
@@ -1866,6 +2051,7 @@ const StockAnalysis = () => {
         cardContext={showAIExplanation.cardContext}
         section={showAIExplanation.section}
         onClose={handleAIExplanationClose}
+        availableSections={availableSections}
       />
     </div>
   );

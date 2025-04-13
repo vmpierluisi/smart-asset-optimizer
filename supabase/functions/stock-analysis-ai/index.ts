@@ -13,12 +13,22 @@ serve(async (req) => {
 
   try {
     const { messages, cardContext } = await req.json()
+    
+    console.log('Received request with messages length:', messages.length);
+    console.log('Card context has tagged sections:', cardContext?.taggedSections);
+    
+    if (cardContext?.taggedSections) {
+      console.log('Tagged sections:', cardContext.taggedSections);
+    }
 
     // Prepare the conversation with context
     let prompt = ''
     
     // Add system message with card context
     if (cardContext) {
+      // Log all available context keys
+      console.log('Context keys:', Object.keys(cardContext));
+      
       prompt += `You are an AI assistant specialized in finance and stock analysis. 
       You're helping explain financial data from a stock analysis dashboard.
       

@@ -28,8 +28,14 @@ export async function sendAIRequest(payload: AIRequestPayload): Promise<Response
 
   const url = `${SUPABASE_URL}/functions/v1/stock-analysis-ai`;
   console.log('Sending AI request to:', url);
+  console.log('Request payload:', {
+    messages: payload.messages,
+    contextSize: payload.cardContext ? Object.keys(payload.cardContext).length : 0,
+    taggedSections: payload.cardContext?.taggedSections || []
+  });
   
   try {
+    console.log('Initiating fetch request...');
     const response = await fetch(
       url,
       {
@@ -42,14 +48,26 @@ export async function sendAIRequest(payload: AIRequestPayload): Promise<Response
       }
     );
 
-    console.log('AI response status:', response.status);
+    console.log('AI response status:', response.status, response.statusText);
+    console.log('Response headers:', Object.fromEntries([...response.headers.entries()]));
     
     // Don't parse JSON here. Check if the response is ok and return it.
     if (!response.ok) {
       // Try to get error text, but don't fail if it's not JSON
-      const errorText = await response.text().catch(() => `Server error: ${response.status}`); 
-      console.error('AI request error:', response.status, errorText);
-      throw new Error(errorText || `Server responded with ${response.status}`);
+      try {
+        const errorText = await response.text(); 
+        console.error('AI request error details:', errorText);
+        throw new Error(errorText || `Server responded with ${response.status}`);
+      } catch (parseError) {
+        console.error('Could not parse error response:', parseError);
+        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+      }
+    }
+
+    // Verify that the response has a body
+    if (!response.body) {
+      console.error('Response is missing body stream');
+      throw new Error('Response body stream is missing');
     }
 
     // Return the raw response object
