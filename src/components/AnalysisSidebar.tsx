@@ -56,6 +56,9 @@ export function AnalysisSidebar({
     }
   };
 
+  // Check if at least 3 stocks are selected
+  const isValidSelection = stocks.length >= 3;
+
   return (
     <div 
       className={cn(
@@ -173,7 +176,7 @@ export function AnalysisSidebar({
           <div className="p-4 border-t">
             <Button
               onClick={onOptimize}
-              disabled={isLoading}
+              disabled={isLoading || !isValidSelection}
               className="w-full"
               variant="default"
               size="lg"

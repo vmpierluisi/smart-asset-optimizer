@@ -1,9 +1,10 @@
-import React from 'react';
+import { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { usePortfolioAnalysis } from '@/hooks/usePortfolioAnalysis';
 import { usePortfolioAnalysisParsed } from '@/hooks/usePortfolioAnalysisParsed';
-import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
+import { AIExplanationPopup } from '@/components/AIExplanationPopup';
+import { Cpu } from 'lucide-react';
 
 interface PortfolioAnalysisProps {
   results: {
@@ -25,36 +26,159 @@ interface PortfolioAnalysisProps {
 }
 
 export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results }) => {
-  const { analyzePortfolio, analysis, analysisResults, isAnalyzing, error, streamedContent } = usePortfolioAnalysis();
-  const { portfolioPerformance, benchmarkPerformance, riskMetrics, portfolioInsights } = usePortfolioAnalysisParsed(analysis, analysisResults);
+  const { analyzePortfolio, isAnalyzing, error } = usePortfolioAnalysis();
+  
+  // AI Explanation Popup state
+  const [showAIExplanation, setShowAIExplanation] = useState({
+    isOpen: false,
+    title: '',
+    cardContext: null as any,
+    section: ''
+  });
 
-  const handleAnalyze = () => {
+  // Handle AI explanation popup
+  const handleAIExplanationOpen = (title: string, section: string, cardData: any) => {
+    setShowAIExplanation({
+      isOpen: true,
+      title,
+      cardContext: cardData,
+      section
+    });
+    
+    // Automatically analyze the portfolio when opening the AI explanation
     analyzePortfolio(results);
   };
 
-  // Content to display - use streamedContent while analyzing, otherwise use the final analysis
-  const displayContent = isAnalyzing ? streamedContent : analysis;
+  const handleAIExplanationClose = () => {
+    setShowAIExplanation({
+      ...showAIExplanation,
+      isOpen: false
+    });
+  };
+
+  // Create section tags for the AI chat
+  const availableSections = {
+    performance: {
+      id: "performance",
+      name: "Performance",
+      getContext: () => ({
+        portfolioData: results.historicalData.map(d => ({
+          date: d.date.toISOString().split('T')[0],
+          value: d.value
+        })),
+        benchmarkSymbols: results.benchmarkSymbols,
+        benchmarkData: results.benchmarkSymbols.reduce((acc, symbol) => {
+          acc[symbol] = results.historicalData.map(d => d.benchmarks[symbol]);
+          return acc;
+        }, {} as Record<string, number[]>)
+      })
+    },
+    metrics: {
+      id: "metrics",
+      name: "Metrics",
+      getContext: () => ({
+        expectedReturn: results.metrics.expectedReturn,
+        volatility: results.metrics.volatility,
+        var: results.metrics.var,
+        es: results.metrics.es
+      })
+    },
+    allocation: {
+      id: "allocation",
+      name: "Allocation",
+      getContext: () => ({
+        weights: results.weights,
+        allocations: results.allocations
+      })
+    }
+  };
 
   return (
     <Card className="bg-white rounded-xl shadow-sm my-6 w-full">
       <CardHeader className="p-[30px] pb-0 text-left">
-        <CardTitle className="text-xl font-semibold">AI Portfolio Insights</CardTitle>
+        <CardTitle className="text-xl font-semibold">Portfolio Analysis</CardTitle>
         <CardDescription>
-          Get AI-powered analysis of your portfolio performance
+          Analyze your portfolio performance, risk metrics, and asset allocation
         </CardDescription>
       </CardHeader>
       
       <CardContent className="p-[30px]">
-        {!displayContent && !isAnalyzing && !error && (
-          <div className="text-left">
-            <p className="text-gray-600 mb-4">
-              Click the button below to analyze your portfolio with AI. 
-            </p>
-          </div>
-        )}
-        
-        {isAnalyzing && !streamedContent && (
-          <div className="text-left">
+        <div className="space-y-6">
+          {/* Performance Section */}
+          <Card className="bg-gray-50 overflow-hidden">
+            <CardHeader className="bg-white p-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-md">Performance Analysis</CardTitle>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => handleAIExplanationOpen(
+                  "Performance Analysis", 
+                  "performance", 
+                  availableSections.performance.getContext()
+                )}
+                className="h-8 w-8 rounded-full"
+              >
+                <Cpu className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="p-4">
+              <p className="text-sm text-gray-600">
+                Click the AI icon to analyze portfolio performance compared to benchmarks.
+              </p>
+            </CardContent>
+          </Card>
+          
+          {/* Risk Metrics Section */}
+          <Card className="bg-gray-50 overflow-hidden">
+            <CardHeader className="bg-white p-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-md">Key Metrics</CardTitle>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => handleAIExplanationOpen(
+                  "Key Metrics", 
+                  "metrics", 
+                  availableSections.metrics.getContext()
+                )}
+                className="h-8 w-8 rounded-full"
+              >
+                <Cpu className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="p-4">
+              <p className="text-sm text-gray-600">
+                Click the AI icon to understand risk metrics including volatility, VaR, and expected shortfall.
+              </p>
+            </CardContent>
+          </Card>
+          
+          {/* Stock Analysis Section */}
+          <Card className="bg-gray-50 overflow-hidden">
+            <CardHeader className="bg-white p-4 flex flex-row items-center justify-between">
+              <CardTitle className="text-md">Asset Allocation</CardTitle>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={() => handleAIExplanationOpen(
+                  "Asset Allocation", 
+                  "allocation", 
+                  availableSections.allocation.getContext()
+                )}
+                className="h-8 w-8 rounded-full"
+              >
+                <Cpu className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="p-4">
+              <p className="text-sm text-gray-600">
+                Click the AI icon to analyze your portfolio allocation and get insights on your asset mix.
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {isAnalyzing && (
+          <div className="text-center p-6">
             <div className="animate-pulse flex space-x-4 mb-4">
               <div className="flex-1 space-y-6 py-1">
                 <div className="h-2 bg-gray-200 rounded"></div>
@@ -76,75 +200,19 @@ export const PortfolioAnalysis: React.FC<PortfolioAnalysisProps> = ({ results })
             <p className="text-red-500 mb-4">
               Error: {error.message}
             </p>
-            <Button onClick={handleAnalyze} variant="outline">
-              Try Again
-            </Button>
-          </div>
-        )}
-        
-        {displayContent && !error && (
-          <div className="space-y-6">
-            {/* Performance Section */}
-            {(portfolioPerformance || benchmarkPerformance) && (
-              <Card className="bg-gray-50 overflow-hidden">
-                <CardHeader className="bg-white p-4">
-                  <CardTitle className="text-md">Performance Analysis</CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 prose prose-sm max-w-none overflow-auto">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {portfolioPerformance && (
-                      <div>
-                        <MarkdownRenderer content={portfolioPerformance} />
-                      </div>
-                    )}
-                    {benchmarkPerformance && (
-                      <div>
-                        <MarkdownRenderer content={benchmarkPerformance} />
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-            
-            {/* Risk Metrics Section */}
-            {riskMetrics && (
-              <Card className="bg-gray-50 overflow-hidden">
-                <CardHeader className="bg-white p-4">
-                  <CardTitle className="text-md">Key Metrics</CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 prose prose-sm max-w-none overflow-auto">
-                  <MarkdownRenderer content={riskMetrics} />
-                </CardContent>
-              </Card>
-            )}
-            
-            {/* Stock Analysis Section */}
-            {portfolioInsights && (
-              <Card className="bg-gray-50 overflow-hidden">
-                <CardHeader className="bg-white p-4">
-                  <CardTitle className="text-md">Stock Analysis</CardTitle>
-                </CardHeader>
-                <CardContent className="p-4 prose prose-sm max-w-none overflow-auto">
-                  <MarkdownRenderer content={portfolioInsights} />
-                </CardContent>
-              </Card>
-            )}
           </div>
         )}
       </CardContent>
-      
-      <CardFooter className="p-[30px] pt-0 flex justify-start">
-        {!isAnalyzing && (
-          <Button 
-            onClick={handleAnalyze} 
-            disabled={isAnalyzing}
-            className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white hover:from-indigo-600 hover:to-purple-700"
-          >
-            {analysis ? "Refresh Analysis" : "Analyze My Portfolio"}
-          </Button>
-        )}
-      </CardFooter>
+
+      {/* AI Explanation Popup */}
+      <AIExplanationPopup
+        isOpen={showAIExplanation.isOpen}
+        onClose={handleAIExplanationClose}
+        title={showAIExplanation.title}
+        cardContext={showAIExplanation.cardContext}
+        section={showAIExplanation.section}
+        availableSections={availableSections}
+      />
     </Card>
   );
 };

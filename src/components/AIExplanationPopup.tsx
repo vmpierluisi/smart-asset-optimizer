@@ -177,90 +177,88 @@ export function AIExplanationPopup({
         throw new Error('Response body is null');
       }
 
+      // SIMPLIFIED STREAMING LOGIC
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let done = false;
-      let currentChunk = '';
       let accumulatedContent = '';
-      let lastUpdateTime = Date.now();
-      const UPDATE_INTERVAL = 50; // Update UI every 50ms minimum
       
       console.log('Starting to read response stream');
 
-      while (!done) {
+      // Create a loop that processes one chunk at a time
+      while (true) {
+        // Check if we need to abort
         if (abortControllerRef.current?.signal.aborted) {
           console.log('Stream reading aborted.');
           reader.cancel();
           break;
         }
         
-        const { value, done: readerDone } = await reader.read();
-        done = readerDone;
-
+        // Read the next chunk
+        const { value, done } = await reader.read();
+        
+        // If we're done, exit the loop
         if (done) {
           console.log('Stream reading completed');
+          break;
         }
-
-        if (value) {
-          const decodedChunk = decoder.decode(value, { stream: true });
-          currentChunk += decodedChunk;
+        
+        // Decode the chunk
+        const chunk = decoder.decode(value, { stream: true });
+        console.log('Received chunk:', chunk);
+        
+        try {
+          // Process the chunk - split by newlines and look for data: lines
+          const lines = chunk.split('\n');
           
-          // Log the raw chunk for debugging
-          console.log('Received raw chunk from stream:', decodedChunk);
-          
-          const lines = currentChunk.split('\n');
-          currentChunk = lines.pop() || '';
-
-          let shouldUpdate = false;
-          let newDeltaContent = '';
-
           for (const line of lines) {
+            // Skip empty lines
+            if (!line.trim()) continue;
+            
+            // Handle data: lines
             if (line.startsWith('data: ')) {
-              const dataContent = line.substring(6).trim();
-              if (dataContent === '[DONE]') {
+              const content = line.substring(6).trim();
+              
+              // Handle the [DONE] signal
+              if (content === '[DONE]') {
                 console.log('Received [DONE] signal');
-                done = true;
-                break;
+                continue;
               }
+              
               try {
-                const parsed = JSON.parse(dataContent);
+                // Parse the JSON content
+                const parsed = JSON.parse(content);
                 const delta = parsed.choices?.[0]?.delta?.content;
+                
                 if (delta) {
+                  // Add the new content
                   accumulatedContent += delta;
-                  newDeltaContent += delta;
-                  shouldUpdate = true;
-                } else {
-                  console.log('No delta content in parsed data:', parsed);
+                  
+                  // Update the UI with the new content
+                  setMessages(prev => {
+                    const lastMessage = prev[prev.length - 1];
+                    if (lastMessage && lastMessage.role === 'assistant') {
+                      return [
+                        ...prev.slice(0, -1),
+                        { ...lastMessage, content: accumulatedContent }
+                      ];
+                    }
+                    return prev;
+                  });
                 }
               } catch (e) {
-                console.error('JSON Parse Error:', e, 'for line:', dataContent);
+                console.error('Error parsing JSON:', e, 'Line:', content);
               }
-            } else if (line.trim()) {
-              console.log('Unexpected line format (not starting with data:):', line);
+            } else {
+              console.log('Unexpected line format:', line);
             }
           }
-
-          // Throttle UI updates for smoother experience
-          const currentTime = Date.now();
-          if (shouldUpdate && (currentTime - lastUpdateTime > UPDATE_INTERVAL || done)) {
-            setMessages(prev => {
-              const lastMessage = prev[prev.length - 1];
-              if (lastMessage && lastMessage.role === 'assistant') {
-                return [
-                  ...prev.slice(0, -1),
-                  { ...lastMessage, content: accumulatedContent }
-                ];
-              } else {
-                return [...prev, { role: 'assistant', content: accumulatedContent }];
-              }
-            });
-            lastUpdateTime = currentTime;
-          }
+        } catch (e) {
+          console.error('Error processing chunk:', e);
         }
       }
-
-      // Check if we received any content at all after stream processing
-      if (!accumulatedContent && !currentChunk) {
+      
+      // Check if we received any content
+      if (!accumulatedContent) {
         console.warn('No content was accumulated during stream processing');
         setMessages(prev => {
           const lastMessage = prev[prev.length - 1];
@@ -269,67 +267,18 @@ export function AIExplanationPopup({
               ...prev.slice(0, -1),
               { role: 'assistant', content: 'Sorry, I was unable to generate a response. Please try again.' }
             ];
-          } else {
-            return prev;
           }
+          return prev;
         });
       }
-
-      // Process any remaining content
-      if (currentChunk && currentChunk.startsWith('data: ')) {
-        const dataContent = currentChunk.substring(6).trim();
-        if (dataContent !== '[DONE]') {
-          try {
-            console.log('Processing final chunk:', dataContent);
-            const parsed = JSON.parse(dataContent);
-            const delta = parsed.choices?.[0]?.delta?.content;
-            if (delta) {
-              accumulatedContent += delta;
-              setMessages(prev => {
-                const lastMessage = prev[prev.length - 1];
-                if (lastMessage && lastMessage.role === 'assistant') {
-                  return [
-                    ...prev.slice(0, -1),
-                    { ...lastMessage, content: accumulatedContent }
-                  ];
-                }
-                return prev;
-              });
-            }
-          } catch (e) {
-            console.warn('Could not parse final stream data chunk:', e);
-          }
-        }
-      }
-
     } catch (error: any) {
       if (error.name !== 'AbortError') {
         console.error('Error processing stream:', error);
         
-        // Attempt to get more details about the error
-        let errorDetails = error.message || 'Unknown error';
+        // Get error details
+        const errorDetails = error.message || 'Unknown error';
         
-        if (error.response) {
-          try {
-            console.error('Error response details:', {
-              status: error.response.status,
-              statusText: error.response.statusText,
-              headers: Object.fromEntries([...error.response.headers.entries()]),
-            });
-            
-            // Try to read the response body for more error details
-            error.response.text().then((text: string) => {
-              console.error('Error response body:', text);
-            }).catch((e: any) => {
-              console.error('Could not read error response body:', e);
-            });
-            
-            errorDetails = `Server error: ${error.response.status} ${error.response.statusText}`;
-          } catch (e) {
-            console.error('Failed to extract error response details:', e);
-          }
-        }
-        
+        // Update the messages with the error
         setMessages(prev => {
           const lastMessage = prev[prev.length - 1];
           if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content === '') {
@@ -460,6 +409,8 @@ export function AIExplanationPopup({
         left: 0,
         right: 0,
         bottom: 0,
+        width: '100vw',
+        height: '100vh',
         zIndex: 100,
         display: 'flex',
         alignItems: 'center',
@@ -688,7 +639,9 @@ export function AIExplanationPopup({
             </div>
             
             <div className="text-xs text-muted-foreground text-center p-2 border-t">
-              Powered by Gemini 2.0 Flash via OpenRouter
+              <div className="flex justify-center items-center">
+                <span>Powered by Gemini 2.0 Flash via OpenRouter</span>
+              </div>
             </div>
           </div>
         )}

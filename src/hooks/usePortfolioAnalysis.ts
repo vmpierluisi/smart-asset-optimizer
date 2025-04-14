@@ -47,11 +47,6 @@ export const usePortfolioAnalysis = () => {
     });
 
     try {
-      toast({
-        title: "Analyzing Portfolio",
-        description: "AI is analyzing your portfolio results...",
-      });
-
       // Extract stocks from the weights object
       const stocks = Object.keys(portfolioData.weights);
       
@@ -132,20 +127,9 @@ export const usePortfolioAnalysis = () => {
       ].filter(Boolean).join('\n\n');
       
       setAnalysis(combinedAnalysis);
-      
-      toast({
-        title: "Analysis Complete",
-        description: "AI portfolio analysis is ready!",
-      });
     } catch (err) {
       const error = err as Error;
       setError(error);
-      
-      toast({
-        title: "Analysis Error",
-        description: error.message,
-        variant: "destructive",
-      });
       
       console.error("Portfolio analysis error:", {
         message: error.message,

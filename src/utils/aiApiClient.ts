@@ -42,7 +42,9 @@ export async function sendAIRequest(payload: AIRequestPayload): Promise<Response
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          // Add explicit accept header for streaming responses
+          'Accept': 'text/event-stream'
         },
         body: JSON.stringify(payload)
       }
@@ -51,15 +53,23 @@ export async function sendAIRequest(payload: AIRequestPayload): Promise<Response
     console.log('AI response status:', response.status, response.statusText);
     console.log('Response headers:', Object.fromEntries([...response.headers.entries()]));
     
-    // Don't parse JSON here. Check if the response is ok and return it.
+    // Check if the response is ok
     if (!response.ok) {
       // Try to get error text, but don't fail if it's not JSON
       try {
         const errorText = await response.text(); 
         console.error('AI request error details:', errorText);
-        throw new Error(errorText || `Server responded with ${response.status}`);
-      } catch (parseError) {
-        console.error('Could not parse error response:', parseError);
+        
+        // Try to parse as JSON to get a structured error
+        try {
+          const errorJson = JSON.parse(errorText);
+          throw new Error(errorJson.error || errorJson.message || `Server responded with ${response.status}`);
+        } catch (parseErr) {
+          // If it's not JSON, use the raw text
+          throw new Error(errorText || `Server responded with ${response.status}`);
+        }
+      } catch (textError) {
+        console.error('Could not read error response text:', textError);
         throw new Error(`Server error: ${response.status} ${response.statusText}`);
       }
     }
@@ -68,6 +78,13 @@ export async function sendAIRequest(payload: AIRequestPayload): Promise<Response
     if (!response.body) {
       console.error('Response is missing body stream');
       throw new Error('Response body stream is missing');
+    }
+    
+    // Verify the content type is correct for streaming
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('text/event-stream')) {
+      console.warn('Response content type is not text/event-stream:', contentType);
+      // We'll continue anyway as the backend might not set the correct content type
     }
 
     // Return the raw response object

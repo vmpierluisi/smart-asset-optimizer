@@ -1,4 +1,4 @@
-import { Home, BarChart, LineChart, BarChart2 } from "lucide-react";
+import { Home, BarChart, LineChart, BarChart2, User } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -12,10 +12,13 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { UserMenu, UserButton } from "./UserMenu";
+import { useAuth } from "@/lib/auth";
 
 export function AppSidebar() {
   const location = useLocation();
   const { state } = useSidebar();
+  const { user, isLoading } = useAuth();
   
   // Define navigation items
   const navItems = [
@@ -67,6 +70,18 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        
+        {/* User Section */}
+        <SidebarGroup>
+          <SidebarGroupLabel>Account</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {!isLoading && (
+                user ? <UserMenu /> : <UserButton />
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
