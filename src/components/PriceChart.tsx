@@ -4,7 +4,6 @@ import {
   Line,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   Legend
@@ -12,21 +11,23 @@ import {
 import { HistoricalPrice } from '@/utils/fmpFinanceUtils';
 
 interface PriceChartProps {
-  data: HistoricalPrice[];
+  data: HistoricalPrice[] | { date: Date; close: number }[];
   height?: number;
   loading?: boolean;
   timeframe?: string;
+  error?: string | null;
 }
 
 export const PriceChart: React.FC<PriceChartProps> = ({ 
   data, 
   height = 250,
   loading = false,
-  timeframe = '1Y'
+  timeframe = '1Y',
+  error = null
 }) => {
   const chartData = data.map(item => ({
     date: item.date,
-    dateString: item.date.toISOString().split('T')[0], // store ISO format for consistent display
+    dateString: item.date instanceof Date ? item.date.toISOString().split('T')[0] : new Date(item.date).toISOString().split('T')[0], // handle string or Date
     close: item.close,
   }));
 
@@ -62,6 +63,19 @@ export const PriceChart: React.FC<PriceChartProps> = ({
         style={{ height: `${height}px` }}
       >
         <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div 
+        className="w-full rounded-md border border-dashed flex items-center justify-center"
+        style={{ height: `${height}px` }}
+      >
+        <div className="text-red-500 flex flex-col items-center">
+          <span>Error loading price data: {error}</span>
+        </div>
       </div>
     );
   }
@@ -115,7 +129,6 @@ export const PriceChart: React.FC<PriceChartProps> = ({
             bottom: 5,
           }}
         >
-          <CartesianGrid strokeDasharray="3 3" />
           <XAxis 
             dataKey="dateString"
             tick={{ fontSize: 12 }}
@@ -130,6 +143,7 @@ export const PriceChart: React.FC<PriceChartProps> = ({
             domain={['auto', 'auto']}
             tickFormatter={(value) => `$${value.toFixed(2)}`}
             width={80}
+            tick={{ fontSize: 14 }}
           />
           <Tooltip 
             formatter={(value: number) => [`$${value.toFixed(2)}`, 'Price']}
@@ -141,6 +155,11 @@ export const PriceChart: React.FC<PriceChartProps> = ({
                 month: 'short',
                 day: 'numeric'
               })}`;
+            }}
+            cursor={{
+              stroke: '#666',
+              strokeWidth: 1,
+              strokeDasharray: '3 3'
             }}
           />
           <Legend />

@@ -63,12 +63,22 @@ import {
   NewsSentimentData,
   fetchNewsSentiment,
   RiskAnalysisData,
-  fetchRiskAnalysis
+  fetchRiskAnalysis,
+  AnalystRatings,
+  PriceTarget,
+  fetchAnalystRatings
 } from "@/utils/fmpFinanceUtils";
+// Import our new Twelve Data utility
+import { fetchTwelveDataQuote, TwelveDataStockQuote, fetchDividendYield, DividendYieldData } from "@/utils/twelveDataUtils";
 import { PriceChart } from "@/components/PriceChart";
 import { useStockPrices } from "@/hooks/useStockPrices";
+import { useTimeSeries } from "@/hooks/useTimeSeries"; // Add new import
 import { useRsi } from "@/hooks/useRsi";
 import { toast } from "@/hooks/use-toast";
+import { fetchCompanyLogo, CompanyLogoData } from "@/utils/twelveDataUtils";
+import { fetchCompanyProfile, CompanyProfileData } from "@/utils/twelveDataUtils";
+// Add this import at the top, after the other imports
+import CandlestickChart from "@/components/CandlestickChart";
 
 // Define CSS keyframes for animations
 const fadeGrowKeyframes = `
@@ -375,6 +385,86 @@ const RATING_COLORS = [
   "#d1d5db"  // No data - Gray
 ];
 
+// Define the structure for a watchlist item
+interface WatchlistItem {
+  symbol: string;
+  name: string; // Keep the name for display purposes elsewhere
+}
+
+// Add a new component for price range gauges, styled consistently with GaugeChart
+const PriceRangeGauge = ({ low, high, current, label }: { low: number, high: number, current: number, label?: string }): JSX.Element => {
+  // Calculate the percentage position of the current price within the range
+  const percentage = Math.min(Math.max(((current - low) / (high - low)) * 100, 0), 100);
+  
+  return (
+    <div className="w-full">
+      {label && <div className="text-sm text-muted-foreground">{label}</div>}
+      <div className="w-full h-1 bg-gray-200 rounded-full relative my-3">
+        <div className="absolute inset-0 flex">
+          <div className="w-[30%] h-full bg-red-500 rounded-l-full"></div>
+          <div className="w-[40%] h-full bg-amber-500"></div>
+          <div className="w-[30%] h-full bg-green-500 rounded-r-full"></div>
+        </div>
+        <div 
+          className="absolute top-0 w-1 h-3 bg-black rounded-full -mt-1" 
+          style={{ 
+            left: `${percentage}%`,
+            transform: 'translateX(-50%)'
+          }}
+        ></div>
+      </div>
+      
+      <div className="flex justify-between text-xs text-muted-foreground">
+        <span>${low.toFixed(2)}</span>
+        <span>${high.toFixed(2)}</span>
+      </div>
+    </div>
+  );
+};
+
+// Then update the WeekRangeGauge to use this more generic component
+const WeekRangeGauge = ({ low, high, current }: { low: number, high: number, current: number }): JSX.Element => {
+  return <PriceRangeGauge low={low} high={high} current={current} />;
+};
+
+// Create a new component for the daily high/low range
+const DailyRangeGauge = ({ low, high, current, open }: { low: number, high: number, current: number, open: number }): JSX.Element => {
+  // Calculate the percentage position of the current price within the range
+  const percentage = Math.min(Math.max(((current - low) / (high - low)) * 100, 0), 100);
+  // Calculate the percentage position of the open price within the range
+  const openPercentage = Math.min(Math.max(((open - low) / (high - low)) * 100, 0), 100);
+  
+  return (
+    <div className="w-full">
+      <div className="w-full h-1 bg-gray-200 rounded-full relative my-3">
+        <div className="absolute inset-0 flex">
+          <div 
+            className="h-full bg-red-500 rounded-l-full" 
+            style={{ width: `${openPercentage}%` }}
+          ></div>
+          <div 
+            className="h-full bg-green-500 rounded-r-full" 
+            style={{ width: `${100 - openPercentage}%` }}
+          ></div>
+        </div>
+        <div 
+          className="absolute top-0 w-1 h-3 bg-black rounded-full -mt-1" 
+          style={{ 
+            left: `${percentage}%`,
+            transform: 'translateX(-50%)'
+          }}
+        ></div>
+      </div>
+      
+      <div className="flex justify-between text-xs text-muted-foreground">
+        <span>${low.toFixed(2)}</span>
+        <span className="text-xs font-medium">Open: ${open.toFixed(2)}</span>
+        <span>${high.toFixed(2)}</span>
+      </div>
+    </div>
+  );
+};
+
 // First part of the component declaration - we'll complete it in subsequent edits
 const StockAnalysis = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -384,7 +474,9 @@ const StockAnalysis = () => {
   const [suggestions, setSuggestions] = useState<StockSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [stockData, setStockData] = useState<StockQuote | null>(null);
+  const [twelveDataStockData, setTwelveDataStockData] = useState<TwelveDataStockQuote | null>(null);
   const [isLoadingQuote, setIsLoadingQuote] = useState(false);
+  const [isLoadingTwelveDataQuote, setIsLoadingTwelveDataQuote] = useState(false);
   const [priceChanges, setPriceChanges] = useState<StockPriceChanges | null>(null);
   const [isLoadingPriceChanges, setIsLoadingPriceChanges] = useState(false);
   const [valuationData, setValuationData] = useState<ValuationData | null>(null);
@@ -397,6 +489,12 @@ const StockAnalysis = () => {
   const [isLoadingNews, setIsLoadingNews] = useState(false);
   const [riskData, setRiskData] = useState<RiskAnalysisData | null>(null);
   const [isLoadingRisk, setIsLoadingRisk] = useState(false);
+  const [analystRatingsData, setAnalystRatingsData] = useState<AnalystRatings | null>(null);
+  const [isLoadingAnalystRatings, setIsLoadingAnalystRatings] = useState(false);
+  const [logoData, setLogoData] = useState<CompanyLogoData | null>(null);
+  const [isLoadingLogo, setIsLoadingLogo] = useState(false);
+  const [profileData, setProfileData] = useState<CompanyProfileData | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [showAIExplanation, setShowAIExplanation] = useState<{
     isOpen: boolean;
     title: string;
@@ -408,16 +506,79 @@ const StockAnalysis = () => {
     cardContext: {},
     section: ""
   });
+  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  const [isInWatchlist, setIsInWatchlist] = useState(false);
 
   // Animation states
   const [isAnimating, setIsAnimating] = useState(false);
   const [visibleView, setVisibleView] = useState<'sectors' | 'stocks' | 'transition'>('sectors');
 
-  // Get historical price data using our custom hook
+  // Add a state for the expanded stock details dropdown
+  const [showMoreStockDetails, setShowMoreStockDetails] = useState(false);
+
+  // Add a new state variable to track the chart type after the other state variables
+  const [chartType, setChartType] = useState<'line' | 'candlestick'>('candlestick');
+
+  // Get historical price data using our custom hook - OLD approach
   const { data: priceData, loading: priceLoading, error: priceError } = useStockPrices(selectedStock, timeframe);
+  
+  // Get historical price data using our new Twelve Data hook
+  const { data: timeSeriesData, loading: timeSeriesLoading, error: timeSeriesError } = useTimeSeries(selectedStock, convertTimeframeToTimePeriod(timeframe));
+
+  // Function to convert timeframe to Twelve Data time period format
+  function convertTimeframeToTimePeriod(timeframe: string): string {
+    switch (timeframe) {
+      case '1D':
+        return '1day';
+      case '1W':
+        return '1week';
+      case '1M':
+        return '1month';
+      case '3M':
+        return '3month'; // Updated to use our specific 3month period
+      case '6M':
+        return '6month'; // Updated to use our specific 6month period
+      case 'YTD':
+        return 'ytd';
+      case '1Y':
+        return '1year';
+      case '5Y':
+        return 'max';
+      default:
+        return '1month';
+    }
+  }
 
   // Get RSI data for the selected stock using our custom hook
   const { rsi: polygonRsi, loading: rsiLoading, error: rsiError } = useRsi(selectedStock);
+
+  // Load watchlist from localStorage on initial render
+  useEffect(() => {
+    const storedWatchlist = localStorage.getItem("stockWatchlist");
+    if (storedWatchlist) {
+      try {
+        const parsedWatchlist = JSON.parse(storedWatchlist);
+        if (Array.isArray(parsedWatchlist)) {
+          setWatchlist(parsedWatchlist);
+        } else {
+          console.error("Stored watchlist is not an array:", parsedWatchlist);
+          localStorage.removeItem("stockWatchlist"); // Clear invalid data
+        }
+      } catch (error) {
+        console.error("Error parsing watchlist from localStorage:", error);
+        localStorage.removeItem("stockWatchlist"); // Clear corrupted data
+      }
+    }
+  }, []);
+
+  // Update isInWatchlist whenever selectedStock or watchlist changes
+  useEffect(() => {
+    if (selectedStock) {
+      setIsInWatchlist(watchlist.some(item => item.symbol === selectedStock));
+    } else {
+      setIsInWatchlist(false); // Reset if no stock is selected
+    }
+  }, [selectedStock, watchlist]);
 
   // Fetch stock suggestions when search query changes
   useEffect(() => {
@@ -442,29 +603,71 @@ const StockAnalysis = () => {
     return () => clearTimeout(debounceTimer);
   }, [searchQuery]);
 
-  // Fetch stock quote data when selected stock changes
+  // Fetch stock quote data from Twelve Data API when selected stock changes
   useEffect(() => {
-    const getStockQuote = async () => {
+    const getTwelveDataStockQuote = async () => {
       if (!selectedStock) return;
       
-      setIsLoadingQuote(true);
+      setIsLoadingTwelveDataQuote(true);
       try {
-        const quote = await fetchStockQuote(selectedStock);
-        setStockData(quote);
+        const quote = await fetchTwelveDataQuote(selectedStock);
+        setTwelveDataStockData(quote);
+        
+        // Also update the stockData state to use the new data (for compatibility)
+        setStockData({
+          symbol: quote.symbol,
+          name: quote.name,
+          price: quote.price,
+          change: quote.change,
+          changePercent: quote.changePercent,
+          marketCap: quote.marketCap,
+          peRatio: quote.peRatio,
+          dividendYield: quote.dividendYield,
+          volume: quote.volume,
+          avgVolume: quote.avgVolume,
+          exchange: quote.exchange,
+          high52Week: quote.high52Week,
+          low52Week: quote.low52Week
+        });
       } catch (error) {
-        console.error('Error fetching stock quote:', error);
+        console.error('Error fetching Twelve Data stock quote:', error);
         toast({
           title: "Error",
-          description: `Failed to fetch quote for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          description: `Failed to fetch quote for ${selectedStock} from Twelve Data: ${error instanceof Error ? error.message : 'Unknown error'}`,
           variant: "destructive",
         });
+        
+        // Fallback to the original FMP API if Twelve Data fails
+        getStockQuote();
       } finally {
-        setIsLoadingQuote(false);
+        setIsLoadingTwelveDataQuote(false);
       }
     };
     
-    getStockQuote();
+    // Call the new function instead of the old one
+    getTwelveDataStockQuote();
+    
   }, [selectedStock]);
+
+  // Keep the original getStockQuote function as a fallback
+  const getStockQuote = async () => {
+    if (!selectedStock) return;
+    
+    setIsLoadingQuote(true);
+    try {
+      const quote = await fetchStockQuote(selectedStock);
+      setStockData(quote);
+    } catch (error) {
+      console.error('Error fetching stock quote:', error);
+      toast({
+        title: "Error",
+        description: `Failed to fetch quote for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingQuote(false);
+    }
+  };
 
   // Fetch stock price changes when selected stock changes
   useEffect(() => {
@@ -589,6 +792,42 @@ const StockAnalysis = () => {
     getNewsSentiment();
   }, [selectedStock]);
 
+  // Fetch Analyst Ratings data
+  useEffect(() => {
+    const getAnalystRatings = async () => {
+      if (!selectedStock) return;
+      
+      setIsLoadingAnalystRatings(true);
+      try {
+        console.log('Fetching analyst ratings for:', selectedStock);
+        const data = await fetchAnalystRatings(selectedStock);
+        console.log('Analyst ratings data received:', data);
+        setAnalystRatingsData(data); // Corrected: set state directly with the returned data
+      } catch (error) {
+        console.error('Error fetching analyst ratings:', error);
+        toast({
+          title: "Error",
+          description: `Failed to fetch analyst ratings for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          variant: "destructive",
+        });
+        setAnalystRatingsData(null);
+      } finally {
+        setIsLoadingAnalystRatings(false);
+      }
+    };
+    
+    getAnalystRatings();
+  }, [selectedStock]);
+
+  // Debug effect for analyst ratings data rendering
+  useEffect(() => {
+    if (analystRatingsData) {
+      console.log('Rendering pie chart with data:', analystRatingsData);
+    } else {
+      console.log('No analyst ratings data available:', analystRatingsData);
+    }
+  }, [analystRatingsData]);
+
   // Fetch Risk Analysis data
   useEffect(() => {
     const getRiskAnalysis = async () => {
@@ -619,10 +858,11 @@ const StockAnalysis = () => {
     setSelectedStock(symbol);
     setSearchQuery("");
     setSuggestions([]);
-    toast({
-      title: "Stock Selected",
-      description: `${name} (${symbol}) selected for analysis.`,
-    });
+    // We don't need the toast here anymore as the main display updates
+    // toast({
+    //   title: "Stock Selected",
+    //   description: `${name} (${symbol}) selected for analysis.`,
+    // });
   };
 
   // Handle selection from search suggestions list
@@ -762,7 +1002,10 @@ const StockAnalysis = () => {
         volume: stockData?.volume,
         avgVolume: stockData?.avgVolume,
         timeframe,
-        chartData: priceData
+        chartData: timeSeriesData ? timeSeriesData.data.map(item => ({ 
+          date: new Date(item.date),
+          close: item.close
+        })) : []
       })
     },
     performance: {
@@ -835,7 +1078,7 @@ const StockAnalysis = () => {
         ticker: selectedStock,
         sentimentScore: newsData?.sentimentScore,
         recentNews: newsData?.recentNews,
-        analystRatings: newsData?.analystRatings,
+        analystRatings: analystRatingsData,
         priceTarget: technicalData?.priceTarget,
         currentPrice: stockData?.price
       })
@@ -862,8 +1105,8 @@ const StockAnalysis = () => {
         peRatio: "Loading...",
         forwardPE: "Loading...",
         pegRatio: "Loading...",
-        priceToBook: "Loading...",
         priceToSales: "Loading...",
+        priceToBook: "Loading...",
         evToEbitda: "Loading...",
         dividendYield: "Loading...",
         dividendGrowth5Y: "Loading...",
@@ -873,20 +1116,147 @@ const StockAnalysis = () => {
       };
     }
     
-    return valuationData as (ValuationData & { eps: string }) || {
-      peRatio: "N/A",
-      forwardPE: "N/A",
-      pegRatio: "N/A",
-      priceToBook: "N/A",
-      priceToSales: "N/A",
-      evToEbitda: "N/A",
-      dividendYield: "0.00",
-      dividendGrowth5Y: "0.00",
-      fairValueLow: 0,
-      fairValueHigh: 0,
-      eps: "N/A"
+    if (!valuationData) {
+      return {
+        peRatio: "0.00",
+        forwardPE: "0.00",
+        pegRatio: "0.00",
+        priceToSales: "0.00",
+        priceToBook: "0.00",
+        evToEbitda: "0.00",
+        dividendYield: dividendData ? dividendData.dividendYield.toFixed(2) : "0.00",
+        dividendGrowth5Y: "0.00",
+        fairValueLow: 0,
+        fairValueHigh: 0,
+        eps: "0.00"
+      };
+    }
+    
+    return {
+      ...valuationData,
+      // Override with real dividend data if available
+      dividendYield: dividendData ? dividendData.dividendYield.toFixed(2) : valuationData.dividendYield,
     };
   };
+
+  // Toggle stock in watchlist
+  const toggleWatchlist = () => {
+    if (!selectedStock || !stockData) return; // Need stock data to get the name
+
+    const stockName = stockData.name || selectedStock; // Fallback to symbol if name isn't loaded yet
+
+    let updatedWatchlist;
+    if (isInWatchlist) {
+      // Remove from watchlist
+      updatedWatchlist = watchlist.filter(item => item.symbol !== selectedStock);
+      toast({
+        title: "Removed from Watchlist",
+        description: `${stockName} (${selectedStock}) removed.`,
+      });
+    } else {
+      // Add to watchlist
+      const newItem: WatchlistItem = { symbol: selectedStock, name: stockName };
+      updatedWatchlist = [...watchlist, newItem];
+      toast({
+        title: "Added to Watchlist",
+        description: `${stockName} (${selectedStock}) added.`,
+      });
+    }
+
+    setWatchlist(updatedWatchlist);
+    // Persist watchlist to localStorage
+    localStorage.setItem("stockWatchlist", JSON.stringify(updatedWatchlist));
+  };
+
+  // Toggle more stock details section
+  const toggleMoreStockDetails = () => {
+    setShowMoreStockDetails(prev => !prev);
+  };
+
+  // Fetch company logo when selected stock changes
+  useEffect(() => {
+    const getCompanyLogo = async () => {
+      if (!selectedStock) {
+        setLogoData(null);
+        return;
+      }
+      
+      setIsLoadingLogo(true);
+      try {
+        const logo = await fetchCompanyLogo(selectedStock);
+        setLogoData(logo);
+      } catch (error) {
+        console.error('Error fetching company logo:', error);
+        // Don't show a toast for logo errors - just silently fail
+        setLogoData(null);
+      } finally {
+        setIsLoadingLogo(false);
+      }
+    };
+    
+    getCompanyLogo();
+  }, [selectedStock]);
+
+  // Fetch company profile when selected stock changes
+  useEffect(() => {
+    const getCompanyProfile = async () => {
+      if (!selectedStock) {
+        setProfileData(null);
+        return;
+      }
+      
+      setIsLoadingProfile(true);
+      try {
+        const profile = await fetchCompanyProfile(selectedStock);
+        setProfileData(profile);
+      } catch (error) {
+        console.error('Error fetching company profile:', error);
+        // Don't show a toast for profile errors - just silently fail
+        setProfileData(null);
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+    
+    getCompanyProfile();
+  }, [selectedStock]);
+
+  // Add a new state for dividend data
+  const [dividendData, setDividendData] = useState<DividendYieldData | null>(null);
+  const [isLoadingDividend, setIsLoadingDividend] = useState<boolean>(false);
+  
+  // Add a new useEffect for fetching dividend data
+  useEffect(() => {
+    const getDividendData = async () => {
+      if (!selectedStock) return;
+      
+      setIsLoadingDividend(true);
+      try {
+        const data = await fetchDividendYield(selectedStock);
+        setDividendData(data);
+      } catch (error) {
+        console.error('Error fetching dividend data:', error);
+        toast({
+          title: "Error",
+          description: `Failed to fetch dividend data for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          variant: "destructive",
+        });
+        setDividendData(null);
+      } finally {
+        setIsLoadingDividend(false);
+      }
+    };
+    
+    getDividendData();
+  }, [selectedStock, toast]);
+
+  // Effect to fetch time series data when timeframe changes
+  useEffect(() => {
+    // Force refetch time series data when timeframe changes
+    if (selectedStock) {
+      console.log(`Timeframe changed to ${timeframe}, refetching data for ${selectedStock}`);
+    }
+  }, [timeframe, selectedStock]);
 
   // Beginning of the return statement
   return (
@@ -1050,35 +1420,53 @@ const StockAnalysis = () => {
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div>
                 <div className="flex items-center">
-                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mr-3">
-                    <span className="text-sm font-semibold">{selectedStock}</span>
-                  </div>
+                  {isLoadingLogo ? (
+                    <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mr-3 animate-pulse"></div>
+                  ) : logoData?.url ? (
+                    <img 
+                      src={logoData.url} 
+                      alt={`${selectedStock} logo`} 
+                      className="h-10 w-10 rounded-lg object-contain mr-3 bg-white p-1 border"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center mr-3">
+                      <span className="text-sm font-semibold">{selectedStock}</span>
+                    </div>
+                  )}
                   <div>
                     <CardTitle className="text-xl flex items-center">
-                      {isLoadingQuote ? (
+                      {isLoadingTwelveDataQuote || isLoadingQuote ? (
                         <div className="h-6 w-32 animate-pulse bg-muted rounded"></div>
                       ) : (
                         <>
-                          {stockData?.name || "Loading..."} ({selectedStock})
+                          {twelveDataStockData?.name || stockData?.name || "Loading..."} ({selectedStock})
                         </>
                       )}
                     </CardTitle>
                     <div className="flex items-center mt-1">
-                      {isLoadingQuote ? (
+                      {isLoadingTwelveDataQuote || isLoadingQuote ? (
                         <div className="h-8 w-24 animate-pulse bg-muted rounded"></div>
                       ) : (
                         <>
                           <span className="text-2xl font-bold mr-2">
-                            ${stockData?.price.toFixed(2) || "0.00"}
+                            ${(twelveDataStockData?.price || stockData?.price || 0).toFixed(2)}
                           </span>
-                          <span className={`flex items-center ${(stockData?.change || 0) > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {(stockData?.change || 0) > 0 ? (
+                          <span className={`flex items-center ${(twelveDataStockData?.change || stockData?.change || 0) > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {(twelveDataStockData?.change || stockData?.change || 0) > 0 ? (
                               <ArrowUp className="h-4 w-4 mr-1" />
                             ) : (
                               <ArrowDown className="h-4 w-4 mr-1" />
                             )}
-                            ${Math.abs(stockData?.change || 0).toFixed(2)} ({Math.abs(stockData?.changePercent || 0).toFixed(2)}%)
+                            ${Math.abs(twelveDataStockData?.change || stockData?.change || 0).toFixed(2)} ({Math.abs(twelveDataStockData?.changePercent || stockData?.changePercent || 0).toFixed(2)}%)
                           </span>
+                          {twelveDataStockData && (
+                            <Badge 
+                              variant={twelveDataStockData.isMarketOpen ? "default" : "secondary"} 
+                              className={`ml-3 text-xs ${twelveDataStockData.isMarketOpen ? 'bg-green-100 text-green-800 hover:bg-green-100' : ''}`}
+                            >
+                              {twelveDataStockData.isMarketOpen ? "Market Open" : "Market Closed"}
+                            </Badge>
+                          )}
                         </>
                       )}
                     </div>
@@ -1086,8 +1474,13 @@ const StockAnalysis = () => {
                 </div>
               </div>
               <div className="flex items-center space-x-2">
-                <Button variant="outline" size="icon">
-                  <Star className="h-4 w-4" />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => toggleWatchlist()}
+                  disabled={!selectedStock || (isLoadingQuote && isLoadingTwelveDataQuote)}
+                >
+                  <Star className={`h-4 w-4 ${isInWatchlist ? 'fill-yellow-400 text-yellow-500' : ''}`} />
                 </Button>
                 <Button 
                   variant="ghost" 
@@ -1104,36 +1497,132 @@ const StockAnalysis = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {/* Chart timeframe selector */}
-                <div className="flex space-x-2">
-                  {["1D", "1W", "1M", "3M", "6M", "YTD", "1Y", "5Y"].map((period) => (
-                    <Button 
-                      key={period}
-                      variant={timeframe === period ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setTimeframe(period)}
-                    >
-                      {period}
-                    </Button>
-                  ))}
+                {/* Price chart - using the real data */}
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-semibold">Price Chart</h3>
+                    <div className="flex items-center gap-4">
+                      {/* Chart type selector */}
+                      <div className="flex space-x-1 text-xs border rounded-md overflow-hidden">
+                        <button 
+                          onClick={() => setChartType('line')}
+                          className={`px-3 py-1 ${chartType === 'line' ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-accent'}`}
+                        >
+                          Line
+                        </button>
+                        <button 
+                          onClick={() => setChartType('candlestick')}
+                          className={`px-3 py-1 ${chartType === 'candlestick' ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-accent'}`}
+                        >
+                          Candlestick
+                        </button>
+                      </div>
+                      
+                      {/* Timeframe selector */}
+                      <div className="flex space-x-1 text-xs">
+                        <button 
+                          onClick={() => setTimeframe('1D')}
+                          className={`px-2 py-1 rounded ${timeframe === '1D' ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-accent'}`}
+                        >
+                          1D
+                        </button>
+                        <button 
+                          onClick={() => setTimeframe('1W')}
+                          className={`px-2 py-1 rounded ${timeframe === '1W' ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-accent'}`}
+                        >
+                          1W
+                        </button>
+                        <button 
+                          onClick={() => setTimeframe('1M')}
+                          className={`px-2 py-1 rounded ${timeframe === '1M' ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-accent'}`}
+                        >
+                          1M
+                        </button>
+                        <button 
+                          onClick={() => setTimeframe('3M')}
+                          className={`px-2 py-1 rounded ${timeframe === '3M' ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-accent'}`}
+                        >
+                          3M
+                        </button>
+                        <button 
+                          onClick={() => setTimeframe('6M')}
+                          className={`px-2 py-1 rounded ${timeframe === '6M' ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-accent'}`}
+                        >
+                          6M
+                        </button>
+                        <button 
+                          onClick={() => setTimeframe('YTD')}
+                          className={`px-2 py-1 rounded ${timeframe === 'YTD' ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-accent'}`}
+                        >
+                          YTD
+                        </button>
+                        <button 
+                          onClick={() => setTimeframe('1Y')}
+                          className={`px-2 py-1 rounded ${timeframe === '1Y' ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-accent'}`}
+                        >
+                          1Y
+                        </button>
+                        <button 
+                          onClick={() => setTimeframe('5Y')}
+                          className={`px-2 py-1 rounded ${timeframe === '5Y' ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-accent'}`}
+                        >
+                          5Y
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Conditionally render either the line chart or candlestick chart based on user selection */}
+                  {chartType === 'line' ? (
+                    <PriceChart 
+                      data={timeSeriesData ? timeSeriesData.data.map(item => ({ 
+                        date: new Date(item.date),
+                        close: item.close
+                      })) : []} 
+                      loading={timeSeriesLoading} 
+                      error={timeSeriesError}
+                      timeframe={timeframe}
+                      height={400}
+                    />
+                  ) : (
+                    <CandlestickChart 
+                      data={timeSeriesData} 
+                      loading={timeSeriesLoading} 
+                      error={timeSeriesError}
+                      timeframe={timeframe}
+                      height={400}
+                    />
+                  )}
                 </div>
                 
-                {/* Price chart - using the real data */}
-                <PriceChart 
-                  data={priceData} 
-                  height={250} 
-                  loading={priceLoading} 
-                  timeframe={timeframe}
-                />
-                {priceError && (
-                  <div className="text-red-500 text-sm">{priceError}</div>
-                )}
-                
-                {/* Key metrics */}
+                {/* Enhanced Key metrics with Twelve Data - First two rows */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-2">
                   <div>
                     <div className="text-sm text-muted-foreground">Market Cap</div>
-                    <div className="font-medium">${stockData?.marketCap || "N/A"}</div>
+                    <div className="font-medium">${twelveDataStockData?.marketCap || stockData?.marketCap || "N/A"}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">Volume</div>
+                    <div className="font-medium">{twelveDataStockData?.volume || stockData?.volume || "N/A"}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">Avg. Volume</div>
+                    <div className="font-medium">{twelveDataStockData?.avgVolume || stockData?.avgVolume || "N/A"}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">Daily Range</div>
+                    {isLoadingTwelveDataQuote || isLoadingQuote ? (
+                      <SkeletonLoader className="h-8 w-full" />
+                    ) : twelveDataStockData?.low && twelveDataStockData?.high ? (
+                      <DailyRangeGauge 
+                        low={twelveDataStockData.low} 
+                        high={twelveDataStockData.high} 
+                        current={twelveDataStockData.price || stockData?.price || 0} 
+                        open={twelveDataStockData.open || stockData?.open || 0} 
+                      />
+                    ) : (
+                      <div className="font-medium">N/A</div>
+                    )}
                   </div>
                   <div>
                     <div className="text-sm text-muted-foreground">P/E Ratio</div>
@@ -1144,18 +1633,166 @@ const StockAnalysis = () => {
                     <div className="font-medium">{isLoadingValuation ? <SkeletonLoader className="h-5 w-16" /> : `${getValuationDataOrDefault().dividendYield}%`}</div>
                   </div>
                   <div>
+                    <div className="text-sm text-muted-foreground">Beta</div>
+                    <div className="font-medium">{isLoadingPriceChanges ? <SkeletonLoader className="h-5 w-16" /> : priceChanges?.beta ? priceChanges.beta.toFixed(2) : "N/A"}</div>
+                  </div>
+                  <div>
                     <div className="text-sm text-muted-foreground">52-Week Range</div>
-                    <div className="font-medium">{formatWeekRange()}</div>
+                    {isLoadingTwelveDataQuote || isLoadingQuote ? (
+                      <SkeletonLoader className="h-8 w-full" />
+                    ) : (
+                      <WeekRangeGauge 
+                        low={twelveDataStockData?.low52Week || stockData?.low52Week || 0} 
+                        high={twelveDataStockData?.high52Week || stockData?.high52Week || 100} 
+                        current={twelveDataStockData?.price || stockData?.price || 50} 
+                      />
+                    )}
                   </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground">Volume</div>
-                    <div className="font-medium">{stockData?.volume || "N/A"}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground">Avg. Volume</div>
-                    <div className="font-medium">{stockData?.avgVolume || "N/A"}</div>
-                  </div>
+                  
+                  {/* Remove the third row with company information from here */}
+                  
+                  {/* Remove the fourth row with company description from here */}
                 </div>
+                
+                {/* Show more button */}
+                <div className="flex justify-end mt-2">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={toggleMoreStockDetails}
+                    className="h-8 px-2 transition-all duration-200 hover:bg-muted"
+                  >
+                    <span className="mr-1 text-sm">{showMoreStockDetails ? "Hide details" : "Show more"}</span>
+                    <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${showMoreStockDetails ? 'rotate-180' : ''}`} />
+                  </Button>
+                </div>
+                
+                {/* Additional details dropdown section */}
+                {showMoreStockDetails && (
+                  <div 
+                    className="border-t pt-3 mt-1 grid grid-cols-2 md:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-2 duration-200"
+                  >
+                    {twelveDataStockData?.extendedHoursPrice && (
+                      <div>
+                        <div className="text-sm text-muted-foreground">After Hours</div>
+                        <div className="font-medium flex items-center">
+                          ${twelveDataStockData.extendedHoursPrice.toFixed(2)}
+                          {twelveDataStockData.extendedHoursChange && twelveDataStockData.extendedHoursChangePercent && (
+                            <span className={`ml-2 text-xs ${twelveDataStockData.extendedHoursChange > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {twelveDataStockData.extendedHoursChange > 0 ? '+' : ''}
+                              {twelveDataStockData.extendedHoursChange.toFixed(2)} ({twelveDataStockData.extendedHoursChangePercent.toFixed(2)}%)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {twelveDataStockData?.rolling1dChange && (
+                      <div>
+                        <div className="text-sm text-muted-foreground">1-Day Change</div>
+                        <div className={`font-medium ${twelveDataStockData.rolling1dChange > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {twelveDataStockData.rolling1dChange > 0 ? '+' : ''}
+                          {twelveDataStockData.rolling1dChange.toFixed(2)}%
+                        </div>
+                      </div>
+                    )}
+                    {twelveDataStockData?.rolling7dChange && (
+                      <div>
+                        <div className="text-sm text-muted-foreground">7-Day Change</div>
+                        <div className={`font-medium ${twelveDataStockData.rolling7dChange > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {twelveDataStockData.rolling7dChange > 0 ? '+' : ''}
+                          {twelveDataStockData.rolling7dChange.toFixed(2)}%
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Add full company description when available */}
+                    {profileData?.description && profileData.description.length > 300 && (
+                      <div className="col-span-full mt-2">
+                        <div className="text-sm text-muted-foreground">Company Description</div>
+                        <div className="text-sm leading-relaxed mt-1">
+                          {profileData.description}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Add additional company details */}
+                    {profileData && (
+                      <>
+                        <div>
+                          <div className="text-sm text-muted-foreground">CEO</div>
+                          <div className="font-medium">{profileData.CEO || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Type</div>
+                          <div className="font-medium">{profileData.type || 'N/A'}</div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Location</div>
+                          <div className="font-medium">
+                            {profileData.city && profileData.state ? `${profileData.city}, ${profileData.state}` : 'N/A'}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Website</div>
+                          <div className="font-medium">
+                            {profileData.website ? (
+                              <a 
+                                href={profileData.website.startsWith('http') ? profileData.website : `http://${profileData.website}`} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-primary hover:underline truncate block"
+                              >
+                                {profileData.website}
+                              </a>
+                            ) : 'N/A'}
+                          </div>
+                        </div>
+                        
+                        {/* Move exchange, sector, industry, employees below */}
+                        <div>
+                          <div className="text-sm text-muted-foreground">Exchange</div>
+                          <div className="font-medium">
+                            {isLoadingProfile ? (
+                              <SkeletonLoader className="h-5 w-16" />
+                            ) : (
+                              profileData?.exchange || "N/A"
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Sector</div>
+                          <div className="font-medium">
+                            {isLoadingProfile ? (
+                              <SkeletonLoader className="h-5 w-16" />
+                            ) : (
+                              profileData?.sector || "N/A"
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Industry</div>
+                          <div className="font-medium">
+                            {isLoadingProfile ? (
+                              <SkeletonLoader className="h-5 w-16" />
+                            ) : (
+                              profileData?.industry || "N/A"
+                            )}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-sm text-muted-foreground">Employees</div>
+                          <div className="font-medium">
+                            {isLoadingProfile ? (
+                              <SkeletonLoader className="h-5 w-16" />
+                            ) : (
+                              profileData?.employees ? profileData.employees.toLocaleString() : "N/A"
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -1180,69 +1817,313 @@ const StockAnalysis = () => {
               </Button>
             </CardHeader>
             <CardContent>
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <h4 className="font-medium mb-3">Historical Returns</h4>
-                  <div className="space-y-2">
-                    {isLoadingPriceChanges ? (
-                      // Loading skeleton for price changes
-                      Array(9).fill(0).map((_, index) => (
-                        <div key={index} className="flex items-center justify-between">
-                          <div className="w-6 h-4 bg-muted animate-pulse rounded"></div>
-                          <div className="flex items-center">
-                            <div className="w-32 h-2 bg-muted animate-pulse rounded-full mr-3"></div>
-                            <div className="w-16 h-4 bg-muted animate-pulse rounded"></div>
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      priceChanges?.returns?.map((item) => (
-                        <div key={item.period} className="flex items-center justify-between">
-                          <span className="text-sm w-10">{item.period}</span>
-                          <div className="flex items-center flex-1">
-                            <div className="w-full h-2 bg-muted rounded-full mr-3 relative">
-                              <div className="absolute top-0 left-1/2 w-px h-full bg-gray-300"></div>
-                              <div 
-                                className={`absolute top-0 h-full ${item.direction === 'up' ? 'bg-green-500 left-1/2' : 'bg-red-500 right-1/2'}`}
-                                style={{ 
-                                  width: `${Math.min(Math.abs(item.value) * 0.5, 50)}%`
-                                }}
-                              ></div>
+              <div className="space-y-6">
+                {/* Top section with Historical Returns and Earnings History */}
+                <div className="grid md:grid-cols-2 gap-6 relative">
+                  <div>
+                    <h4 className="font-medium mb-3">Historical Returns</h4>
+                    <div className="space-y-3">
+                      {isLoadingPriceChanges ? (
+                        // Loading skeleton for price changes
+                        Array(9).fill(0).map((_, index) => (
+                          <div key={index} className="flex items-center justify-between">
+                            <div className="w-6 h-4 bg-muted animate-pulse rounded"></div>
+                            <div className="flex items-center">
+                              <div className="w-32 h-2 bg-muted animate-pulse rounded-full mr-3"></div>
+                              <div className="w-16 h-4 bg-muted animate-pulse rounded"></div>
                             </div>
-                            <span 
-                              className={`text-sm font-medium ${
-                                item.direction === 'up' ? 'text-green-600' : 'text-red-600'
-                              } w-20 text-right`}
-                            >
-                              {item.direction === 'up' ? '+' : '-'}{Math.abs(item.value).toFixed(2)}%
-                            </span>
                           </div>
+                        ))
+                      ) : (
+                        <div className="bg-muted/30 rounded-lg p-3 relative">
+                          {priceChanges?.returns?.map((item, index) => (
+                            <div key={item.period} className={`${index !== 0 ? 'mt-3 pt-3 border-t border-gray-200' : ''}`}>
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="text-sm font-medium">{item.period}</span>
+                                <span 
+                                  className={`text-sm font-bold ${
+                                    item.direction === 'up' ? 'text-green-600' : 'text-red-600'
+                                  }`}
+                                >
+                                  {item.direction === 'up' ? '+' : '-'}{Math.abs(item.value).toFixed(2)}%
+                                </span>
+                              </div>
+                              <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden relative">
+                                <div className="absolute top-0 left-1/2 h-full w-px bg-gray-400"></div>
+                                <div 
+                                  className={`h-full ${item.direction === 'up' ? 'bg-green-500' : 'bg-red-500'}`}
+                                  style={{ 
+                                    width: `${Math.min(Math.abs(item.value) * 0.8, 50)}%`,
+                                    marginLeft: item.direction === 'up' ? '50%' : 'auto',
+                                    marginRight: item.direction === 'up' ? 'auto' : '50%'
+                                  }}
+                                ></div>
+                              </div>
+                              <div className="flex justify-between text-xs text-muted-foreground mt-1">
+                                <span>-50%</span>
+                                <span>0%</span>
+                                <span>+50%</span>
+                              </div>
+                            </div>
+                          ))}
+                          
+                          {/* Add a summary visualization at the bottom */}
+                          {priceChanges?.returns?.length > 0 && (
+                            <div className="mt-4 pt-4 border-t border-gray-200">
+                              <div className="text-sm font-medium mb-2">Return Summary</div>
+                              <div className="flex gap-2">
+                                {priceChanges.returns.slice(0, 4).map((item) => (
+                                  <div 
+                                    key={`summary-${item.period}`} 
+                                    className={`flex-1 h-16 rounded-md flex flex-col items-center justify-center ${
+                                      item.direction === 'up' ? 'bg-green-100' : 'bg-red-100'
+                                    }`}
+                                  >
+                                    <div className={`text-xs ${item.direction === 'up' ? 'text-green-700' : 'text-red-700'}`}>
+                                      {item.period}
+                                    </div>
+                                    <div className={`text-sm font-bold mt-1 ${item.direction === 'up' ? 'text-green-600' : 'text-red-600'}`}>
+                                      {item.direction === 'up' ? (
+                                        <div className="flex items-center">
+                                          <ArrowUp className="h-3 w-3 mr-1" />
+                                          {Math.abs(item.value).toFixed(1)}%
+                                        </div>
+                                      ) : (
+                                        <div className="flex items-center">
+                                          <ArrowDown className="h-3 w-3 mr-1" />
+                                          {Math.abs(item.value).toFixed(1)}%
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      ))
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <h4 className="font-medium mb-3">Earnings History</h4>
+                    {isLoadingPriceChanges ? (
+                      <div className="space-y-2">
+                        {Array(4).fill(0).map((_, index) => (
+                          <div key={index} className="flex items-center justify-between">
+                            <div className="w-20 h-4 bg-muted animate-pulse rounded"></div>
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 h-4 bg-muted animate-pulse rounded"></div>
+                              <div className="w-16 h-4 bg-muted animate-pulse rounded"></div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-4 text-sm text-muted-foreground mb-1">
+                          <div>Quarter</div>
+                          <div className="text-center">EPS</div>
+                          <div className="text-center">Surprise</div>
+                          <div className="text-right">Trend</div>
+                        </div>
+                        {/* Sample earnings data - replace with real data when available */}
+                        {[
+                          { quarter: 'Q4 2023', estEPS: 1.85, actEPS: 1.98, surprise: 7.03 },
+                          { quarter: 'Q3 2023', estEPS: 1.75, actEPS: 1.82, surprise: 4.00 },
+                          { quarter: 'Q2 2023', estEPS: 1.68, actEPS: 1.71, surprise: 1.79 },
+                          { quarter: 'Q1 2023', estEPS: 1.55, actEPS: 1.52, surprise: -1.94 }
+                        ].map((item, index, arr) => {
+                          // Calculate if EPS is growing compared to previous quarter
+                          const prevItem = index < arr.length - 1 ? arr[index + 1] : null;
+                          const epsGrowth = prevItem ? item.actEPS > prevItem.actEPS : false;
+                          
+                          return (
+                            <div key={item.quarter} className="rounded-md bg-muted/40 p-2">
+                              <div className="grid grid-cols-4 items-center text-sm">
+                                <div className="font-medium">{item.quarter}</div>
+                                
+                                {/* EPS comparison with visual bar */}
+                                <div className="space-y-1">
+                                  <div className="flex justify-between text-xs px-1">
+                                    <span>Est</span>
+                                    <span>Act</span>
+                                  </div>
+                                  <div className="relative h-4 w-full bg-gray-200 rounded-full overflow-hidden">
+                                    <div 
+                                      className="absolute top-0 left-0 h-full bg-blue-200"
+                                      style={{ width: '100%' }}
+                                    ></div>
+                                    <div 
+                                      className={`absolute top-0 h-full ${item.surprise >= 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                                      style={{ 
+                                        left: `${item.surprise >= 0 ? 
+                                          Math.min((item.estEPS / Math.max(item.estEPS, item.actEPS)) * 100, 100) : 
+                                          Math.min((item.actEPS / Math.max(item.estEPS, item.actEPS)) * 100, 100)}%`,
+                                        width: `${Math.abs((item.actEPS - item.estEPS) / Math.max(item.estEPS, item.actEPS) * 100)}%` 
+                                      }}
+                                    ></div>
+                                    <div className="absolute inset-0 flex justify-between items-center px-1 text-xs text-white font-medium">
+                                      <span>${item.estEPS.toFixed(2)}</span>
+                                      <span>${item.actEPS.toFixed(2)}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                
+                                {/* Surprise with visual indicator */}
+                                <div className="flex flex-col items-center justify-center">
+                                  <div className={`text-sm font-bold ${item.surprise >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                     {item.surprise >= 0 ? '+' : ''}{item.surprise.toFixed(2)}%
+                                  </div>
+                                  <div className="w-full h-1 mt-1 bg-gray-200 rounded-full overflow-hidden relative">
+                                    <div 
+                                      className={`h-full ${item.surprise >= 0 ? 'bg-green-500' : 'bg-red-500'}`}
+                                      style={{ width: `${Math.min(Math.abs(item.surprise) * 5, 100)}%` }}
+                                    ></div>
+                                  </div>
+                                </div>
+                                
+                                {/* Trend indicator */}
+                                <div className="flex justify-end">
+                                  {prevItem && (
+                                    <div className="flex flex-col items-center">
+                                      <div className={`rounded-full p-1 ${epsGrowth ? 'bg-green-100' : 'bg-red-100'}`}>
+                                        {epsGrowth ? (
+                                          <ArrowUp className={`h-4 w-4 text-green-600`} />
+                                        ) : (
+                                          <ArrowDown className={`h-4 w-4 text-red-600`} />
+                                        )}
+                                      </div>
+                                      <span className="text-xs text-muted-foreground mt-1">
+                                        {((item.actEPS - prevItem.actEPS) / prevItem.actEPS * 100).toFixed(1)}%
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 </div>
                 
+                {/* Performance Metrics section below */}
                 <div>
                   <h4 className="font-medium mb-3">Performance Metrics</h4>
-                  <MockChart type="Performance vs Benchmark" height={150} />
-                  
-                  <div className="grid grid-cols-2 gap-4 mt-4">
-                    <div>
-                      <div className="text-sm text-muted-foreground">Volatility (Annual)</div>
-                      <div className="font-medium">{priceChanges?.volatility ? priceChanges.volatility.toFixed(2) : "N/A"}%</div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-muted/30 rounded-lg p-4">
+                      <div className="flex justify-between items-center mb-3">
+                        <h5 className="font-medium text-sm">Risk/Reward Profile</h5>
+                        <div className="text-xs text-muted-foreground">vs S&P 500</div>
+                      </div>
+                      {isLoadingPriceChanges ? (
+                        <div className="h-32 w-full animate-pulse bg-muted rounded"></div>
+                      ) : (
+                        <div className="relative h-32 w-full">
+                          {/* This would be better with a real scatter plot chart */}
+                          <div className="relative inset-0 flex items-center justify-center h-full">
+                            <div className="relative w-full h-full">
+                              {/* Axes */}
+                              <div className="absolute top-1/2 left-0 w-full h-px bg-gray-300 z-10"></div>
+                              <div className="absolute top-0 left-1/2 w-px h-full bg-gray-300 z-10"></div>
+                              
+                              {/* Quadrant labels */}
+                              <div className="absolute top-1 left-1 text-xs text-muted-foreground">Lower Return<br/>Lower Risk</div>
+                              <div className="absolute top-1 right-1 text-xs text-muted-foreground text-right">Higher Return<br/>Lower Risk</div>
+                              <div className="absolute bottom-1 left-1 text-xs text-muted-foreground">Lower Return<br/>Higher Risk</div>
+                              <div className="absolute bottom-1 right-1 text-xs text-muted-foreground text-right">Higher Return<br/>Higher Risk</div>
+                              
+                              {/* Stock position dot - placement would depend on actual risk/return values */}
+                              <div 
+                                className="absolute bg-primary h-6 w-6 rounded-full flex items-center justify-center text-white text-xs font-bold"
+                                style={{ 
+                                  bottom: `${(priceChanges?.sharpeRatio && priceChanges?.sharpeRatio > 0) ? 
+                                    Math.min(priceChanges.sharpeRatio * 20, 85) : 50}%`, 
+                                  right: `${(priceChanges?.volatility && priceChanges?.volatility > 0) ? 
+                                    Math.min(priceChanges.volatility, 85) : 50}%` 
+                                }}
+                              >
+                                $
+                              </div>
+                              
+                              {/* Benchmark position */}
+                              <div 
+                                className="absolute bg-gray-500 h-4 w-4 rounded-full flex items-center justify-center text-white text-[10px]"
+                                style={{ bottom: '50%', right: '50%' }}
+                              >
+                                B
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <div className="text-sm text-muted-foreground">Sharpe Ratio</div>
-                      <div className="font-medium">{priceChanges?.sharpeRatio ? priceChanges.sharpeRatio.toFixed(2) : "N/A"}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-muted-foreground">Beta</div>
-                      <div className="font-medium">{priceChanges?.beta ? priceChanges.beta.toFixed(2) : "N/A"}</div>
-                    </div>
-                    <div>
-                      <div className="text-sm text-muted-foreground">Alpha</div>
-                      <div className="font-medium">{priceChanges?.alpha ? priceChanges.alpha.toFixed(2) : "N/A"}%</div>
+                    
+                    <div className="bg-muted/30 rounded-lg p-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="flex flex-col">
+                          <div className="text-sm text-muted-foreground">Volatility (Annual)</div>
+                          <div className="text-xl font-bold mt-2">
+                            {priceChanges?.volatility ? priceChanges.volatility.toFixed(2) : "N/A"}%
+                          </div>
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            {priceChanges?.volatility && priceChanges.volatility < 15 
+                              ? 'Low risk' 
+                              : priceChanges?.volatility && priceChanges.volatility < 25 
+                                ? 'Moderate risk' 
+                                : 'High risk'}
+                          </div>
+                        </div>
+                        <div className="flex flex-col">
+                          <div className="text-sm text-muted-foreground">Sharpe Ratio</div>
+                          <div className={`text-xl font-bold mt-2 ${
+                            priceChanges?.sharpeRatio && priceChanges.sharpeRatio > 1 
+                              ? 'text-green-600' 
+                              : priceChanges?.sharpeRatio && priceChanges.sharpeRatio > 0 
+                                ? 'text-amber-600' 
+                                : 'text-red-600'
+                          }`}>
+                            {priceChanges?.sharpeRatio ? priceChanges.sharpeRatio.toFixed(2) : "N/A"}
+                          </div>
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            {priceChanges?.sharpeRatio && priceChanges.sharpeRatio > 1 
+                              ? 'Excellent risk-adjusted return' 
+                              : priceChanges?.sharpeRatio && priceChanges.sharpeRatio > 0 
+                                ? 'Average risk-adjusted return' 
+                                : 'Poor risk-adjusted return'}
+                          </div>
+                        </div>
+                        <div className="flex flex-col">
+                          <div className="text-sm text-muted-foreground">Beta</div>
+                          <div className="text-xl font-bold mt-2">
+                            {priceChanges?.beta ? priceChanges.beta.toFixed(2) : "N/A"}
+                          </div>
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            {priceChanges?.beta && priceChanges.beta < 0.8 
+                              ? 'Less volatile than market' 
+                              : priceChanges?.beta && priceChanges.beta < 1.2 
+                                ? 'Similar to market' 
+                                : 'More volatile than market'}
+                          </div>
+                        </div>
+                        <div className="flex flex-col">
+                          <div className="text-sm text-muted-foreground">Alpha</div>
+                          <div className={`text-xl font-bold mt-2 ${
+                            priceChanges?.alpha && priceChanges.alpha > 0 
+                              ? 'text-green-600' 
+                              : 'text-red-600'
+                          }`}>
+                            {priceChanges?.alpha ? priceChanges.alpha.toFixed(2) : "N/A"}%
+                          </div>
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            {priceChanges?.alpha && priceChanges.alpha > 0 
+                              ? 'Outperforming market' 
+                              : 'Underperforming market'}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1414,10 +2295,36 @@ const StockAnalysis = () => {
                         <div className="text-sm text-muted-foreground">EV/EBITDA</div>
                         <div className="font-medium">{isLoadingValuation ? <SkeletonLoader className="h-5 w-16" /> : getValuationDataOrDefault().evToEbitda}</div>
                       </div>
+                      <div>
+                        <div className="text-sm text-muted-foreground">Dividend Yield</div>
+                        <div className="font-medium">{isLoadingValuation || isLoadingDividend ? 
+                          <SkeletonLoader className="h-5 w-16" /> : 
+                          `${getValuationDataOrDefault().dividendYield}%`}
+                        </div>
+                      </div>
                     </div>
                     
-                    {/* Removed Separator and dividend information section here */}
+                    {/* Add Dividend Details Section */}
+                    {dividendData && (
+                      <div className="mt-4 p-3 bg-muted/30 rounded-md">
+                        <h4 className="text-sm font-medium mb-2">Dividend Details</h4>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                          <div className="text-muted-foreground">Last Amount</div>
+                          <div className="text-right">${dividendData.dividendAmount.toFixed(2)}</div>
+                          
+                          <div className="text-muted-foreground">Annual Dividend</div>
+                          <div className="text-right">${dividendData.annualDividend.toFixed(2)}</div>
+                          
+                          <div className="text-muted-foreground">Last Ex-Date</div>
+                          <div className="text-right">{dividendData.lastExDate}</div>
+                          
+                          <div className="text-muted-foreground">Annualized Yield</div>
+                          <div className="text-right">{dividendData.dividendYield.toFixed(2)}%</div>
+                        </div>
+                      </div>
+                    )}
                     
+                    {/* Removed Separator and dividend information section here */}
                   </div>
                 </div>
                 
@@ -1806,9 +2713,9 @@ const StockAnalysis = () => {
                   )}
                   
                   <h4 className="font-medium mb-3">Analyst Ratings</h4>
-                  {isLoadingNews ? (
+                  {isLoadingAnalystRatings ? (
                     <SkeletonLoader className="h-16" />
-                  ) : newsData?.analystRatings ? (
+                  ) : analystRatingsData ? (
                     <div className="flex flex-col space-y-4">
                       <div className="h-56">
                         <ResponsiveContainer width="100%" height="100%">
@@ -1817,23 +2724,23 @@ const StockAnalysis = () => {
                               data={[
                                 { 
                                   name: "Strong Buy", 
-                                  value: newsData.analystRatings.strongBuy || 0 
+                                  value: analystRatingsData.strongBuy || 0
                                 },
                                 { 
                                   name: "Buy", 
-                                  value: newsData.analystRatings.buy || 0 
+                                  value: analystRatingsData.buy || 0
                                 },
                                 { 
                                   name: "Hold", 
-                                  value: newsData.analystRatings.hold || 0 
+                                  value: analystRatingsData.hold || 0
                                 },
                                 { 
                                   name: "Sell", 
-                                  value: newsData.analystRatings.sell || 0 
+                                  value: analystRatingsData.sell || 0
                                 },
                                 { 
                                   name: "Strong Sell", 
-                                  value: newsData.analystRatings.strongSell || 0 
+                                  value: analystRatingsData.strongSell || 0
                                 }
                               ]}
                               cx="50%"
@@ -1864,30 +2771,30 @@ const StockAnalysis = () => {
                       <div className="grid grid-cols-5 text-center text-xs">
                         <div>
                           <div className="font-medium text-green-600">Strong Buy</div>
-                          <div className="font-bold">{newsData.analystRatings?.strongBuy ?? 'N/A'}</div>
+                          <div className="font-bold">{analystRatingsData?.strongBuy ?? 'N/A'}</div>
                         </div>
                         <div>
                           <div className="font-medium text-green-500">Buy</div>
-                          <div className="font-bold">{newsData.analystRatings?.buy ?? 'N/A'}</div>
+                          <div className="font-bold">{analystRatingsData?.buy ?? 'N/A'}</div>
                         </div>
                         <div>
                           <div className="font-medium text-yellow-600">Hold</div>
-                          <div className="font-bold">{newsData.analystRatings?.hold ?? 'N/A'}</div>
+                          <div className="font-bold">{analystRatingsData?.hold ?? 'N/A'}</div>
                         </div>
                         <div>
                           <div className="font-medium text-red-500">Sell</div>
-                          <div className="font-bold">{newsData.analystRatings?.sell ?? 'N/A'}</div>
+                          <div className="font-bold">{analystRatingsData?.sell ?? 'N/A'}</div>
                         </div>
                         <div>
                           <div className="font-medium text-red-600">Strong Sell</div>
-                          <div className="font-bold">{newsData.analystRatings?.strongSell ?? 'N/A'}</div>
+                          <div className="font-bold">{analystRatingsData?.strongSell ?? 'N/A'}</div>
                         </div>
                       </div>
                       
                       <div className="mt-4 flex justify-between items-center">
                         <div>
                           <div className="text-sm text-muted-foreground">Consensus</div>
-                          <div className="font-medium">{newsData.analystRatings?.consensus ?? 'N/A'}</div>
+                          <div className="font-medium">{analystRatingsData?.consensus ?? 'N/A'}</div>
                         </div>
                         <div>
                           <div className="text-sm text-muted-foreground">Price Target</div>
