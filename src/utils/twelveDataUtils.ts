@@ -94,6 +94,120 @@ export interface DividendYieldData {
 }
 
 /**
+ * Interface for price target data returned from the twelve-price-target edge function
+ */
+export interface PriceTargetData {
+  meta: {
+    symbol: string;
+    name: string;
+    currency: string;
+    exchange_timezone: string;
+    exchange: string;
+    mic_code: string;
+    type: string;
+  };
+  price_target: {
+    high: number;
+    median: number;
+    low: number;
+    average: number;
+    current: number;
+  };
+  status: string;
+}
+
+/**
+ * Interface for stock statistics data from Twelve Data
+ */
+export interface StockStatisticsData {
+  meta: {
+    symbol: string;
+    name: string;
+    currency: string;
+    exchange: string;
+    mic_code: string;
+    exchange_timezone: string;
+  };
+  statistics: {
+    valuations_metrics: {
+      market_capitalization: number;
+      enterprise_value: number;
+      trailing_pe: number;
+      forward_pe: number;
+      peg_ratio: number;
+      price_to_sales_ttm: number;
+      price_to_book_mrq: number;
+      enterprise_to_revenue: number;
+      enterprise_to_ebitda: number;
+    };
+    financials: {
+      fiscal_year_ends: string;
+      most_recent_quarter: string;
+      gross_margin: number;
+      profit_margin: number;
+      operating_margin: number;
+      return_on_assets_ttm: number;
+      return_on_equity_ttm: number;
+      income_statement: {
+        revenue_ttm: number;
+        revenue_per_share_ttm: number;
+        quarterly_revenue_growth: number;
+        gross_profit_ttm: number;
+        ebitda: number;
+        net_income_to_common_ttm: number;
+        diluted_eps_ttm: number;
+        quarterly_earnings_growth_yoy: number;
+      };
+      balance_sheet: {
+        revenue_ttm: number;
+        total_cash_mrq: number;
+        total_cash_per_share_mrq: number;
+        total_debt_mrq: number;
+        total_debt_to_equity_mrq: number;
+        current_ratio_mrq: number;
+        book_value_per_share_mrq: number;
+      };
+      cash_flow: {
+        operating_cash_flow_ttm: number;
+        levered_free_cash_flow_ttm: number;
+      };
+    };
+    stock_statistics: {
+      shares_outstanding: number;
+      float_shares: number;
+      avg_10_volume: number;
+      avg_90_volume: number;
+      shares_short: number;
+      short_ratio: number;
+      short_percent_of_shares_outstanding: number;
+      percent_held_by_insiders: number;
+      percent_held_by_institutions: number;
+    };
+    stock_price_summary: {
+      fifty_two_week_low: number;
+      fifty_two_week_high: number;
+      fifty_two_week_change: number;
+      beta: number;
+      day_50_ma: number;
+      day_200_ma: number;
+    };
+    dividends_and_splits: {
+      forward_annual_dividend_rate: number;
+      forward_annual_dividend_yield: number;
+      trailing_annual_dividend_rate: number;
+      trailing_annual_dividend_yield: number;
+      five_year_average_dividend_yield: number;
+      payout_ratio: number;
+      dividend_frequency: string;
+      dividend_date: string;
+      ex_dividend_date: string;
+      last_split_factor: string;
+      last_split_date: string;
+    };
+  };
+}
+
+/**
  * Fetches a company logo from the Twelve Data API via Supabase Edge Function
  * @param symbol The stock symbol to fetch the logo for (e.g. AAPL)
  * @returns Company logo data including the logo URL
@@ -490,6 +604,304 @@ export const fetchDividendYield = async (symbol: string): Promise<DividendYieldD
     
   } catch (error) {
     console.error('Error fetching dividend yield from Twelve Data:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetches 5-year historical time series data from the Twelve Data API via Supabase Edge Function
+ * This is optimized for calculating historical returns and will always fetch 5 years of data
+ * @param symbol The stock symbol to fetch data for (e.g. AAPL)
+ * @param cacheTimestamp Optional timestamp for cache busting
+ * @returns Time series data with 5 years of historical daily prices
+ */
+export const fetchHistoricalTimeSeries = async (symbol: string, cacheTimestamp?: number): Promise<TimeSeriesData> => {
+  try {
+    // Use local static data as fallback when in development or if API fails
+    const useFallback = import.meta.env.DEV && import.meta.env.VITE_USE_LOCAL_STOCK_DATA === 'true';
+    
+    if (useFallback) {
+      // Simulate network delay to make it feel like a real API
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Always generate 5 years of daily data (approx 1250 trading days)
+      const dataLength = 1250;
+      
+      // Generate some mock time series data
+      const today = new Date();
+      const mockData = Array.from({ length: dataLength }, (_, i) => {
+        const date = new Date(today);
+        date.setDate(date.getDate() - (dataLength - i));
+        const basePrice = 150 + Math.sin(i / (dataLength/10)) * 15;
+        return {
+          date: date.toISOString().split('T')[0],
+          open: parseFloat((basePrice - 2 + Math.random() * 4).toFixed(2)),
+          high: parseFloat((basePrice + 2 + Math.random() * 3).toFixed(2)),
+          low: parseFloat((basePrice - 4 - Math.random() * 2).toFixed(2)),
+          close: parseFloat((basePrice + Math.random() * 6 - 3).toFixed(2)),
+          volume: Math.floor(Math.random() * 10000000) + 5000000
+        };
+      });
+      
+      return {
+        symbol: symbol,
+        data: mockData,
+        meta: {
+          symbol: symbol,
+          interval: '1day',
+          currency: 'USD',
+          exchange_timezone: 'America/New_York',
+          exchange: 'NASDAQ',
+          mic_code: 'XNAS',
+          type: 'Common Stock'
+        }
+      };
+    }
+    
+    // Call the Supabase Edge Function that interfaces with Twelve Data API
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      throw new Error('Supabase environment variables are missing');
+    }
+    
+    // Add cache busting parameter to URL if timestamp is provided
+    const cacheBuster = cacheTimestamp ? `?_t=${cacheTimestamp}` : '';
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/twelve-historical${cacheBuster}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ 
+        symbol: symbol.trim()
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Twelve Data Historical API error:', errorText);
+      throw new Error(`Twelve Data Historical API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return data as TimeSeriesData;
+    
+  } catch (error) {
+    console.error('Error fetching historical time series data from Twelve Data:', error);
+    throw error;
+  }
+};
+
+/**
+ * Fetches comprehensive stock statistics from the Twelve Data API via Supabase Edge Function
+ * @param symbol The stock symbol to fetch statistics for (e.g. AAPL)
+ * @returns Comprehensive statistics data including valuation metrics, financials, and more
+ */
+export const fetchStockStatistics = async (symbol: string): Promise<StockStatisticsData | null> => {
+  try {
+    // Use local static data as fallback when in development or if API fails
+    const useFallback = import.meta.env.DEV && import.meta.env.VITE_USE_LOCAL_STOCK_DATA === 'true';
+    
+    if (useFallback) {
+      // Simulate network delay to make it feel like a real API
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Return mock data for development
+      return {
+        meta: {
+          symbol: symbol,
+          name: `${symbol} Inc`,
+          currency: 'USD',
+          exchange: 'NASDAQ',
+          mic_code: 'XNAS',
+          exchange_timezone: 'America/New_York'
+        },
+        statistics: {
+          valuations_metrics: {
+            market_capitalization: 2546807865344,
+            enterprise_value: 2620597731328,
+            trailing_pe: 30.162493,
+            forward_pe: 26.982489,
+            peg_ratio: 1.4,
+            price_to_sales_ttm: 7.336227,
+            price_to_book_mrq: 39.68831,
+            enterprise_to_revenue: 7.549,
+            enterprise_to_ebitda: 23.623
+          },
+          financials: {
+            fiscal_year_ends: '2020-09-26',
+            most_recent_quarter: '2021-06-26',
+            gross_margin: 46.57807,
+            profit_margin: 0.25004,
+            operating_margin: 0.28788,
+            return_on_assets_ttm: 0.19302,
+            return_on_equity_ttm: 1.27125,
+            income_statement: {
+              revenue_ttm: 347155005440,
+              revenue_per_share_ttm: 20.61,
+              quarterly_revenue_growth: 0.364,
+              gross_profit_ttm: 104956000000,
+              ebitda: 110934999040,
+              net_income_to_common_ttm: 86801997824,
+              diluted_eps_ttm: 5.108,
+              quarterly_earnings_growth_yoy: 0.932
+            },
+            balance_sheet: {
+              revenue_ttm: 347155005440,
+              total_cash_mrq: 61696000000,
+              total_cash_per_share_mrq: 3.732,
+              total_debt_mrq: 135491002368,
+              total_debt_to_equity_mrq: 210.782,
+              current_ratio_mrq: 1.062,
+              book_value_per_share_mrq: 3.882
+            },
+            cash_flow: {
+              operating_cash_flow_ttm: 104414003200,
+              levered_free_cash_flow_ttm: 80625876992
+            }
+          },
+          stock_statistics: {
+            shares_outstanding: 16530199552,
+            float_shares: 16513305231,
+            avg_10_volume: 72804757,
+            avg_90_volume: 77013078,
+            shares_short: 93105968,
+            short_ratio: 1.19,
+            short_percent_of_shares_outstanding: 0.0056,
+            percent_held_by_insiders: 0.00071000005,
+            percent_held_by_institutions: 0.58474
+          },
+          stock_price_summary: {
+            fifty_two_week_low: 103.1,
+            fifty_two_week_high: 157.26,
+            fifty_two_week_change: 0.375625,
+            beta: 1.201965,
+            day_50_ma: 148.96686,
+            day_200_ma: 134.42506
+          },
+          dividends_and_splits: {
+            forward_annual_dividend_rate: 0.88,
+            forward_annual_dividend_yield: 0.0057,
+            trailing_annual_dividend_rate: 0.835,
+            trailing_annual_dividend_yield: 0.0053832764,
+            five_year_average_dividend_yield: 1.27,
+            payout_ratio: 0.16309999,
+            dividend_frequency: 'Quarterly',
+            dividend_date: '2021-08-12',
+            ex_dividend_date: '2021-08-06',
+            last_split_factor: '4-for-1 split',
+            last_split_date: '2020-08-31'
+          }
+        }
+      };
+    }
+    
+    // Call the Supabase Edge Function that interfaces with Twelve Data API
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      throw new Error('Supabase environment variables are missing');
+    }
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/twelve-stats`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ 
+        symbol: symbol.trim()
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Twelve Data Statistics API error:', errorText);
+      throw new Error(`Twelve Data Statistics API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    return data as StockStatisticsData;
+    
+  } catch (error) {
+    console.error('Error fetching stock statistics from Twelve Data:', error);
+    // Return null instead of throwing to gracefully handle missing data
+    return null;
+  }
+};
+
+/**
+ * Fetches price target data from the Twelve Data API via Supabase Edge Function
+ * @param symbol The stock symbol to fetch price target for (e.g. AAPL)
+ * @returns Price target data including high, low, median, average, and current price points
+ */
+export const fetchPriceTarget = async (symbol: string): Promise<PriceTargetData | null> => {
+  try {
+    // Use local static data as fallback when in development or if API fails
+    const useFallback = import.meta.env.DEV && import.meta.env.VITE_USE_LOCAL_STOCK_DATA === 'true';
+    
+    if (useFallback) {
+      // Simulate network delay to make it feel like a real API
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Return mock data for development
+      return {
+        meta: {
+          symbol: symbol,
+          name: `${symbol} Inc`,
+          currency: 'USD',
+          exchange_timezone: 'America/New_York',
+          exchange: 'NASDAQ',
+          mic_code: 'XNGS',
+          type: 'Common Stock'
+        },
+        price_target: {
+          high: 220,
+          median: 185,
+          low: 136,
+          average: 184.01,
+          current: 169.57
+        },
+        status: 'ok'
+      };
+    }
+    
+    // Call the Supabase Edge Function that interfaces with Twelve Data API
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      throw new Error('Supabase environment variables are missing');
+    }
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/twelve-price-target`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ symbol: symbol.trim() }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Twelve Data Price Target API error:', errorText);
+      // Return null instead of throwing to gracefully handle errors
+      return null;
+    }
+    
+    const data = await response.json();
+    return data;
+    
+  } catch (error) {
+    console.error('Error fetching price target from Twelve Data:', error);
     return null;
   }
 };

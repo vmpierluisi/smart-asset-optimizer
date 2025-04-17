@@ -109,6 +109,43 @@ export interface FinancialHealthData {
   operatingMargin: number | null;
   netMargin: number | null;
   healthScore: number | null; // Calculated or from FMP? Assuming calculated for now
+  
+  // Additional fields from Twelve Data statistics
+  // Financials
+  fiscal_year_ends?: string;
+  most_recent_quarter?: string;
+  
+  // Income statement
+  revenue_ttm?: number;
+  revenue_per_share_ttm?: number;
+  quarterly_revenue_growth?: number;
+  gross_profit_ttm?: number;
+  ebitda?: number;
+  net_income_to_common_ttm?: number;
+  diluted_eps_ttm?: number;
+  quarterly_earnings_growth_yoy?: number;
+  
+  // Balance sheet
+  total_cash_mrq?: number;
+  total_cash_per_share_mrq?: number;
+  total_debt_mrq?: number;
+  total_debt_to_equity_mrq?: number;
+  book_value_per_share_mrq?: number;
+  
+  // Cash flow
+  operating_cash_flow_ttm?: number;
+  levered_free_cash_flow_ttm?: number;
+  
+  // Dividend data
+  forward_annual_dividend_rate?: number;
+  forward_annual_dividend_yield?: number;
+  trailing_annual_dividend_rate?: number;
+  trailing_annual_dividend_yield?: number;
+  five_year_average_dividend_yield?: number;
+  payout_ratio?: number;
+  dividend_frequency?: string;
+  dividend_date?: string;
+  ex_dividend_date?: string;
 }
 
 export interface TechnicalIndicatorData {
@@ -450,6 +487,7 @@ export const fetchFinancialHealth = async (symbol: string): Promise<FinancialHea
       return null; // Return null or throw error based on desired handling
     }
 
+    // Fetch data from Financial Modeling Prep API
     const response = await fetch(`${supabaseUrl}/functions/v1/financial-health`, {
       method: 'POST',
       headers: {
@@ -465,9 +503,77 @@ export const fetchFinancialHealth = async (symbol: string): Promise<FinancialHea
       return null;
     }
 
-    const data = await response.json();
-    return data as FinancialHealthData;
+    // Parse FMP financial health data
+    const fmpData = await response.json() as FinancialHealthData;
 
+    // Import Twelve Data API function
+    const { fetchStockStatistics } = await import('./twelveDataUtils');
+    
+    // Fetch additional financial data from Twelve Data API
+    const tdData = await fetchStockStatistics(symbol);
+    
+    // If Twelve Data API returned data, merge it with FMP data
+    if (tdData && tdData.statistics && tdData.statistics.financials) {
+      const financials = tdData.statistics.financials;
+      const balanceSheet = financials.balance_sheet;
+      const incomeStatement = financials.income_statement;
+      const cashFlow = financials.cash_flow;
+      const dividendsAndSplits = tdData.statistics.dividends_and_splits;
+      
+      // Merge the data
+      const mergedData: FinancialHealthData = {
+        ...fmpData,
+        // Financials
+        fiscal_year_ends: financials.fiscal_year_ends,
+        most_recent_quarter: financials.most_recent_quarter,
+        
+        // Override these values with Twelve Data API values
+        currentRatio: balanceSheet.current_ratio_mrq || fmpData.currentRatio,
+        returnOnEquity: financials.return_on_equity_ttm || fmpData.returnOnEquity,
+        returnOnAssets: financials.return_on_assets_ttm || fmpData.returnOnAssets,
+        netMargin: financials.profit_margin || fmpData.netMargin,
+        grossMargin: financials.gross_margin || fmpData.grossMargin,
+        operatingMargin: financials.operating_margin || fmpData.operatingMargin,
+        
+        // Income statement
+        revenue_ttm: incomeStatement.revenue_ttm,
+        revenue_per_share_ttm: incomeStatement.revenue_per_share_ttm,
+        quarterly_revenue_growth: incomeStatement.quarterly_revenue_growth,
+        gross_profit_ttm: incomeStatement.gross_profit_ttm,
+        ebitda: incomeStatement.ebitda,
+        net_income_to_common_ttm: incomeStatement.net_income_to_common_ttm,
+        diluted_eps_ttm: incomeStatement.diluted_eps_ttm,
+        quarterly_earnings_growth_yoy: incomeStatement.quarterly_earnings_growth_yoy,
+        
+        // Balance sheet
+        total_cash_mrq: balanceSheet.total_cash_mrq,
+        total_cash_per_share_mrq: balanceSheet.total_cash_per_share_mrq,
+        total_debt_mrq: balanceSheet.total_debt_mrq,
+        total_debt_to_equity_mrq: balanceSheet.total_debt_to_equity_mrq,
+        book_value_per_share_mrq: balanceSheet.book_value_per_share_mrq,
+        quickRatio: balanceSheet.current_ratio_mrq ? (balanceSheet.total_cash_mrq / balanceSheet.total_debt_mrq) : fmpData.quickRatio,
+        
+        // Cash flow
+        operating_cash_flow_ttm: cashFlow.operating_cash_flow_ttm,
+        levered_free_cash_flow_ttm: cashFlow.levered_free_cash_flow_ttm,
+        
+        // Dividend data
+        forward_annual_dividend_rate: dividendsAndSplits.forward_annual_dividend_rate,
+        forward_annual_dividend_yield: dividendsAndSplits.forward_annual_dividend_yield,
+        trailing_annual_dividend_rate: dividendsAndSplits.trailing_annual_dividend_rate,
+        trailing_annual_dividend_yield: dividendsAndSplits.trailing_annual_dividend_yield,
+        five_year_average_dividend_yield: dividendsAndSplits.five_year_average_dividend_yield,
+        payout_ratio: dividendsAndSplits.payout_ratio,
+        dividend_frequency: dividendsAndSplits.dividend_frequency,
+        dividend_date: dividendsAndSplits.dividend_date,
+        ex_dividend_date: dividendsAndSplits.ex_dividend_date,
+      };
+      
+      return mergedData;
+    }
+    
+    // If Twelve Data API failed, return just the FMP data
+    return fmpData;
   } catch (error) {
     console.error('Error fetching financial health data:', error);
     return null; // Return null on fetch error
@@ -779,41 +885,14 @@ export const fetchAnalystRatings = async (symbol: string): Promise<AnalystRating
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Error fetching analyst ratings for ${symbol}: ${response.status} ${errorText}`);
-      return null; // Return null directly
+      return null;
     }
 
     const data = await response.json();
-    console.log('Analyst-ratings API response:', data);
+    return data as AnalystRatings;
 
-    // Handle array format from the API
-    if (Array.isArray(data) && data.length > 0) {
-      const rating = data[0];
-
-      // Create analyst ratings object from the array item
-      const analystRatings: AnalystRatings = {
-        strongBuy: rating.strongBuy || 0,
-        buy: rating.buy || 0,
-        hold: rating.hold || 0,
-        sell: rating.sell || 0,
-        strongSell: rating.strongSell || 0,
-        consensus: rating.consensus || 'N/A'
-      };
-
-      // Explicitly return only the AnalystRatings object
-      return analystRatings;
-    }
-
-    // If we get an empty array, log and return null values
-    if (Array.isArray(data) && data.length === 0) {
-      console.log(`No analyst ratings data available for ${symbol}`);
-      return null; // Return null directly
-    }
-
-    // Fallback for any other response format
-    console.error('Unexpected response format from analyst-ratings endpoint:', data);
-    return null; // Return null directly
   } catch (error) {
-    console.error('Error fetching analyst ratings data:', error);
-    return null; // Return null directly
+    console.error('Error fetching analyst ratings:', error);
+    return null;
   }
 };

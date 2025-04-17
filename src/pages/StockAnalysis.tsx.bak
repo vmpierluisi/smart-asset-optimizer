@@ -76,10 +76,7 @@ import {
   DividendYieldData, 
   fetchTimeSeries, 
   fetchHistoricalTimeSeries,
-  TimeSeriesData,
-  fetchStockStatistics,
-  fetchPriceTarget,
-  PriceTargetData
+  TimeSeriesData 
 } from "@/utils/twelveDataUtils";
 import { PriceChart } from "@/components/PriceChart";
 import { useStockPrices } from "@/hooks/useStockPrices";
@@ -411,9 +408,9 @@ const PriceRangeGauge = ({ low, high, current, label }: { low: number, high: num
   const percentage = Math.min(Math.max(((current - low) / (high - low)) * 100, 0), 100);
   
   return (
-    <div className="w-full flex flex-col items-center">
+    <div className="w-full">
       {label && <div className="text-sm text-muted-foreground">{label}</div>}
-      <div className="w-40 h-1 bg-gray-200 rounded-full relative my-3">
+      <div className="w-full h-1 bg-gray-200 rounded-full relative my-3">
         <div className="absolute inset-0 flex">
           <div className="w-[30%] h-full bg-red-500 rounded-l-full"></div>
           <div className="w-[40%] h-full bg-amber-500"></div>
@@ -428,7 +425,7 @@ const PriceRangeGauge = ({ low, high, current, label }: { low: number, high: num
         ></div>
       </div>
       
-      <div className="flex justify-between text-xs text-muted-foreground w-40">
+      <div className="flex justify-between text-xs text-muted-foreground">
         <span>${low.toFixed(2)}</span>
         <span>${high.toFixed(2)}</span>
       </div>
@@ -449,8 +446,8 @@ const DailyRangeGauge = ({ low, high, current, open }: { low: number, high: numb
   const openPercentage = Math.min(Math.max(((open - low) / (high - low)) * 100, 0), 100);
   
   return (
-    <div className="w-full flex flex-col items-center">
-      <div className="w-40 h-1 bg-gray-200 rounded-full relative my-3">
+    <div className="w-full">
+      <div className="w-full h-1 bg-gray-200 rounded-full relative my-3">
         <div className="absolute inset-0 flex">
           <div 
             className="h-full bg-red-500 rounded-l-full" 
@@ -470,7 +467,7 @@ const DailyRangeGauge = ({ low, high, current, open }: { low: number, high: numb
         ></div>
       </div>
       
-      <div className="flex justify-between text-xs text-muted-foreground w-40">
+      <div className="flex justify-between text-xs text-muted-foreground">
         <span>${low.toFixed(2)}</span>
         <span className="text-xs font-medium">Open: ${open.toFixed(2)}</span>
         <span>${high.toFixed(2)}</span>
@@ -1358,8 +1355,7 @@ const StockAnalysis = () => {
         dividendGrowth5Y: getValuationDataOrDefault().dividendGrowth5Y,
         fairValueLow: getValuationDataOrDefault().fairValueLow,
         fairValueHigh: getValuationDataOrDefault().fairValueHigh,
-        eps: getValuationDataOrDefault().eps,
-        priceTarget: priceTargetData?.price_target || null
+        eps: getValuationDataOrDefault().eps
       })
     },
     technical: {
@@ -1726,35 +1722,6 @@ const StockAnalysis = () => {
       return `$${marketCap.toLocaleString()}`;
     }
   };
-
-  // Add a state for price target data
-  const [priceTargetData, setPriceTargetData] = useState<PriceTargetData | null>(null);
-  const [isLoadingPriceTarget, setIsLoadingPriceTarget] = useState<boolean>(false);
-
-  // Fetch price target data
-  useEffect(() => {
-    const getPriceTargetData = async () => {
-      if (!selectedStock) return;
-      
-      setIsLoadingPriceTarget(true);
-      try {
-        const data = await fetchPriceTarget(selectedStock);
-        setPriceTargetData(data);
-      } catch (error) {
-        console.error('Error fetching price target data:', error);
-        toast({
-          title: "Error",
-          description: `Failed to fetch price target data for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          variant: "destructive",
-        });
-        setPriceTargetData(null);
-      } finally {
-        setIsLoadingPriceTarget(false);
-      }
-    };
-    
-    getPriceTargetData();
-  }, [selectedStock]);
 
   // Beginning of the return statement
   return (
@@ -2583,6 +2550,11 @@ const StockAnalysis = () => {
                   </div>
                 </div>
                 
+                {/* Performance Metrics section below */}
+                <div>
+                  <h4 className="font-medium mb-3">Performance Metrics</h4>
+                  {/* Risk/Reward Profile and volatility metrics removed as requested */}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -3032,147 +3004,200 @@ const StockAnalysis = () => {
                   <div className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <div className="text-sm text-muted-foreground">P/E Ratio (TTM)</div>
-                        <div className="font-medium">
-                          {isLoadingStatistics ? (
-                            <SkeletonLoader className="h-5 w-16" />
-                          ) : stockStatistics?.statistics?.valuations_metrics?.trailing_pe ? (
-                            stockStatistics.statistics.valuations_metrics.trailing_pe.toFixed(2)
-                          ) : (
-                            "N/A"
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-muted-foreground">Forward P/E</div>
-                        <div className="font-medium">
-                          {isLoadingStatistics ? (
-                            <SkeletonLoader className="h-5 w-16" />
-                          ) : stockStatistics?.statistics?.valuations_metrics?.forward_pe ? (
-                            stockStatistics.statistics.valuations_metrics.forward_pe.toFixed(2)
-                          ) : (
-                            "N/A"
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-muted-foreground">PEG Ratio</div>
-                        <div className="font-medium">
-                          {isLoadingStatistics ? (
-                            <SkeletonLoader className="h-5 w-16" />
-                          ) : stockStatistics?.statistics?.valuations_metrics?.peg_ratio ? (
-                            stockStatistics.statistics.valuations_metrics.peg_ratio.toFixed(2)
-                          ) : (
-                            "N/A"
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-muted-foreground">Price/Sales (TTM)</div>
-                        <div className="font-medium">
-                          {isLoadingStatistics ? (
-                            <SkeletonLoader className="h-5 w-16" />
-                          ) : stockStatistics?.statistics?.valuations_metrics?.price_to_sales_ttm ? (
-                            stockStatistics.statistics.valuations_metrics.price_to_sales_ttm.toFixed(2)
-                          ) : (
-                            "N/A"
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-muted-foreground">Price/Book (MRQ)</div>
-                        <div className="font-medium">
-                          {isLoadingStatistics ? (
-                            <SkeletonLoader className="h-5 w-16" />
-                          ) : stockStatistics?.statistics?.valuations_metrics?.price_to_book_mrq ? (
-                            stockStatistics.statistics.valuations_metrics.price_to_book_mrq.toFixed(2)
-                          ) : (
-                            "N/A"
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-muted-foreground">EV/Revenue</div>
-                        <div className="font-medium">
-                          {isLoadingStatistics ? (
-                            <SkeletonLoader className="h-5 w-16" />
-                          ) : stockStatistics?.statistics?.valuations_metrics?.enterprise_to_revenue ? (
-                            stockStatistics.statistics.valuations_metrics.enterprise_to_revenue.toFixed(2)
-                          ) : (
-                            "N/A"
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-sm text-muted-foreground">EV/EBITDA</div>
-                        <div className="font-medium">
-                          {isLoadingStatistics ? (
-                            <SkeletonLoader className="h-5 w-16" />
-                          ) : stockStatistics?.statistics?.valuations_metrics?.enterprise_to_ebitda ? (
-                            stockStatistics.statistics.valuations_metrics.enterprise_to_ebitda.toFixed(2)
-                          ) : (
-                            "N/A"
-                          )}
-                        </div>
+                        <div className="text-sm text-muted-foreground">P/E Ratio</div>
+                        <div className="font-medium">{isLoadingValuation ? <SkeletonLoader className="h-5 w-16" /> : getValuationDataOrDefault().peRatio}</div>
                       </div>
                       <div>
                         <div className="text-sm text-muted-foreground">Earnings Per Share</div>
                         <div className="font-medium">
-                          {isLoadingStatistics || isLoadingEarnings ? (
-                            <SkeletonLoader className="h-5 w-16" />
-                          ) : earningsData?.earnings && earningsData.earnings.length > 0 ? (
-                            `$${earningsData.earnings[0].eps_actual.toFixed(2)}`
-                          ) : (
-                            "N/A"
-                          )}
+                          {isLoadingValuation || isLoadingEarnings ? 
+                            <SkeletonLoader className="h-5 w-16" /> : 
+                            `$${getValuationDataOrDefault().eps}`}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-muted-foreground">PEG Ratio</div>
+                        <div className="font-medium">{isLoadingValuation ? <SkeletonLoader className="h-5 w-16" /> : getValuationDataOrDefault().pegRatio}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-muted-foreground">Price/Book</div>
+                        <div className="font-medium">{isLoadingValuation ? <SkeletonLoader className="h-5 w-16" /> : getValuationDataOrDefault().priceToBook}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-muted-foreground">Price/Sales</div>
+                        <div className="font-medium">{isLoadingValuation ? <SkeletonLoader className="h-5 w-16" /> : getValuationDataOrDefault().priceToSales}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-muted-foreground">EV/EBITDA</div>
+                        <div className="font-medium">{isLoadingValuation ? <SkeletonLoader className="h-5 w-16" /> : getValuationDataOrDefault().evToEbitda}</div>
+                      </div>
+                      <div>
+                        <div className="text-sm text-muted-foreground">Dividend Yield</div>
+                        <div className="font-medium">{isLoadingValuation || isLoadingDividend ? 
+                          <SkeletonLoader className="h-5 w-16" /> : 
+                          `${getValuationDataOrDefault().dividendYield}%`}
                         </div>
                       </div>
                     </div>
+                    
+                    {/* Add Dividend Details Section */}
+                    {dividendData && (
+                      <div className="mt-4 p-3 bg-muted/30 rounded-md">
+                        <h4 className="text-sm font-medium mb-2">Dividend Details</h4>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                          <div className="text-muted-foreground">Last Amount</div>
+                          <div className="text-right">${dividendData.dividendAmount.toFixed(2)}</div>
+                          
+                          <div className="text-muted-foreground">Annual Dividend</div>
+                          <div className="text-right">${dividendData.annualDividend.toFixed(2)}</div>
+                          
+                          <div className="text-muted-foreground">Last Ex-Date</div>
+                          <div className="text-right">{dividendData.lastExDate}</div>
+                          
+                          <div className="text-muted-foreground">Annualized Yield</div>
+                          <div className="text-right">{dividendData.dividendYield.toFixed(2)}%</div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Removed Separator and dividend information section here */}
                   </div>
                 </div>
                 
                 <div>
                   <h4 className="font-medium mb-3">Price Target</h4>
-                  {isLoadingPriceTarget ? (
-                    <div className="space-y-2">
-                      <SkeletonLoader className="h-5 w-full" />
-                      <SkeletonLoader className="h-10 w-full" />
-                      <SkeletonLoader className="h-5 w-full" />
-                    </div>
-                  ) : priceTargetData && priceTargetData.price_target ? (
-                    <div className="flex flex-col items-center">
-                      <div className="text-3xl font-bold mb-1">
-                        ${priceTargetData.price_target.average.toFixed(2)}
+                  {isLoadingTechnical ? (
+                     <div className="flex-1 flex items-center justify-center">
+                      <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+                     </div>
+                  ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center">
+                      {/* Display current stock price or N/A */}
+                      <div className="text-4xl font-bold mb-2">
+                        {stockData?.price ? `$${stockData.price.toFixed(2)}` : "N/A"}
                       </div>
-                      <div className="text-sm text-muted-foreground mb-2">
-                        Current: ${priceTargetData.price_target.current.toFixed(2)}
-                      </div>
+                      <div className="text-sm text-muted-foreground mb-3">Current Price</div>
                       
-                      {stockData?.price && (
-                        <div className={`px-3 py-1 rounded-full text-sm border text-center w-40 mb-3 ${
-                          stockData.price < priceTargetData.price_target.average * 0.9 
+                      {/* Display valuation tag */}
+                      {technicalData?.priceTarget && stockData?.price ? (
+                        <div className={`px-3 py-1 rounded-full text-sm border mb-3 ${
+                          stockData.price < technicalData.priceTarget.targetConsensus * 0.9 
                             ? "bg-green-100 text-green-700 border-green-300" 
-                            : stockData.price > priceTargetData.price_target.average * 1.1
+                            : stockData.price > technicalData.priceTarget.targetConsensus * 1.1
                               ? "bg-red-100 text-red-700 border-red-300"
                               : "bg-amber-100 text-amber-700 border-amber-300"
                         }`}>
-                          {stockData.price < priceTargetData.price_target.average * 0.9 
+                          {stockData.price < technicalData.priceTarget.targetConsensus * 0.9 
                             ? "Undervalued" 
-                            : stockData.price > priceTargetData.price_target.average * 1.1
+                            : stockData.price > technicalData.priceTarget.targetConsensus * 1.1
                               ? "Overvalued"
                               : "Fair Value"}
                         </div>
+                      ) : (
+                        <div className="px-3 py-1 rounded-full text-sm border mb-3 bg-gray-100 text-gray-700 border-gray-300">
+                          No Data
+                        </div>
                       )}
                       
-                      <PriceRangeGauge 
-                        low={priceTargetData.price_target.low} 
-                        high={priceTargetData.price_target.high} 
-                        current={stockData?.price || 0} 
-                        label="Analyst Price Target Range" 
-                      />
+                      {/* Price Target Gauge */}
+                      <div className="w-full mt-3">
+                        {technicalData?.priceTarget && stockData?.price ? (
+                          <div className="relative pt-5">
+                            {/* Colored background zones */}
+                            <div className="w-40 h-1 bg-gray-200 rounded-full relative mx-auto">
+                              <div className="absolute inset-0 flex">
+                                <div className="w-[30%] h-full bg-green-500 rounded-l-full"></div>
+                                <div className="w-[40%] h-full bg-amber-500"></div>
+                                <div className="w-[30%] h-full bg-red-500 rounded-r-full"></div>
+                              </div>
+                              
+                              {/* Current price marker */}
+                              <div 
+                                className="absolute top-0 w-1 h-3 bg-black rounded-full -mt-1" 
+                                style={{ 
+                                  left: `${Math.min(Math.max(((stockData.price - technicalData.priceTarget.targetLow) / 
+                                    (technicalData.priceTarget.targetHigh - technicalData.priceTarget.targetLow)) * 100, 0), 100)}%`,
+                                  transform: 'translateX(-50%)'
+                                }}
+                              ></div>
+                            </div>
+                            
+                            {/* Target low label */}
+                            <div 
+                              className="absolute -top-1 text-xs"
+                              style={{ left: 'calc(50% - 70px)' }}
+                            >
+                              ${technicalData.priceTarget.targetLow.toFixed(2)}
+                            </div>
+                            
+                            {/* Target high label */}
+                            <div 
+                              className="absolute -top-1 text-xs text-right"
+                              style={{ right: 'calc(50% - 70px)' }}
+                            >
+                              ${technicalData.priceTarget.targetHigh.toFixed(2)}
+                            </div>
+                            
+                            {/* Consensus marker */}
+                            <div 
+                              className="absolute bottom-6 text-xs font-medium"
+                              style={{ 
+                                left: `calc(50% + ${Math.min(Math.max(((technicalData.priceTarget.targetConsensus - technicalData.priceTarget.targetLow) / 
+                                  (technicalData.priceTarget.targetHigh - technicalData.priceTarget.targetLow)) * 80 - 40, -40), 40)}px)`,
+                                transform: 'translateX(-50%)' 
+                              }}
+                            >
+                              Consensus: ${technicalData.priceTarget.targetConsensus.toFixed(2)}
+                            </div>
+                            
+                            {/* Current price label */}
+                            <div 
+                              className="absolute -bottom-6 text-xs font-medium"
+                              style={{ 
+                                left: `calc(50% + ${Math.min(Math.max(((stockData.price - technicalData.priceTarget.targetLow) / 
+                                  (technicalData.priceTarget.targetHigh - technicalData.priceTarget.targetLow)) * 80 - 40, -40), 40)}px)`,
+                                transform: 'translateX(-50%)' 
+                              }}
+                            >
+                              Current: ${stockData.price.toFixed(2)}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="relative pt-5">
+                            <div className="w-40 h-1 bg-gray-200 rounded-full relative mx-auto">
+                              {/* Empty default gauge */}
+                              <div 
+                                className="absolute top-0 w-1 h-3 bg-black rounded-full -mt-1" 
+                                style={{ 
+                                  left: '50%',
+                                  transform: 'translateX(-50%)'
+                                }}
+                              ></div>
+                            </div>
+                            
+                            <div 
+                              className="absolute -top-1 text-xs text-muted-foreground"
+                              style={{ left: 'calc(50% - 70px)' }}
+                            >
+                              $0
+                            </div>
+                            
+                            <div 
+                              className="absolute -top-1 text-xs text-right text-muted-foreground"
+                              style={{ right: 'calc(50% - 70px)' }}
+                            >
+                              $0
+                            </div>
+                            
+                            <div 
+                              className="absolute -bottom-6 text-xs font-medium text-muted-foreground text-center w-full"
+                            >
+                              No price target data available
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  ) : (
-                    <div className="text-muted-foreground">No price target data available</div>
                   )}
                 </div>
               </div>
