@@ -1,10 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Card, 
   CardContent, 
   CardDescription, 
   CardHeader, 
-  CardTitle 
+  CardTitle, 
+  CardFooter
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 import { 
   ArrowDown, 
   ArrowUp, 
@@ -79,7 +81,19 @@ import {
   TimeSeriesData,
   fetchStockStatistics,
   fetchPriceTarget,
-  PriceTargetData
+  PriceTargetData,
+  fetchSMA20,
+  fetchSMA50,
+  fetchSMA200,
+  SMAData,
+  fetchEMA20,
+  fetchEMA50,
+  fetchEMA200,
+  EMAData,
+  fetchRSI,
+  RSIData,
+  fetchRecommendations,
+  RecommendationsData
 } from "@/utils/twelveDataUtils";
 import { PriceChart } from "@/components/PriceChart";
 import { useStockPrices } from "@/hooks/useStockPrices";
@@ -93,6 +107,9 @@ import CandlestickChart from "@/components/CandlestickChart";
 import StockStatisticsView from "@/components/StockStatisticsView";
 import { useStockStatistics } from "@/hooks/useStockStatistics";
 import { StockStatisticsData } from "@/utils/twelveDataUtils";
+import SMAChart from "@/components/SMAChart";
+import EMAChart from "@/components/EMAChart";
+import RSIChart from '@/components/RSIChart';
 
 // Define CSS keyframes for animations
 const fadeGrowKeyframes = `
@@ -529,6 +546,8 @@ const StockAnalysis = () => {
   const [isLoadingRisk, setIsLoadingRisk] = useState(false);
   const [analystRatingsData, setAnalystRatingsData] = useState<AnalystRatings | null>(null);
   const [isLoadingAnalystRatings, setIsLoadingAnalystRatings] = useState(false);
+  const [recommendationsData, setRecommendationsData] = useState<RecommendationsData | null>(null);
+  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
   const [logoData, setLogoData] = useState<CompanyLogoData | null>(null);
   const [isLoadingLogo, setIsLoadingLogo] = useState(false);
   const [profileData, setProfileData] = useState<CompanyProfileData | null>(null);
@@ -1090,6 +1109,33 @@ const StockAnalysis = () => {
     getAnalystRatings();
   }, [selectedStock]);
 
+  // Fetch Recommendations data from Twelve Data
+  useEffect(() => {
+    const getRecommendationsData = async () => {
+      if (!selectedStock) return;
+      
+      setIsLoadingRecommendations(true);
+      try {
+        console.log('Fetching recommendations for:', selectedStock);
+        const data = await fetchRecommendations(selectedStock);
+        console.log('Recommendations data received:', data);
+        setRecommendationsData(data);
+      } catch (error) {
+        console.error('Error fetching recommendations:', error);
+        toast({
+          title: "Error",
+          description: `Failed to fetch recommendations for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          variant: "destructive",
+        });
+        setRecommendationsData(null);
+      } finally {
+        setIsLoadingRecommendations(false);
+      }
+    };
+    
+    getRecommendationsData();
+  }, [selectedStock]);
+
   // Debug effect for analyst ratings data rendering
   useEffect(() => {
     if (analystRatingsData) {
@@ -1388,6 +1434,7 @@ const StockAnalysis = () => {
         sentimentScore: newsData?.sentimentScore,
         recentNews: newsData?.recentNews,
         analystRatings: analystRatingsData,
+        recommendations: recommendationsData,
         priceTarget: technicalData?.priceTarget,
         currentPrice: stockData?.price
       })
@@ -1730,6 +1777,7 @@ const StockAnalysis = () => {
   // Add a state for price target data
   const [priceTargetData, setPriceTargetData] = useState<PriceTargetData | null>(null);
   const [isLoadingPriceTarget, setIsLoadingPriceTarget] = useState<boolean>(false);
+  const [recommendationTimeframe, setRecommendationTimeframe] = useState<'current' | '1m' | '2m' | '3m'>('current');
 
   // Fetch price target data
   useEffect(() => {
@@ -1755,6 +1803,180 @@ const StockAnalysis = () => {
     
     getPriceTargetData();
   }, [selectedStock]);
+
+  // Add a state for SMA-20 data
+  const [smaData, setSmaData] = useState<SMAData | null>(null);
+  const [sma50Data, setSma50Data] = useState<SMAData | null>(null);
+  const [sma200Data, setSma200Data] = useState<SMAData | null>(null);
+  const [isLoadingSMA, setIsLoadingSMA] = useState<boolean>(false);
+  const [smaTimeframe, setSmaTimeframe] = useState<string>('3M');
+  
+  // Add a new useEffect for fetching SMA-20 and SMA-50 data
+  useEffect(() => {
+    const getSmaData = async () => {
+      if (!selectedStock) return;
+      
+      setIsLoadingSMA(true);
+      try {
+        // Fetch all SMA datasets in parallel
+        const [data20, data50, data200] = await Promise.all([
+          fetchSMA20(selectedStock, smaTimeframe),
+          fetchSMA50(selectedStock, smaTimeframe),
+          fetchSMA200(selectedStock, smaTimeframe)
+        ]);
+        
+        console.log('SMA-20 data:', data20); // Debug log
+        console.log('SMA-50 data:', data50); // Debug log
+        console.log('SMA-200 data:', data200); // Debug log
+        
+        setSmaData(data20);
+        setSma50Data(data50);
+        setSma200Data(data200);
+      } catch (error) {
+        console.error('Error fetching SMA data:', error);
+        toast({
+          title: "Error",
+          description: `Failed to fetch SMA data for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          variant: "destructive",
+        });
+        setSmaData(null);
+        setSma50Data(null);
+        setSma200Data(null);
+      } finally {
+        setIsLoadingSMA(false);
+      }
+    };
+    
+    getSmaData();
+  }, [selectedStock, smaTimeframe]);
+
+  // Handle SMA timeframe change
+  const handleSmaTimeframeChange = (timeframe: string) => {
+    console.log(`Changing SMA timeframe to ${timeframe}`);
+    setSmaTimeframe(timeframe);
+  };
+
+  // Add a state for EMA-20 data
+  const [emaData, setEmaData] = useState<EMAData | null>(null);
+  const [ema50Data, setEma50Data] = useState<EMAData | null>(null);
+  const [ema200Data, setEma200Data] = useState<EMAData | null>(null);
+  const [isLoadingEMA, setIsLoadingEMA] = useState<boolean>(false);
+  const [emaTimeframe, setEmaTimeframe] = useState<string>('3M');
+  
+  // Add a new useEffect for fetching EMA-20 and EMA-50 data
+  useEffect(() => {
+    const getEmaData = async () => {
+      if (!selectedStock) return;
+      
+      setIsLoadingEMA(true);
+      try {
+        // Fetch all EMA datasets in parallel
+        const [data20, data50, data200] = await Promise.all([
+          fetchEMA20(selectedStock, emaTimeframe),
+          fetchEMA50(selectedStock, emaTimeframe),
+          fetchEMA200(selectedStock, emaTimeframe)
+        ]);
+        
+        console.log('EMA-20 data:', data20); // Debug log
+        console.log('EMA-50 data:', data50); // Debug log
+        console.log('EMA-200 data:', data200); // Debug log
+        
+        setEmaData(data20);
+        setEma50Data(data50);
+        setEma200Data(data200);
+      } catch (error) {
+        console.error('Error fetching EMA data:', error);
+        toast({
+          title: "Error",
+          description: `Failed to fetch EMA data for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          variant: "destructive",
+        });
+        setEmaData(null);
+        setEma50Data(null);
+        setEma200Data(null);
+      } finally {
+        setIsLoadingEMA(false);
+      }
+    };
+    
+    getEmaData();
+  }, [selectedStock, emaTimeframe]);
+
+  // Handle EMA timeframe change
+  const handleEmaTimeframeChange = (timeframe: string) => {
+    console.log(`Changing EMA timeframe to ${timeframe}`);
+    setEmaTimeframe(timeframe);
+  };
+
+  // Add RSI state variables with the other chart state variables
+  const [rsiData, setRsiData] = useState<RSIData | null>(null);
+  const [isLoadingRSIChart, setIsLoadingRSIChart] = useState<boolean>(false);
+  const [rsiTimeframe, setRsiTimeframe] = useState<string>('3M');
+
+  // Fix the RSI data fetching useEffect
+  useEffect(() => {
+    const getRsiData = async () => {
+      if (!selectedStock) return;
+      
+      setIsLoadingRSIChart(true);
+      try {
+        // Fetch RSI data
+        const data = await fetchRSI(selectedStock, rsiTimeframe);
+        
+        console.log('RSI data from Twelve Data:', data); // More descriptive debug log
+        
+        if (data && data.values && data.values.length > 0) {
+          console.log(`RSI data received with ${data.values.length} values`);
+          setRsiData(data);
+        } else {
+          console.warn('No RSI values found in the response');
+          setRsiData(null);
+        }
+      } catch (error) {
+        console.error('Error fetching RSI data:', error);
+        toast({
+          title: "Error",
+          description: `Failed to fetch RSI data for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          variant: "destructive",
+        });
+        setRsiData(null);
+      } finally {
+        setIsLoadingRSIChart(false);
+      }
+    };
+    
+    getRsiData();
+  }, [selectedStock, rsiTimeframe, toast]);
+
+  // Handle RSI timeframe change
+  const handleRsiTimeframeChange = (timeframe: string) => {
+    console.log(`Changing RSI timeframe to ${timeframe}`);
+    setRsiTimeframe(timeframe);
+  };
+  
+  // Handler for recommendation timeframe change
+  const handleRecommendationTimeframeChange = (timeframe: 'current' | '1m' | '2m' | '3m') => {
+    console.log(`Changing recommendation timeframe to ${timeframe}`);
+    setRecommendationTimeframe(timeframe);
+  };
+  
+  // Get recommendation data based on selected timeframe
+  const getRecommendationDataForTimeframe = () => {
+    if (!recommendationsData || !recommendationsData.trends) return null;
+    
+    switch (recommendationTimeframe) {
+      case 'current':
+        return recommendationsData.trends.current_month;
+      case '1m':
+        return recommendationsData.trends.previous_month;
+      case '2m':
+        return recommendationsData.trends['2_months_ago'];
+      case '3m':
+        return recommendationsData.trends['3_months_ago'];
+      default:
+        return recommendationsData.trends.current_month;
+    }
+  };
 
   // Beginning of the return statement
   return (
@@ -3199,123 +3421,408 @@ const StockAnalysis = () => {
               </Button>
             </CardHeader>
             <CardContent>
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <h4 className="font-medium mb-3">Moving Averages</h4>
-                  <MockChart type="Moving Averages" height={150} />
-                  
-                  <div className="mt-4 space-y-2">
-                    {isLoadingTechnical ? (
-                      <SkeletonLoader className="h-4" count={4} />
-                    ) : (
-                      <>
-                        <div className="flex justify-between">
-                          <span className="text-sm">50-Day MA</span>
-                          <span className={`text-sm font-medium ${(stockData?.price ?? 0) > (technicalData?.ma50 ?? 0) ? 'text-green-600' : 'text-red-600'}`}>
-                            ${technicalData?.ma50?.toFixed(2) ?? 'N/A'}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sm">200-Day MA</span>
-                          <span className={`text-sm font-medium ${(stockData?.price ?? 0) > (technicalData?.ma200 ?? 0) ? 'text-green-600' : 'text-red-600'}`}>
-                            ${technicalData?.ma200?.toFixed(2) ?? 'N/A'}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sm">Support Level</span>
-                          <span className="text-sm font-medium">${technicalData?.support?.toFixed(2) ?? 'N/A'}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-sm">Resistance Level</span>
-                          <span className="text-sm font-medium">${technicalData?.resistance?.toFixed(2) ?? 'N/A'}</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
+              <Tabs defaultValue="sma" className="w-full">
+                <TabsList className="mb-2">
+                  <TabsTrigger value="sma" className="text-xs">SMA</TabsTrigger>
+                  <TabsTrigger value="ema" className="text-xs">EMA</TabsTrigger>
+                  <TabsTrigger value="rsi" className="text-xs">RSI</TabsTrigger>
+                  <TabsTrigger value="macd" className="text-xs">MACD</TabsTrigger>
+                </TabsList>
                 
-                <div className="flex flex-col">
-                  <h4 className="font-medium mb-3">Momentum Indicators</h4>
-                  {isLoadingTechnical || rsiLoading ? (
-                    <div className="flex-1 flex items-center justify-center">
-                      <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
-                    </div>
-                  ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center space-y-6">
-                      {(polygonRsi ?? technicalData?.rsi) ? (
+                {/* SMA Tab Content */}
+                <TabsContent value="sma" className="m-0">
+                  <div className="grid md:grid-cols-3 gap-6">
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium mb-3">Simple Moving Average</h4>
+                      {isLoadingTechnical ? (
+                        <SkeletonLoader className="h-4" count={4} />
+                      ) : (
                         <>
-                          <GaugeChart 
-                            value={polygonRsi ?? technicalData?.rsi ?? 50} 
-                            min={0} 
-                            max={100} 
-                            label="RSI" 
-                          />
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-sm">20-Day SMA</span>
+                              {smaData && smaData.values && smaData.values.length > 0 && (
+                                <span className={`text-sm font-medium ${
+                                  (stockData?.price ?? 0) > (parseFloat(smaData.values[0]?.ma || '0')) 
+                                  ? 'text-green-600' : 'text-red-600'}`}>
+                                  ${parseFloat(smaData.values[0]?.ma || '0').toFixed(2)}
+                                </span>
+                              )}
+                              {(!smaData || !smaData.values || smaData.values.length === 0) && (
+                                <span className="text-sm font-medium">N/A</span>
+                              )}
+                            </div>
+                            {smaData?.values && smaData.values.length > 0 && (
+                              <>
+                                <Badge 
+                                  variant="outline" 
+                                  className={
+                                    (stockData?.price ?? 0) > (parseFloat(smaData.values[0]?.ma || '0')) 
+                                      ? "bg-green-100 text-green-800 border-green-200" 
+                                      : "bg-red-100 text-red-800 border-red-200"
+                                  }
+                                >
+                                  {(stockData?.price ?? 0) > (parseFloat(smaData.values[0]?.ma || '0')) ? 'Bullish' : 'Bearish'}
+                                </Badge>
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  Price is {(stockData?.price ?? 0) > (parseFloat(smaData.values[0]?.ma || '0')) ? 'above' : 'below'} 20-day SMA
+                                </div>
+                              </>
+                            )}
+                          </div>
                           
-                          {/* RSI interpretation */}
-                          <div className="text-xs text-center text-muted-foreground -mt-2 mb-3">
-                            {((polygonRsi ?? technicalData?.rsi) ?? 0) > 70 ? 
-                              'Overbought (>70): Potential sell signal' : 
-                              ((polygonRsi ?? technicalData?.rsi) ?? 0) < 30 ? 
-                              'Oversold (<30): Potential buy signal' : 
-                              ''}
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-sm">50-Day SMA</span>
+                              <span className={`text-sm font-medium ${(stockData?.price ?? 0) > (technicalData?.ma50 ?? 0) ? 'text-green-600' : 'text-red-600'}`}>
+                                ${technicalData?.ma50?.toFixed(2) ?? 'N/A'}
+                              </span>
+                            </div>
+                            <Badge 
+                              variant="outline" 
+                              className={
+                                (stockData?.price ?? 0) > (technicalData?.ma50 ?? 0) 
+                                  ? "bg-green-100 text-green-800 border-green-200" 
+                                  : "bg-red-100 text-red-800 border-red-200"
+                              }
+                            >
+                              {(stockData?.price ?? 0) > (technicalData?.ma50 ?? 0) ? 'Bullish' : 'Bearish'}
+                            </Badge>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Price is {(stockData?.price ?? 0) > (technicalData?.ma50 ?? 0) ? 'above' : 'below'} 50-day SMA
+                            </div>
+                          </div>
+                          
+                          <div className="mt-4">
+                            <div className="flex justify-between mb-1">
+                              <span className="text-sm">200-Day SMA</span>
+                              <span className={`text-sm font-medium ${(stockData?.price ?? 0) > (technicalData?.ma200 ?? 0) ? 'text-green-600' : 'text-red-600'}`}>
+                                ${technicalData?.ma200?.toFixed(2) ?? 'N/A'}
+                              </span>
+                            </div>
+                            <Badge 
+                              variant="outline" 
+                              className={
+                                (stockData?.price ?? 0) > (technicalData?.ma200 ?? 0) 
+                                  ? "bg-green-100 text-green-800 border-green-200" 
+                                  : "bg-red-100 text-red-800 border-red-200"
+                              }
+                            >
+                              {(stockData?.price ?? 0) > (technicalData?.ma200 ?? 0) ? 'Bullish' : 'Bearish'}
+                            </Badge>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Price is {(stockData?.price ?? 0) > (technicalData?.ma200 ?? 0) ? 'above' : 'below'} 200-day SMA
+                            </div>
                           </div>
                         </>
-                      ) : (
-                        <div className="text-center">
-                          <div className="text-sm font-medium mb-1">RSI</div>
-                          <div className="text-2xl font-bold">N/A</div>
-                          <div className="text-xs text-muted-foreground mt-1">Data unavailable</div>
-                        </div>
                       )}
-                      
-                      <div className="text-center">
-                        <div className="text-sm text-muted-foreground mb-1">MACD Signals</div>
-                        {technicalData?.macdSignals && technicalData.macdSignals.length > 0 ? (
-                          <div className="flex flex-wrap gap-1 justify-center">
-                            {technicalData.macdSignals.map((signal, index) => (
-                              <Badge 
-                                key={index}
-                                variant="outline" 
-                                className={
-                                  signal.toLowerCase().includes('bullish') || 
-                                  signal.toLowerCase().includes('above')
-                                    ? "bg-green-100 text-green-800 border-green-200" 
-                                    : signal.toLowerCase().includes('bearish') || 
-                                      signal.toLowerCase().includes('below')
-                                      ? "bg-red-100 text-red-800 border-red-200"
-                                      : "bg-yellow-100 text-yellow-800 border-yellow-200"
-                                }
-                              >
-                                {signal}
-                              </Badge>
-                            ))}
+                    </div>
+                    
+                    <div className="md:col-span-2">
+                      <div className="h-full flex flex-col">
+                        {isLoadingSMA ? (
+                          <div className="h-[350px] flex items-center justify-center">
+                            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
                           </div>
-                        ) : technicalData?.macdSignal ? (
-                          <Badge 
-                            variant="outline" 
-                            className={
-                              technicalData.macdSignal === "Bullish" 
-                                ? "bg-green-100 text-green-800 border-green-200" 
-                                : technicalData.macdSignal === "Bearish"
-                                  ? "bg-red-100 text-red-800 border-red-200"
-                                  : "bg-yellow-100 text-yellow-800 border-yellow-200" // Neutral
-                            }
-                          >
-                            {technicalData.macdSignal}
-                          </Badge>
+                        ) : !smaData?.values?.length ? (
+                          <div className="h-[350px] flex items-center justify-center">
+                            <p className="text-muted-foreground">No SMA data available</p>
+                          </div>
                         ) : (
-                          <span className="text-sm">N/A</span>
+                          <div className="h-[350px]">
+                            {/* Chart component using all SMA datasets */}
+                            <SMAChart 
+                              data={smaData} 
+                              data50={sma50Data} 
+                              data200={sma200Data} 
+                              onTimeframeChange={handleSmaTimeframeChange}
+                              timeframe={smaTimeframe}
+                            />
+                          </div>
                         )}
                       </div>
-                      
-                      <div className="text-center">
-                        <div className="text-sm text-muted-foreground mb-1">Bollinger Position</div>
-                        <div className="font-medium">{technicalData?.bollingerPosition ?? 'N/A'}</div>
+                    </div>
+                  </div>
+                </TabsContent>
+                
+                {/* EMA Tab Content */}
+                <TabsContent value="ema" className="m-0">
+                  <div className="grid md:grid-cols-3 gap-6">
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium mb-3">Exponential Moving Average</h4>
+                      {isLoadingTechnical ? (
+                        <SkeletonLoader className="h-4" count={4} />
+                      ) : (
+                        <>
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-sm">20-Day EMA</span>
+                              {emaData && emaData.values && emaData.values.length > 0 && (
+                                <span className={`text-sm font-medium ${
+                                  (stockData?.price ?? 0) > (parseFloat(emaData.values[0]?.ma || '0')) 
+                                  ? 'text-green-600' : 'text-red-600'}`}>
+                                  ${parseFloat(emaData.values[0]?.ma || '0').toFixed(2)}
+                                </span>
+                              )}
+                              {(!emaData || !emaData.values || emaData.values.length === 0) && (
+                                <span className="text-sm font-medium">N/A</span>
+                              )}
+                            </div>
+                            {emaData?.values && emaData.values.length > 0 && (
+                              <>
+                                <Badge 
+                                  variant="outline" 
+                                  className={
+                                    (stockData?.price ?? 0) > (parseFloat(emaData.values[0]?.ma || '0')) 
+                                      ? "bg-green-100 text-green-800 border-green-200" 
+                                      : "bg-red-100 text-red-800 border-red-200"
+                                  }
+                                >
+                                  {(stockData?.price ?? 0) > (parseFloat(emaData.values[0]?.ma || '0')) ? 'Bullish' : 'Bearish'}
+                                </Badge>
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  Price is {(stockData?.price ?? 0) > (parseFloat(emaData.values[0]?.ma || '0')) ? 'above' : 'below'} 20-day EMA
+                                </div>
+                              </>
+                            )}
+                          </div>
+                          
+                          <div className="mt-4">
+                            <div className="flex justify-between mb-1">
+                              <span className="text-sm">50-Day EMA</span>
+                              {ema50Data && ema50Data.values && ema50Data.values.length > 0 && (
+                                <span className={`text-sm font-medium ${
+                                  (stockData?.price ?? 0) > (parseFloat(ema50Data.values[0]?.ma || '0')) 
+                                  ? 'text-green-600' : 'text-red-600'}`}>
+                                  ${parseFloat(ema50Data.values[0]?.ma || '0').toFixed(2)}
+                                </span>
+                              )}
+                              {(!ema50Data || !ema50Data.values || ema50Data.values.length === 0) && (
+                                <span className="text-sm font-medium">N/A</span>
+                              )}
+                            </div>
+                            {ema50Data?.values && ema50Data.values.length > 0 && (
+                              <>
+                                <Badge 
+                                  variant="outline" 
+                                  className={
+                                    (stockData?.price ?? 0) > (parseFloat(ema50Data.values[0]?.ma || '0')) 
+                                      ? "bg-green-100 text-green-800 border-green-200" 
+                                      : "bg-red-100 text-red-800 border-red-200"
+                                  }
+                                >
+                                  {(stockData?.price ?? 0) > (parseFloat(ema50Data.values[0]?.ma || '0')) ? 'Bullish' : 'Bearish'}
+                                </Badge>
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  Price is {(stockData?.price ?? 0) > (parseFloat(ema50Data.values[0]?.ma || '0')) ? 'above' : 'below'} 50-day EMA
+                                </div>
+                              </>
+                            )}
+                          </div>
+                          
+                          <div className="mt-4">
+                            <div className="flex justify-between mb-1">
+                              <span className="text-sm">200-Day EMA</span>
+                              {ema200Data && ema200Data.values && ema200Data.values.length > 0 && (
+                                <span className={`text-sm font-medium ${
+                                  (stockData?.price ?? 0) > (parseFloat(ema200Data.values[0]?.ma || '0')) 
+                                  ? 'text-green-600' : 'text-red-600'}`}>
+                                  ${parseFloat(ema200Data.values[0]?.ma || '0').toFixed(2)}
+                                </span>
+                              )}
+                              {(!ema200Data || !ema200Data.values || ema200Data.values.length === 0) && (
+                                <span className="text-sm font-medium">N/A</span>
+                              )}
+                            </div>
+                            {ema200Data?.values && ema200Data.values.length > 0 && (
+                              <>
+                                <Badge 
+                                  variant="outline" 
+                                  className={
+                                    (stockData?.price ?? 0) > (parseFloat(ema200Data.values[0]?.ma || '0')) 
+                                      ? "bg-green-100 text-green-800 border-green-200" 
+                                      : "bg-red-100 text-red-800 border-red-200"
+                                  }
+                                >
+                                  {(stockData?.price ?? 0) > (parseFloat(ema200Data.values[0]?.ma || '0')) ? 'Bullish' : 'Bearish'}
+                                </Badge>
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  Price is {(stockData?.price ?? 0) > (parseFloat(ema200Data.values[0]?.ma || '0')) ? 'above' : 'below'} 200-day EMA
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    
+                    <div className="md:col-span-2">
+                      <div className="h-full flex flex-col">
+                        {isLoadingEMA ? (
+                          <div className="h-[350px] flex items-center justify-center">
+                            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+                          </div>
+                        ) : !emaData?.values?.length ? (
+                          <div className="h-[350px] flex items-center justify-center">
+                            <p className="text-muted-foreground">No EMA data available</p>
+                          </div>
+                        ) : (
+                          <div className="h-[350px]">
+                            {/* Chart component using all EMA datasets */}
+                            <EMAChart 
+                              data={emaData} 
+                              data50={ema50Data} 
+                              data200={ema200Data}
+                              onTimeframeChange={handleEmaTimeframeChange}
+                              timeframe={emaTimeframe} 
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
-                  )}
-                </div>
-              </div>
+                  </div>
+                </TabsContent>
+                
+                {/* RSI Tab Content */}
+                <TabsContent value="rsi" className="m-0">
+                  <div className="grid md:grid-cols-3 gap-6">
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium mb-3">Relative Strength Index</h4>
+                      {isLoadingTechnical || rsiLoading ? (
+                        <SkeletonLoader className="h-4" count={4} />
+                      ) : (
+                        <>
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-sm">14-Day RSI</span>
+                              <span className="text-sm font-medium">
+                                {(polygonRsi ?? technicalData?.rsi ?? 'N/A')}
+                              </span>
+                            </div>
+                            <Badge 
+                              variant="outline" 
+                              className={
+                                ((polygonRsi ?? technicalData?.rsi ?? 0) > 70)
+                                  ? "bg-red-100 text-red-800 border-red-200" 
+                                  : ((polygonRsi ?? technicalData?.rsi ?? 0) < 30)
+                                  ? "bg-green-100 text-green-800 border-green-200"
+                                  : "bg-yellow-100 text-yellow-800 border-yellow-200"
+                              }
+                            >
+                              {((polygonRsi ?? technicalData?.rsi ?? 0) > 70) 
+                                ? 'Overbought' 
+                                : ((polygonRsi ?? technicalData?.rsi ?? 0) < 30)
+                                ? 'Oversold'
+                                : 'Neutral'}
+                            </Badge>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {((polygonRsi ?? technicalData?.rsi ?? 0) > 70) 
+                                ? 'RSI above 70 suggests a potential sell signal' 
+                                : ((polygonRsi ?? technicalData?.rsi ?? 0) < 30)
+                                ? 'RSI below 30 suggests a potential buy signal'
+                                : 'RSI in neutral range (30-70)'}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    
+                    <div className="md:col-span-2">
+                      <div className="h-full flex flex-col">
+                        {isLoadingRSIChart ? (
+                          <div className="h-[350px] flex items-center justify-center">
+                            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+                          </div>
+                        ) : (!rsiData || !rsiData.values || rsiData.values.length === 0) ? (
+                          <div className="h-[350px] flex items-center justify-center">
+                            <p className="text-muted-foreground">No RSI data available</p>
+                          </div>
+                        ) : (
+                          <div className="h-[350px]">
+                            {/* RSI Chart component */}
+                            <RSIChart 
+                              data={rsiData}
+                              onTimeframeChange={handleRsiTimeframeChange}
+                              timeframe={rsiTimeframe}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+                
+                {/* MACD Tab Content */}
+                <TabsContent value="macd" className="m-0">
+                  <div className="grid md:grid-cols-3 gap-6">
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium mb-3">MACD</h4>
+                      {isLoadingTechnical ? (
+                        <SkeletonLoader className="h-4" count={4} />
+                      ) : (
+                        <>
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-sm">MACD</span>
+                              <span className="text-sm font-medium">
+                                {technicalData?.macd !== undefined ? technicalData?.macd?.toFixed(2) : 'N/A'}
+                              </span>
+                            </div>
+                            <Badge 
+                              variant="outline" 
+                              className={
+                                technicalData?.macdSignal === "Bullish" 
+                                  ? "bg-green-100 text-green-800 border-green-200" 
+                                  : technicalData?.macdSignal === "Bearish"
+                                  ? "bg-red-100 text-red-800 border-red-200"
+                                  : "bg-yellow-100 text-yellow-800 border-yellow-200"
+                              }
+                            >
+                              {technicalData?.macdSignal ?? 'N/A'}
+                            </Badge>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {technicalData?.macdSignals && technicalData.macdSignals.length > 0 && technicalData.macdSignals[0]}
+                            </div>
+                          </div>
+                          
+                          <div className="mt-4">
+                            <div className="text-sm text-muted-foreground mb-1">MACD Signals</div>
+                            {technicalData?.macdSignals && technicalData.macdSignals.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {technicalData.macdSignals.map((signal, index) => (
+                                  <Badge 
+                                    key={index}
+                                    variant="outline" 
+                                    className={
+                                      signal.toLowerCase().includes('bullish') || 
+                                      signal.toLowerCase().includes('above')
+                                        ? "bg-green-100 text-green-800 border-green-200" 
+                                        : signal.toLowerCase().includes('bearish') || 
+                                          signal.toLowerCase().includes('below')
+                                          ? "bg-red-100 text-red-800 border-red-200"
+                                          : "bg-yellow-100 text-yellow-800 border-yellow-200"
+                                    }
+                                  >
+                                    {signal}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <span className="text-sm">No signals available</span>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    
+                    <div className="md:col-span-2">
+                      <div className="h-full flex flex-col mt-[-50px]">
+                        <MockChart type="MACD Indicator" height={350} />
+                      </div>
+                    </div>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
 
@@ -3424,8 +3931,146 @@ const StockAnalysis = () => {
                   )}
                   
                   <h4 className="font-medium mb-3">Analyst Ratings</h4>
-                  {isLoadingAnalystRatings ? (
+                  {isLoadingAnalystRatings || isLoadingRecommendations ? (
                     <SkeletonLoader className="h-16" />
+                  ) : recommendationsData && recommendationsData.trends ? (
+                    <div className="flex flex-col space-y-4">
+                      {/* Chart with timeframe toggles in top right */}
+                      <div className="relative h-56">
+                        <div className="absolute top-0 right-0 z-10">
+                          <div className="inline-flex rounded-md shadow-sm">
+                            {[
+                              { value: 'current', label: 'Current' },
+                              { value: '1m', label: '1M' },
+                              { value: '2m', label: '2M' },
+                              { value: '3m', label: '3M' }
+                            ].map((option) => (
+                              <button
+                                key={option.value}
+                                onClick={() => handleRecommendationTimeframeChange(option.value as 'current' | '1m' | '2m' | '3m')}
+                                className={cn(
+                                  "relative px-2 py-1 text-xs font-medium",
+                                  option.value === recommendationTimeframe
+                                    ? "bg-slate-600 text-white" 
+                                    : "bg-slate-200 text-slate-700 hover:bg-slate-300",
+                                  // Left button
+                                  option.value === 'current' ? "rounded-l-md" : "",
+                                  // Right button
+                                  option.value === '3m' ? "rounded-r-md" : "",
+                                )}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={(() => {
+                                const trendData = getRecommendationDataForTimeframe();
+                                return [
+                                  { 
+                                    name: "Strong Buy", 
+                                    value: trendData?.strong_buy || 0
+                                  },
+                                  { 
+                                    name: "Buy", 
+                                    value: trendData?.buy || 0
+                                  },
+                                  { 
+                                    name: "Hold", 
+                                    value: trendData?.hold || 0
+                                  },
+                                  { 
+                                    name: "Sell", 
+                                    value: trendData?.sell || 0
+                                  },
+                                  { 
+                                    name: "Strong Sell", 
+                                    value: trendData?.strong_sell || 0
+                                  }
+                                ];
+                              })()}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={60}
+                              outerRadius={80}
+                              paddingAngle={2}
+                              dataKey="value"
+                            >
+                              {[
+                                { name: "Strong Buy", color: RATING_COLORS[0] },
+                                { name: "Buy", color: RATING_COLORS[1] },
+                                { name: "Hold", color: RATING_COLORS[2] },
+                                { name: "Sell", color: RATING_COLORS[3] },
+                                { name: "Strong Sell", color: RATING_COLORS[4] }
+                              ].map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <RechartsTooltip 
+                              formatter={(value: number, name: string) => [`${value} analyst${value !== 1 ? 's' : ''}`, name]} 
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      
+                      {/* Legend */}
+                      <div className="grid grid-cols-5 text-center text-xs">
+                        {(() => {
+                          const trendData = getRecommendationDataForTimeframe();
+                          return (
+                            <>
+                              <div>
+                                <div className="font-medium text-green-600">Strong Buy</div>
+                                <div className="font-bold">{trendData?.strong_buy || 0}</div>
+                              </div>
+                              <div>
+                                <div className="font-medium text-green-500">Buy</div>
+                                <div className="font-bold">{trendData?.buy || 0}</div>
+                              </div>
+                              <div>
+                                <div className="font-medium text-yellow-600">Hold</div>
+                                <div className="font-bold">{trendData?.hold || 0}</div>
+                              </div>
+                              <div>
+                                <div className="font-medium text-red-500">Sell</div>
+                                <div className="font-bold">{trendData?.sell || 0}</div>
+                              </div>
+                              <div>
+                                <div className="font-medium text-red-600">Strong Sell</div>
+                                <div className="font-bold">{trendData?.strong_sell || 0}</div>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                      
+                      {/* Add a rating score if available */}
+                      {recommendationsData.rating && (
+                        <div className="text-center mt-2">
+                          <span className="text-sm font-medium">Overall Rating: </span>
+                          <span className={`font-bold ${
+                            recommendationsData.rating >= 8 ? 'text-green-600' :
+                            recommendationsData.rating >= 6 ? 'text-green-500' :
+                            recommendationsData.rating >= 4 ? 'text-yellow-600' :
+                            recommendationsData.rating >= 2 ? 'text-red-500' : 'text-red-600'
+                          }`}>
+                            {recommendationsData.rating.toFixed(1)}/10
+                          </span>
+                        </div>
+                      )}
+                      
+                      {/* Timeframe indicator */}
+                      <div className="text-xs text-center text-muted-foreground">
+                        {recommendationTimeframe === 'current' ? 'Current month recommendations' : 
+                         recommendationTimeframe === '1m' ? 'Last month recommendations' :
+                         recommendationTimeframe === '2m' ? '2 months ago recommendations' :
+                         '3 months ago recommendations'}
+                      </div>
+                    </div>
                   ) : analystRatingsData ? (
                     <div className="flex flex-col space-y-4">
                       <div className="h-56">
@@ -3499,22 +4144,6 @@ const StockAnalysis = () => {
                         <div>
                           <div className="font-medium text-red-600">Strong Sell</div>
                           <div className="font-bold">{analystRatingsData?.strongSell ?? 'N/A'}</div>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-4 flex justify-between items-center">
-                        <div>
-                          <div className="text-sm text-muted-foreground">Consensus</div>
-                          <div className="font-medium">{analystRatingsData?.consensus ?? 'N/A'}</div>
-                        </div>
-                        <div>
-                          <div className="text-sm text-muted-foreground">Price Target</div>
-                          <div className="font-medium">${technicalData?.priceTarget?.targetConsensus?.toFixed(2) ?? 'N/A'}</div>
-                          {stockData?.price && technicalData?.priceTarget?.targetConsensus && (
-                            <div className="text-xs text-muted-foreground">
-                              {(((technicalData.priceTarget.targetConsensus - stockData.price) / stockData.price) * 100).toFixed(2)}% from current price
-                            </div>
-                          )}
                         </div>
                       </div>
                     </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { fetchRsiFromPolygon } from '@/utils/fmpFinanceUtils';
+import { fetchRSI } from '@/utils/twelveDataUtils';
 
 /**
  * Custom hook to fetch RSI data for a given stock symbol
@@ -12,7 +12,7 @@ export const useRsi = (symbol: string | null) => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchRsi = async () => {
+    const fetchRsiData = async () => {
       if (!symbol) {
         setRsi(null);
         setLoading(false);
@@ -24,17 +24,27 @@ export const useRsi = (symbol: string | null) => {
       setError(null);
 
       try {
-        const rsiData = await fetchRsiFromPolygon(symbol);
-        setRsi(rsiData);
+        const rsiData = await fetchRSI(symbol, '3M');
+        
+        if (rsiData && rsiData.values && rsiData.values.length > 0) {
+          // Calculate average RSI from the most recent 14 values (or fewer if less are available)
+          const recentValues = rsiData.values.slice(0, Math.min(14, rsiData.values.length));
+          const sum = recentValues.reduce((acc, val) => acc + parseFloat(val.rsi), 0);
+          const averageRsi = sum / recentValues.length;
+          setRsi(Number(averageRsi.toFixed(2)));
+        } else {
+          setRsi(null);
+        }
       } catch (err) {
         console.error('Error in RSI hook:', err);
         setError(err instanceof Error ? err.message : 'Unknown error fetching RSI data');
+        setRsi(null);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchRsi();
+    fetchRsiData();
   }, [symbol]);
 
   return { rsi, loading, error };

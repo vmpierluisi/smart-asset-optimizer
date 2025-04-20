@@ -55,6 +55,53 @@ export interface CompanyProfileData {
 }
 
 /**
+ * Interface for stock recommendations data from Twelve Data
+ */
+export interface RecommendationsData {
+  meta: {
+    symbol: string;
+    name: string;
+    currency: string;
+    exchange_timezone: string;
+    exchange: string;
+    mic_code: string;
+    type: string;
+  };
+  trends: {
+    current_month: {
+      strong_buy: number;
+      buy: number;
+      hold: number;
+      sell: number;
+      strong_sell: number;
+    };
+    previous_month: {
+      strong_buy: number;
+      buy: number;
+      hold: number;
+      sell: number;
+      strong_sell: number;
+    };
+    '2_months_ago': {
+      strong_buy: number;
+      buy: number;
+      hold: number;
+      sell: number;
+      strong_sell: number;
+    };
+    '3_months_ago': {
+      strong_buy: number;
+      buy: number;
+      hold: number;
+      sell: number;
+      strong_sell: number;
+    };
+  };
+  rating: number;
+  status: string;
+}
+
+/**
  * Interface for historical time series data from Twelve Data
  */
 export interface TimeSeriesData {
@@ -205,6 +252,63 @@ export interface StockStatisticsData {
       last_split_date: string;
     };
   };
+}
+
+// Interface for SMA data response from our edge function
+export interface SMAData {
+  symbol: string;
+  meta: {
+    symbol: string;
+    interval: string;
+    currency: string;
+    exchange_timezone: string;
+    exchange: string;
+    mic_code: string;
+    type: string;
+    indicator: {
+      name: string;
+      ma_type: string;
+      series_type: string;
+      time_period: number;
+    }
+  };
+  values: {
+    datetime: string;
+    ma: string;
+  }[];
+  status: string;
+}
+
+// Interface for EMA data response from our edge function
+// Using the same structure as SMA data since both APIs return the same format
+export interface EMAData extends SMAData {}
+
+// Interface for RSI data response from our edge function
+export interface RSIData {
+  symbol: string;
+  meta: {
+    symbol: string;
+    interval: string;
+    currency: string;
+    exchange_timezone: string;
+    exchange: string;
+    mic_code: string;
+    type: string;
+    indicator: {
+      name: string;
+      series_type: string;
+      time_period: number;
+    }
+  };
+  values: {
+    datetime: string;
+    rsi: string;
+    open?: number;
+    high?: number;
+    low?: number;
+    close?: number;
+  }[];
+  status: string;
 }
 
 /**
@@ -902,6 +1006,968 @@ export const fetchPriceTarget = async (symbol: string): Promise<PriceTargetData 
     
   } catch (error) {
     console.error('Error fetching price target from Twelve Data:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetches 20-day Simple Moving Average (SMA) data from the Twelve Data API via Supabase Edge Function
+ * @param symbol The stock symbol to fetch SMA data for (e.g. AAPL)
+ * @param timeframe The timeframe to fetch data for (3M, 6M, 1Y)
+ * @returns SMA data including historical values for the specified timeframe
+ */
+export const fetchSMA20 = async (symbol: string, timeframe: string = '3M'): Promise<SMAData | null> => {
+  try {
+    // Use local static data as fallback when in development or if API fails
+    const useFallback = import.meta.env.DEV && import.meta.env.VITE_USE_LOCAL_STOCK_DATA === 'true';
+    
+    if (useFallback) {
+      // Simulate network delay to make it feel like a real API
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Determine the number of days to generate based on timeframe
+      let dataLength = 90; // Default 3M
+      if (timeframe === '6M') dataLength = 180;
+      if (timeframe === '1Y') dataLength = 365;
+      
+      // Generate mock SMA data for the specified timeframe
+      const today = new Date();
+      const mockData = Array.from({ length: dataLength }, (_, i) => {
+        const date = new Date(today);
+        date.setDate(date.getDate() - (dataLength - i));
+        const basePrice = 150 + Math.sin(i / 15) * 15;
+        return {
+          datetime: date.toISOString().split('T')[0],
+          ma: (basePrice + Math.random() * 3 - 1.5).toFixed(2)
+        };
+      });
+      
+      const mockResponse = {
+        symbol: symbol,
+        meta: {
+          symbol: symbol,
+          interval: "1day",
+          currency: "USD",
+          exchange_timezone: "America/New_York",
+          exchange: "NASDAQ",
+          mic_code: "XNAS",
+          type: "Common Stock",
+          indicator: {
+            name: "Simple Moving Average",
+            ma_type: "SMA",
+            series_type: "close",
+            time_period: 20
+          }
+        },
+        values: mockData,
+        status: "ok"
+      };
+      
+      console.log('Using mock SMA-20 data:', mockResponse);
+      return mockResponse;
+    }
+    
+    // Call the Supabase Edge Function that interfaces with Twelve Data API
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      throw new Error('Supabase environment variables are missing');
+    }
+    
+    console.log(`Fetching SMA-20 data for ${symbol} from ${supabaseUrl}/functions/v1/twelve-sma-20`);
+    
+    // Convert timeframe to date range
+    let startDate = new Date();
+    if (timeframe === '3M') startDate.setMonth(startDate.getMonth() - 3);
+    else if (timeframe === '6M') startDate.setMonth(startDate.getMonth() - 6);
+    else if (timeframe === '1Y') startDate.setFullYear(startDate.getFullYear() - 1);
+    
+    const formatDate = (date: Date): string => {
+      return date.toISOString().split('T')[0];
+    };
+    
+    const startDateStr = formatDate(startDate);
+    const endDateStr = formatDate(new Date());
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/twelve-sma-20`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ 
+        symbol: symbol.trim(),
+        start_date: startDateStr,
+        end_date: endDateStr
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Twelve Data SMA-20 API error:', errorText);
+      throw new Error(`Twelve Data SMA-20 API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    console.log('SMA-20 API response:', data);
+    
+    // Verify data structure before returning
+    if (!data || !data.values || !Array.isArray(data.values)) {
+      console.error('Invalid SMA data structure:', data);
+      
+      // If API returned error format, throw with the error message
+      if (data && data.error) {
+        throw new Error(`API Error: ${data.error}`);
+      }
+      
+      throw new Error('Invalid SMA data structure received from API');
+    }
+    
+    return data as SMAData;
+    
+  } catch (error) {
+    console.error('Error fetching SMA-20 data from Twelve Data:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetches 50-day Simple Moving Average (SMA) data from the Twelve Data API via Supabase Edge Function
+ * @param symbol The stock symbol to fetch SMA data for (e.g. AAPL)
+ * @param timeframe The timeframe to fetch data for (3M, 6M, 1Y)
+ * @returns SMA data including historical values for the specified timeframe
+ */
+export const fetchSMA50 = async (symbol: string, timeframe: string = '3M'): Promise<SMAData | null> => {
+  try {
+    // Use local static data as fallback when in development or if API fails
+    const useFallback = import.meta.env.DEV && import.meta.env.VITE_USE_LOCAL_STOCK_DATA === 'true';
+    
+    if (useFallback) {
+      // Simulate network delay to make it feel like a real API
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Determine the number of days to generate based on timeframe
+      let dataLength = 90; // Default 3M
+      if (timeframe === '6M') dataLength = 180;
+      if (timeframe === '1Y') dataLength = 365;
+      
+      // Generate mock SMA data for the specified timeframe
+      const today = new Date();
+      const mockData = Array.from({ length: dataLength }, (_, i) => {
+        const date = new Date(today);
+        date.setDate(date.getDate() - (dataLength - i));
+        // Create slightly different values for SMA-50 compared to SMA-20
+        const basePrice = 145 + Math.sin(i / 20) * 20;
+        return {
+          datetime: date.toISOString().split('T')[0],
+          ma: (basePrice + Math.random() * 3 - 1.5).toFixed(2)
+        };
+      });
+      
+      const mockResponse = {
+        symbol: symbol,
+        meta: {
+          symbol: symbol,
+          interval: "1day",
+          currency: "USD",
+          exchange_timezone: "America/New_York",
+          exchange: "NASDAQ",
+          mic_code: "XNAS",
+          type: "Common Stock",
+          indicator: {
+            name: "Simple Moving Average",
+            ma_type: "SMA",
+            series_type: "close",
+            time_period: 50
+          }
+        },
+        values: mockData,
+        status: "ok"
+      };
+      
+      console.log('Using mock SMA-50 data:', mockResponse);
+      return mockResponse;
+    }
+    
+    // Call the Supabase Edge Function that interfaces with Twelve Data API
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      throw new Error('Supabase environment variables are missing');
+    }
+    
+    console.log(`Fetching SMA-50 data for ${symbol} from ${supabaseUrl}/functions/v1/twelve-sma-50`);
+    
+    // Convert timeframe to date range
+    let startDate = new Date();
+    if (timeframe === '3M') startDate.setMonth(startDate.getMonth() - 3);
+    else if (timeframe === '6M') startDate.setMonth(startDate.getMonth() - 6);
+    else if (timeframe === '1Y') startDate.setFullYear(startDate.getFullYear() - 1);
+    
+    const formatDate = (date: Date): string => {
+      return date.toISOString().split('T')[0];
+    };
+    
+    const startDateStr = formatDate(startDate);
+    const endDateStr = formatDate(new Date());
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/twelve-sma-50`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ 
+        symbol: symbol.trim(),
+        start_date: startDateStr,
+        end_date: endDateStr
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Twelve Data SMA-50 API error:', errorText);
+      throw new Error(`Twelve Data SMA-50 API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    console.log('SMA-50 API response:', data);
+    
+    // Verify data structure before returning
+    if (!data || !data.values || !Array.isArray(data.values)) {
+      console.error('Invalid SMA data structure:', data);
+      
+      // If API returned error format, throw with the error message
+      if (data && data.error) {
+        throw new Error(`API Error: ${data.error}`);
+      }
+      
+      throw new Error('Invalid SMA data structure received from API');
+    }
+    
+    return data as SMAData;
+    
+  } catch (error) {
+    console.error('Error fetching SMA-50 data from Twelve Data:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetches 200-day Simple Moving Average (SMA) data from the Twelve Data API via Supabase Edge Function
+ * @param symbol The stock symbol to fetch SMA data for (e.g. AAPL)
+ * @param timeframe The timeframe to fetch data for (3M, 6M, 1Y)
+ * @returns SMA data including historical values for the specified timeframe
+ */
+export const fetchSMA200 = async (symbol: string, timeframe: string = '3M'): Promise<SMAData | null> => {
+  try {
+    // Use local static data as fallback when in development or if API fails
+    const useFallback = import.meta.env.DEV && import.meta.env.VITE_USE_LOCAL_STOCK_DATA === 'true';
+    
+    if (useFallback) {
+      // Simulate network delay to make it feel like a real API
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Determine the number of days to generate based on timeframe
+      let dataLength = 90; // Default 3M
+      if (timeframe === '6M') dataLength = 180;
+      if (timeframe === '1Y') dataLength = 365;
+      
+      // Generate mock SMA data for the specified timeframe
+      const today = new Date();
+      const mockData = Array.from({ length: dataLength }, (_, i) => {
+        const date = new Date(today);
+        date.setDate(date.getDate() - (dataLength - i));
+        // Create slightly different values for SMA-200 (more stable, less volatile)
+        const basePrice = 140 + Math.sin(i / 30) * 10;
+        return {
+          datetime: date.toISOString().split('T')[0],
+          ma: (basePrice + Math.random() * 2 - 1).toFixed(2)
+        };
+      });
+      
+      const mockResponse = {
+        symbol: symbol,
+        meta: {
+          symbol: symbol,
+          interval: "1day",
+          currency: "USD",
+          exchange_timezone: "America/New_York",
+          exchange: "NASDAQ",
+          mic_code: "XNAS",
+          type: "Common Stock",
+          indicator: {
+            name: "Simple Moving Average",
+            ma_type: "SMA",
+            series_type: "close",
+            time_period: 200
+          }
+        },
+        values: mockData,
+        status: "ok"
+      };
+      
+      console.log('Using mock SMA-200 data:', mockResponse);
+      return mockResponse;
+    }
+    
+    // Call the Supabase Edge Function that interfaces with Twelve Data API
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      throw new Error('Supabase environment variables are missing');
+    }
+    
+    console.log(`Fetching SMA-200 data for ${symbol} from ${supabaseUrl}/functions/v1/twelve-sma-200`);
+    
+    // Convert timeframe to date range
+    let startDate = new Date();
+    if (timeframe === '3M') startDate.setMonth(startDate.getMonth() - 3);
+    else if (timeframe === '6M') startDate.setMonth(startDate.getMonth() - 6);
+    else if (timeframe === '1Y') startDate.setFullYear(startDate.getFullYear() - 1);
+    
+    const formatDate = (date: Date): string => {
+      return date.toISOString().split('T')[0];
+    };
+    
+    const startDateStr = formatDate(startDate);
+    const endDateStr = formatDate(new Date());
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/twelve-sma-200`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ 
+        symbol: symbol.trim(),
+        start_date: startDateStr,
+        end_date: endDateStr
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Twelve Data SMA-200 API error:', errorText);
+      throw new Error(`Twelve Data SMA-200 API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    console.log('SMA-200 API response:', data);
+    
+    // Verify data structure before returning
+    if (!data || !data.values || !Array.isArray(data.values)) {
+      console.error('Invalid SMA data structure:', data);
+      
+      // If API returned error format, throw with the error message
+      if (data && data.error) {
+        throw new Error(`API Error: ${data.error}`);
+      }
+      
+      throw new Error('Invalid SMA data structure received from API');
+    }
+    
+    return data as SMAData;
+    
+  } catch (error) {
+    console.error('Error fetching SMA-200 data from Twelve Data:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetches 20-day Exponential Moving Average (EMA) data from the Twelve Data API via Supabase Edge Function
+ * @param symbol The stock symbol to fetch EMA data for (e.g. AAPL)
+ * @param timeframe The timeframe to fetch data for (3M, 6M, 1Y)
+ * @returns EMA data including historical values for the specified timeframe
+ */
+export const fetchEMA20 = async (symbol: string, timeframe: string = '3M'): Promise<EMAData | null> => {
+  try {
+    // Use local static data as fallback when in development or if API fails
+    const useFallback = import.meta.env.DEV && import.meta.env.VITE_USE_LOCAL_STOCK_DATA === 'true';
+    
+    if (useFallback) {
+      // Simulate network delay to make it feel like a real API
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Determine the number of days to generate based on timeframe
+      let dataLength = 90; // Default 3M
+      if (timeframe === '6M') dataLength = 180;
+      if (timeframe === '1Y') dataLength = 365;
+      
+      // Generate mock EMA data for the specified timeframe
+      const today = new Date();
+      const mockData = Array.from({ length: dataLength }, (_, i) => {
+        const date = new Date(today);
+        date.setDate(date.getDate() - (dataLength - i));
+        const basePrice = 152 + Math.sin(i / 14) * 16; // Slightly different from SMA for variation
+        return {
+          datetime: date.toISOString().split('T')[0],
+          ma: (basePrice + Math.random() * 3 - 1.5).toFixed(2)
+        };
+      });
+      
+      const mockResponse = {
+        symbol: symbol,
+        meta: {
+          symbol: symbol,
+          interval: "1day",
+          currency: "USD",
+          exchange_timezone: "America/New_York",
+          exchange: "NASDAQ",
+          mic_code: "XNAS",
+          type: "Common Stock",
+          indicator: {
+            name: "Exponential Moving Average",
+            ma_type: "EMA",
+            series_type: "close",
+            time_period: 20
+          }
+        },
+        values: mockData,
+        status: "ok"
+      };
+      
+      console.log('Using mock EMA-20 data:', mockResponse);
+      return mockResponse;
+    }
+    
+    // Call the Supabase Edge Function that interfaces with Twelve Data API
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      throw new Error('Supabase environment variables are missing');
+    }
+    
+    console.log(`Fetching EMA-20 data for ${symbol} from ${supabaseUrl}/functions/v1/twelve-ema-20`);
+    
+    // Convert timeframe to date range
+    let startDate = new Date();
+    if (timeframe === '3M') startDate.setMonth(startDate.getMonth() - 3);
+    else if (timeframe === '6M') startDate.setMonth(startDate.getMonth() - 6);
+    else if (timeframe === '1Y') startDate.setFullYear(startDate.getFullYear() - 1);
+    
+    const formatDate = (date: Date): string => {
+      return date.toISOString().split('T')[0];
+    };
+    
+    const startDateStr = formatDate(startDate);
+    const endDateStr = formatDate(new Date());
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/twelve-ema-20`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ 
+        symbol: symbol.trim(),
+        start_date: startDateStr,
+        end_date: endDateStr
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Twelve Data EMA-20 API error:', errorText);
+      throw new Error(`Twelve Data EMA-20 API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    console.log('EMA-20 API response:', data);
+    
+    // Verify data structure before returning
+    if (!data || !data.values || !Array.isArray(data.values)) {
+      console.error('Invalid EMA data structure:', data);
+      
+      // If API returned error format, throw with the error message
+      if (data && data.error) {
+        throw new Error(`API Error: ${data.error}`);
+      }
+      
+      throw new Error('Invalid EMA data structure received from API');
+    }
+    
+    return data as EMAData;
+    
+  } catch (error) {
+    console.error('Error fetching EMA-20 data from Twelve Data:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetches 50-day Exponential Moving Average (EMA) data from the Twelve Data API via Supabase Edge Function
+ * @param symbol The stock symbol to fetch EMA data for (e.g. AAPL)
+ * @param timeframe The timeframe to fetch data for (3M, 6M, 1Y)
+ * @returns EMA data including historical values for the specified timeframe
+ */
+export const fetchEMA50 = async (symbol: string, timeframe: string = '3M'): Promise<EMAData | null> => {
+  try {
+    // Use local static data as fallback when in development or if API fails
+    const useFallback = import.meta.env.DEV && import.meta.env.VITE_USE_LOCAL_STOCK_DATA === 'true';
+    
+    if (useFallback) {
+      // Simulate network delay to make it feel like a real API
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Determine the number of days to generate based on timeframe
+      let dataLength = 90; // Default 3M
+      if (timeframe === '6M') dataLength = 180;
+      if (timeframe === '1Y') dataLength = 365;
+      
+      // Generate mock EMA data for the specified timeframe
+      const today = new Date();
+      const mockData = Array.from({ length: dataLength }, (_, i) => {
+        const date = new Date(today);
+        date.setDate(date.getDate() - (dataLength - i));
+        // Create slightly different values for EMA-50 compared to EMA-20
+        const basePrice = 146 + Math.sin(i / 19) * 18;
+        return {
+          datetime: date.toISOString().split('T')[0],
+          ma: (basePrice + Math.random() * 3 - 1.5).toFixed(2)
+        };
+      });
+      
+      const mockResponse = {
+        symbol: symbol,
+        meta: {
+          symbol: symbol,
+          interval: "1day",
+          currency: "USD",
+          exchange_timezone: "America/New_York",
+          exchange: "NASDAQ",
+          mic_code: "XNAS",
+          type: "Common Stock",
+          indicator: {
+            name: "Exponential Moving Average",
+            ma_type: "EMA",
+            series_type: "close",
+            time_period: 50
+          }
+        },
+        values: mockData,
+        status: "ok"
+      };
+      
+      console.log('Using mock EMA-50 data:', mockResponse);
+      return mockResponse;
+    }
+    
+    // Call the Supabase Edge Function that interfaces with Twelve Data API
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      throw new Error('Supabase environment variables are missing');
+    }
+    
+    console.log(`Fetching EMA-50 data for ${symbol} from ${supabaseUrl}/functions/v1/twelve-ema-50`);
+    
+    // Convert timeframe to date range
+    let startDate = new Date();
+    if (timeframe === '3M') startDate.setMonth(startDate.getMonth() - 3);
+    else if (timeframe === '6M') startDate.setMonth(startDate.getMonth() - 6);
+    else if (timeframe === '1Y') startDate.setFullYear(startDate.getFullYear() - 1);
+    
+    const formatDate = (date: Date): string => {
+      return date.toISOString().split('T')[0];
+    };
+    
+    const startDateStr = formatDate(startDate);
+    const endDateStr = formatDate(new Date());
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/twelve-ema-50`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ 
+        symbol: symbol.trim(),
+        start_date: startDateStr,
+        end_date: endDateStr
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Twelve Data EMA-50 API error:', errorText);
+      throw new Error(`Twelve Data EMA-50 API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    console.log('EMA-50 API response:', data);
+    
+    // Verify data structure before returning
+    if (!data || !data.values || !Array.isArray(data.values)) {
+      console.error('Invalid EMA data structure:', data);
+      
+      // If API returned error format, throw with the error message
+      if (data && data.error) {
+        throw new Error(`API Error: ${data.error}`);
+      }
+      
+      throw new Error('Invalid EMA data structure received from API');
+    }
+    
+    return data as EMAData;
+    
+  } catch (error) {
+    console.error('Error fetching EMA-50 data from Twelve Data:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetches 200-day Exponential Moving Average (EMA) data from the Twelve Data API via Supabase Edge Function
+ * @param symbol The stock symbol to fetch EMA data for (e.g. AAPL)
+ * @param timeframe The timeframe to fetch data for (3M, 6M, 1Y)
+ * @returns EMA data including historical values for the specified timeframe
+ */
+export const fetchEMA200 = async (symbol: string, timeframe: string = '3M'): Promise<EMAData | null> => {
+  try {
+    // Use local static data as fallback when in development or if API fails
+    const useFallback = import.meta.env.DEV && import.meta.env.VITE_USE_LOCAL_STOCK_DATA === 'true';
+    
+    if (useFallback) {
+      // Simulate network delay to make it feel like a real API
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Determine the number of days to generate based on timeframe
+      let dataLength = 90; // Default 3M
+      if (timeframe === '6M') dataLength = 180;
+      if (timeframe === '1Y') dataLength = 365;
+      
+      // Generate mock EMA data for the specified timeframe
+      const today = new Date();
+      const mockData = Array.from({ length: dataLength }, (_, i) => {
+        const date = new Date(today);
+        date.setDate(date.getDate() - (dataLength - i));
+        // Create values for EMA-200 (more stable, less volatile than shorter EMAs)
+        const basePrice = 142 + Math.sin(i / 25) * 12;
+        return {
+          datetime: date.toISOString().split('T')[0],
+          ma: (basePrice + Math.random() * 2 - 1).toFixed(2)
+        };
+      });
+      
+      const mockResponse = {
+        symbol: symbol,
+        meta: {
+          symbol: symbol,
+          interval: "1day",
+          currency: "USD",
+          exchange_timezone: "America/New_York",
+          exchange: "NASDAQ",
+          mic_code: "XNAS",
+          type: "Common Stock",
+          indicator: {
+            name: "Exponential Moving Average",
+            ma_type: "EMA",
+            series_type: "close",
+            time_period: 200
+          }
+        },
+        values: mockData,
+        status: "ok"
+      };
+      
+      console.log('Using mock EMA-200 data:', mockResponse);
+      return mockResponse;
+    }
+    
+    // Call the Supabase Edge Function that interfaces with Twelve Data API
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      throw new Error('Supabase environment variables are missing');
+    }
+    
+    console.log(`Fetching EMA-200 data for ${symbol} from ${supabaseUrl}/functions/v1/twelve-ema-200`);
+    
+    // Convert timeframe to date range
+    let startDate = new Date();
+    if (timeframe === '3M') startDate.setMonth(startDate.getMonth() - 3);
+    else if (timeframe === '6M') startDate.setMonth(startDate.getMonth() - 6);
+    else if (timeframe === '1Y') startDate.setFullYear(startDate.getFullYear() - 1);
+    
+    const formatDate = (date: Date): string => {
+      return date.toISOString().split('T')[0];
+    };
+    
+    const startDateStr = formatDate(startDate);
+    const endDateStr = formatDate(new Date());
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/twelve-ema-200`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ 
+        symbol: symbol.trim(),
+        start_date: startDateStr,
+        end_date: endDateStr
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Twelve Data EMA-200 API error:', errorText);
+      throw new Error(`Twelve Data EMA-200 API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    console.log('EMA-200 API response:', data);
+    
+    // Verify data structure before returning
+    if (!data || !data.values || !Array.isArray(data.values)) {
+      console.error('Invalid EMA data structure:', data);
+      
+      // If API returned error format, throw with the error message
+      if (data && data.error) {
+        throw new Error(`API Error: ${data.error}`);
+      }
+      
+      throw new Error('Invalid EMA data structure received from API');
+    }
+    
+    return data as EMAData;
+    
+  } catch (error) {
+    console.error('Error fetching EMA-200 data from Twelve Data:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetches Relative Strength Index (RSI) data from the Twelve Data API via Supabase Edge Function
+ * @param symbol The stock symbol to fetch RSI data for (e.g. AAPL)
+ * @param timeframe The timeframe to fetch data for (3M, 6M, 1Y)
+ * @returns RSI data including historical values for the specified timeframe
+ */
+export const fetchRSI = async (symbol: string, timeframe: string = '3M'): Promise<RSIData | null> => {
+  try {
+    // Use local static data as fallback when in development or if API fails
+    const useFallback = import.meta.env.DEV && import.meta.env.VITE_USE_LOCAL_STOCK_DATA === 'true';
+    
+    if (useFallback) {
+      // Simulate network delay to make it feel like a real API
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Determine the number of days to generate based on timeframe
+      let dataLength = 90; // Default 3M
+      if (timeframe === '6M') dataLength = 180;
+      if (timeframe === '1Y') dataLength = 365;
+      
+      // Generate mock RSI data for the specified timeframe
+      const today = new Date();
+      const mockData = Array.from({ length: dataLength }, (_, i) => {
+        const date = new Date(today);
+        date.setDate(date.getDate() - (dataLength - i));
+        // Generate RSI values between 0 and 100, with some oscillation
+        const rsiBase = 50 + Math.sin(i / 10) * 30;
+        const rsi = Math.max(0, Math.min(100, rsiBase + (Math.random() * 20 - 10)));
+        
+        // Generate OHLC data for the same period
+        const basePrice = 150 + Math.sin(i / 15) * 15;
+        const open = parseFloat((basePrice - 2 + Math.random() * 4).toFixed(2));
+        const close = parseFloat((basePrice + Math.random() * 6 - 3).toFixed(2));
+        
+        return {
+          datetime: date.toISOString().split('T')[0],
+          rsi: rsi.toFixed(2),
+          open,
+          high: parseFloat((Math.max(open, close) + 1 + Math.random() * 2).toFixed(2)),
+          low: parseFloat((Math.min(open, close) - 1 - Math.random() * 2).toFixed(2)),
+          close
+        };
+      });
+      
+      const mockResponse = {
+        symbol: symbol,
+        meta: {
+          symbol: symbol,
+          interval: "1day",
+          currency: "USD",
+          exchange_timezone: "America/New_York",
+          exchange: "NASDAQ",
+          mic_code: "XNAS",
+          type: "Common Stock",
+          indicator: {
+            name: "RSI - Relative Strength Index",
+            series_type: "close",
+            time_period: 14
+          }
+        },
+        values: mockData,
+        status: "ok"
+      };
+      
+      console.log('Using mock RSI data:', mockResponse);
+      return mockResponse;
+    }
+    
+    // Call the Supabase Edge Function that interfaces with Twelve Data API
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      throw new Error('Supabase environment variables are missing');
+    }
+    
+    console.log(`Fetching RSI data for ${symbol} from ${supabaseUrl}/functions/v1/twelve-rsi`);
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/twelve-rsi`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ 
+        symbol: symbol.trim(),
+        timeframe
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Twelve Data RSI API error:', errorText);
+      throw new Error(`Twelve Data RSI API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    console.log('RSI API response:', data);
+    
+    // Verify data structure before returning
+    if (!data || !data.values || !Array.isArray(data.values)) {
+      console.error('Invalid RSI data structure:', data);
+      
+      // If API returned error format, throw with the error message
+      if (data && data.error) {
+        throw new Error(`API Error: ${data.error}`);
+      }
+      
+      throw new Error('Invalid RSI data structure received from API');
+    }
+    
+    return data as RSIData;
+    
+  } catch (error) {
+    console.error('Error fetching RSI data from Twelve Data:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetches stock recommendations data from the Twelve Data API via Supabase Edge Function
+ * @param symbol The stock symbol to fetch recommendations for (e.g. AAPL)
+ * @returns Recommendations data including analyst ratings and trends
+ */
+export const fetchRecommendations = async (symbol: string): Promise<RecommendationsData | null> => {
+  try {
+    // Use local static data as fallback when in development or if API fails
+    const useFallback = import.meta.env.DEV && import.meta.env.VITE_USE_LOCAL_STOCK_DATA === 'true';
+    
+    if (useFallback) {
+      // Simulate network delay to make it feel like a real API
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Return mock data for development
+      return {
+        meta: {
+          symbol: symbol,
+          name: `${symbol} Inc`,
+          currency: 'USD',
+          exchange_timezone: 'America/New_York',
+          exchange: 'NASDAQ',
+          mic_code: 'XNAS',
+          type: 'Common Stock'
+        },
+        trends: {
+          current_month: {
+            strong_buy: 11,
+            buy: 21,
+            hold: 6,
+            sell: 0,
+            strong_sell: 0
+          },
+          previous_month: {
+            strong_buy: 14,
+            buy: 24,
+            hold: 8,
+            sell: 0,
+            strong_sell: 0
+          },
+          '2_months_ago': {
+            strong_buy: 14,
+            buy: 24,
+            hold: 8,
+            sell: 0,
+            strong_sell: 0
+          },
+          '3_months_ago': {
+            strong_buy: 13,
+            buy: 20,
+            hold: 8,
+            sell: 0,
+            strong_sell: 0
+          }
+        },
+        rating: 8.2,
+        status: 'ok'
+      };
+    }
+    
+    // Call the Supabase Edge Function that interfaces with Twelve Data API
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      throw new Error('Supabase environment variables are missing');
+    }
+    
+    console.log(`Fetching recommendations data for ${symbol} from ${supabaseUrl}/functions/v1/twelve-recommend`);
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/twelve-recommend`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ 
+        symbol: symbol.trim()
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Twelve Data Recommendations API error:', errorText);
+      // Return null instead of throwing to gracefully handle errors
+      return null;
+    }
+    
+    const data = await response.json();
+    console.log('Recommendations API response:', data);
+    
+    return data as RecommendationsData;
+    
+  } catch (error) {
+    console.error('Error fetching recommendations from Twelve Data:', error);
     return null;
   }
 };
