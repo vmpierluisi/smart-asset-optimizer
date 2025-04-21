@@ -93,7 +93,11 @@ import {
   fetchRSI,
   RSIData,
   fetchRecommendations,
-  RecommendationsData
+  RecommendationsData,
+  fetchMACD,
+  MACDData,
+  getRecentMACDSignals,
+  MACDSignals
 } from "@/utils/twelveDataUtils";
 import { PriceChart } from "@/components/PriceChart";
 import { useStockPrices } from "@/hooks/useStockPrices";
@@ -110,6 +114,7 @@ import { StockStatisticsData } from "@/utils/twelveDataUtils";
 import SMAChart from "@/components/SMAChart";
 import EMAChart from "@/components/EMAChart";
 import RSIChart from '@/components/RSIChart';
+import MACDChart from '@/components/MACDChart';
 
 // Define CSS keyframes for animations
 const fadeGrowKeyframes = `
@@ -565,6 +570,11 @@ const StockAnalysis = () => {
   });
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [isInWatchlist, setIsInWatchlist] = useState(false);
+  
+  // Add state for recent stock visits and dropdown menus
+  const [recentVisits, setRecentVisits] = useState<WatchlistItem[]>([]);
+  const [showWatchlistDropdown, setShowWatchlistDropdown] = useState(false);
+  const [showRecentsDropdown, setShowRecentsDropdown] = useState(false);
 
   // Animation states
   const [isAnimating, setIsAnimating] = useState(false);
@@ -627,6 +637,23 @@ const StockAnalysis = () => {
       } catch (error) {
         console.error("Error parsing watchlist from localStorage:", error);
         localStorage.removeItem("stockWatchlist"); // Clear corrupted data
+      }
+    }
+    
+    // Load recent visits from localStorage
+    const storedRecentVisits = localStorage.getItem("stockRecentVisits");
+    if (storedRecentVisits) {
+      try {
+        const parsedRecentVisits = JSON.parse(storedRecentVisits);
+        if (Array.isArray(parsedRecentVisits)) {
+          setRecentVisits(parsedRecentVisits);
+        } else {
+          console.error("Stored recent visits is not an array:", parsedRecentVisits);
+          localStorage.removeItem("stockRecentVisits"); // Clear invalid data
+        }
+      } catch (error) {
+        console.error("Error parsing recent visits from localStorage:", error);
+        localStorage.removeItem("stockRecentVisits"); // Clear corrupted data
       }
     }
   }, []);
@@ -1175,11 +1202,14 @@ const StockAnalysis = () => {
     setSelectedStock(symbol);
     setSearchQuery("");
     setSuggestions([]);
-    // We don't need the toast here anymore as the main display updates
-    // toast({
-    //   title: "Stock Selected",
-    //   description: `${name} (${symbol}) selected for analysis.`,
-    // });
+    
+    // Add to recent visits
+    const newVisit: WatchlistItem = { symbol, name };
+    let updatedRecentVisits = recentVisits.filter(item => item.symbol !== symbol); // Remove if already exists
+    updatedRecentVisits = [newVisit, ...updatedRecentVisits].slice(0, 5); // Add to beginning and limit to 5 items
+    
+    setRecentVisits(updatedRecentVisits);
+    localStorage.setItem("stockRecentVisits", JSON.stringify(updatedRecentVisits));
   };
 
   // Handle selection from search suggestions list
@@ -1414,16 +1444,69 @@ const StockAnalysis = () => {
       getContext: () => ({
         ticker: selectedStock,
         currentPrice: stockData?.price,
+        // SMA data
+        ma20: smaData?.values && smaData.values.length > 0 ? parseFloat(smaData.values[0]?.ma || '0').toFixed(2) : 'N/A',
         ma50: technicalData?.ma50,
         ma200: technicalData?.ma200,
+        sma_signals: {
+          ma20: smaData?.values && smaData.values.length > 0 ? 
+            (stockData?.price ?? 0) > (parseFloat(smaData.values[0]?.ma || '0')) ? 'Bullish' : 'Bearish' : 'N/A',
+          ma50: (stockData?.price ?? 0) > (technicalData?.ma50 ?? 0) ? 'Bullish' : 'Bearish',
+          ma200: (stockData?.price ?? 0) > (technicalData?.ma200 ?? 0) ? 'Bullish' : 'Bearish'
+        },
+        // EMA data
+        ema20: emaData?.values && emaData.values.length > 0 ? parseFloat(emaData.values[0]?.ma || '0').toFixed(2) : 'N/A',
+        ema50: ema50Data?.values && ema50Data.values.length > 0 ? parseFloat(ema50Data.values[0]?.ma || '0').toFixed(2) : 'N/A',
+        ema200: ema200Data?.values && ema200Data.values.length > 0 ? parseFloat(ema200Data.values[0]?.ma || '0').toFixed(2) : 'N/A',
+        ema_signals: {
+          ema20: emaData?.values && emaData.values.length > 0 ?
+            (stockData?.price ?? 0) > (parseFloat(emaData.values[0]?.ma || '0')) ? 'Bullish' : 'Bearish' : 'N/A',
+          ema50: ema50Data?.values && ema50Data.values.length > 0 ?
+            (stockData?.price ?? 0) > (parseFloat(ema50Data.values[0]?.ma || '0')) ? 'Bullish' : 'Bearish' : 'N/A',
+          ema200: ema200Data?.values && ema200Data.values.length > 0 ?
+            (stockData?.price ?? 0) > (parseFloat(ema200Data.values[0]?.ma || '0')) ? 'Bullish' : 'Bearish' : 'N/A'
+        },
+        // RSI data
+        rsi: polygonRsi ?? technicalData?.rsi,
+        rsi_signal: ((polygonRsi ?? technicalData?.rsi ?? 0) > 70) ? 'Overbought' : ((polygonRsi ?? technicalData?.rsi ?? 0) < 30) ? 'Oversold' : 'Neutral',
+        // MACD data
+        macd: technicalData?.macd,
+        macd_signal: macdData?.values && macdData.values.length > 0 ? parseFloat(macdData.values[0]?.macd_signal || '0').toFixed(2) : 'N/A',
+        macd_histogram: macdData?.values && macdData.values.length > 0 ? parseFloat(macdData.values[0]?.macd_hist || '0').toFixed(2) : 'N/A',
+        macd_indicators: macdSignals ? {
+          bullishCrossover: macdSignals.bullishCrossover || false,
+          bearishCrossover: macdSignals.bearishCrossover || false,
+          bullishZeroCrossover: macdSignals.bullishZeroCrossover || false,
+          bearishZeroCrossover: macdSignals.bearishZeroCrossover || false,
+          bullishDivergence: macdSignals.bullishDivergence || false,
+          bearishDivergence: macdSignals.bearishDivergence || false,
+          histogramIncreasing: macdSignals.histogramIncreasing || false,
+          histogramDecreasing: macdSignals.histogramDecreasing || false
+        } : null,
+        // Other technical indicators
         support: technicalData?.support,
         resistance: technicalData?.resistance,
-        rsi: polygonRsi ?? technicalData?.rsi,
-        macdSignal: technicalData?.macdSignal,
-        macdSignals: technicalData?.macdSignals,
         bollingerPosition: technicalData?.bollingerPosition,
         signalSummary: technicalData?.signalSummary,
-        priceTarget: technicalData?.priceTarget
+        priceTarget: technicalData?.priceTarget,
+        timeframes: {
+          sma: smaTimeframe,
+          ema: emaTimeframe,
+          rsi: rsiTimeframe,
+          macd: macdTimeframe
+        },
+        // Descriptions for better AI explanations
+        descriptions: {
+          sma: "SMA calculates the average of prices over a specified time period, showing trend direction and support/resistance levels.",
+          ema: "EMA gives more weight to recent prices, making it more responsive to new information than SMA.",
+          rsi: "RSI measures the speed and magnitude of price movements. Values above 70 indicate overbought conditions, while below 30 suggest oversold conditions.",
+          macd: "MACD is a trend-following momentum indicator that shows the relationship between two moving averages of a security's price. It's calculated by subtracting the 26-period EMA from the 12-period EMA."
+        },
+        rsi_analysis: ((polygonRsi ?? technicalData?.rsi ?? 0) > 70) 
+          ? 'RSI above 70 suggests a potential sell signal' 
+          : ((polygonRsi ?? technicalData?.rsi ?? 0) < 30)
+          ? 'RSI below 30 suggests a potential buy signal'
+          : 'RSI in neutral range (30-70)'
       })
     },
     news: {
@@ -1450,6 +1533,87 @@ const StockAnalysis = () => {
         maxDrawdown: riskData?.maxDrawdown,
         correlationSP500: riskData?.correlationSP500,
         riskScore: riskData?.riskScore
+      })
+    },
+    // Additional sections for individual technical indicators
+    sma: {
+      id: "sma",
+      name: "SMA",
+      getContext: () => ({
+        ticker: selectedStock,
+        currentPrice: stockData?.price,
+        ma20: smaData?.values && smaData.values.length > 0 ? parseFloat(smaData.values[0]?.ma || '0').toFixed(2) : 'N/A',
+        ma50: technicalData?.ma50,
+        ma200: technicalData?.ma200,
+        sma_signals: {
+          ma20: smaData?.values && smaData.values.length > 0 ? 
+            (stockData?.price ?? 0) > (parseFloat(smaData.values[0]?.ma || '0')) ? 'Bullish' : 'Bearish' : 'N/A',
+          ma50: (stockData?.price ?? 0) > (technicalData?.ma50 ?? 0) ? 'Bullish' : 'Bearish',
+          ma200: (stockData?.price ?? 0) > (technicalData?.ma200 ?? 0) ? 'Bullish' : 'Bearish'
+        },
+        timeframe: smaTimeframe,
+        description: "SMA calculates the average of prices over a specified time period, showing trend direction and support/resistance levels."
+      })
+    },
+    ema: {
+      id: "ema",
+      name: "EMA",
+      getContext: () => ({
+        ticker: selectedStock,
+        currentPrice: stockData?.price,
+        ema20: emaData?.values && emaData.values.length > 0 ? parseFloat(emaData.values[0]?.ma || '0').toFixed(2) : 'N/A',
+        ema50: ema50Data?.values && ema50Data.values.length > 0 ? parseFloat(ema50Data.values[0]?.ma || '0').toFixed(2) : 'N/A',
+        ema200: ema200Data?.values && ema200Data.values.length > 0 ? parseFloat(ema200Data.values[0]?.ma || '0').toFixed(2) : 'N/A',
+        ema_signals: {
+          ema20: emaData?.values && emaData.values.length > 0 ?
+            (stockData?.price ?? 0) > (parseFloat(emaData.values[0]?.ma || '0')) ? 'Bullish' : 'Bearish' : 'N/A',
+          ema50: ema50Data?.values && ema50Data.values.length > 0 ?
+            (stockData?.price ?? 0) > (parseFloat(ema50Data.values[0]?.ma || '0')) ? 'Bullish' : 'Bearish' : 'N/A',
+          ema200: ema200Data?.values && ema200Data.values.length > 0 ?
+            (stockData?.price ?? 0) > (parseFloat(ema200Data.values[0]?.ma || '0')) ? 'Bullish' : 'Bearish' : 'N/A'
+        },
+        timeframe: emaTimeframe,
+        description: "EMA gives more weight to recent prices, making it more responsive to new information than SMA."
+      })
+    },
+    rsi: {
+      id: "rsi",
+      name: "RSI",
+      getContext: () => ({
+        ticker: selectedStock,
+        currentPrice: stockData?.price,
+        rsi: polygonRsi ?? technicalData?.rsi,
+        rsi_signal: ((polygonRsi ?? technicalData?.rsi ?? 0) > 70) ? 'Overbought' : ((polygonRsi ?? technicalData?.rsi ?? 0) < 30) ? 'Oversold' : 'Neutral',
+        analysis: ((polygonRsi ?? technicalData?.rsi ?? 0) > 70) 
+          ? 'RSI above 70 suggests a potential sell signal' 
+          : ((polygonRsi ?? technicalData?.rsi ?? 0) < 30)
+          ? 'RSI below 30 suggests a potential buy signal'
+          : 'RSI in neutral range (30-70)',
+        timeframe: rsiTimeframe,
+        description: "RSI measures the speed and magnitude of price movements. Values above 70 indicate overbought conditions, while below 30 suggest oversold conditions."
+      })
+    },
+    macd: {
+      id: "macd",
+      name: "MACD",
+      getContext: () => ({
+        ticker: selectedStock,
+        currentPrice: stockData?.price,
+        macd: technicalData?.macd,
+        signal: macdData?.values && macdData.values.length > 0 ? parseFloat(macdData.values[0]?.macd_signal || '0').toFixed(2) : 'N/A',
+        histogram: macdData?.values && macdData.values.length > 0 ? parseFloat(macdData.values[0]?.macd_hist || '0').toFixed(2) : 'N/A',
+        indicators: macdSignals ? {
+          bullishCrossover: macdSignals.bullishCrossover || false,
+          bearishCrossover: macdSignals.bearishCrossover || false,
+          bullishZeroCrossover: macdSignals.bullishZeroCrossover || false,
+          bearishZeroCrossover: macdSignals.bearishZeroCrossover || false,
+          bullishDivergence: macdSignals.bullishDivergence || false,
+          bearishDivergence: macdSignals.bearishDivergence || false,
+          histogramIncreasing: macdSignals.histogramIncreasing || false,
+          histogramDecreasing: macdSignals.histogramDecreasing || false
+        } : null,
+        timeframe: macdTimeframe,
+        description: "MACD is a trend-following momentum indicator that shows the relationship between two moving averages of a security's price. It's calculated by subtracting the 26-period EMA from the 12-period EMA."
       })
     }
   };
@@ -1978,6 +2142,90 @@ const StockAnalysis = () => {
     }
   };
 
+  // Add MACD state variables
+  const [macdData, setMacdData] = useState<MACDData | null>(null);
+  const [isLoadingMACD, setIsLoadingMACD] = useState<boolean>(false);
+  const [macdTimeframe, setMacdTimeframe] = useState<string>('3M');
+  const [macdSignals, setMacdSignals] = useState<MACDSignals | null>(null);
+  const [macdTimeSeriesData, setMacdTimeSeriesData] = useState<TimeSeriesData | null>(null);
+  
+  // Add the useEffect for fetching MACD data
+  useEffect(() => {
+    const getMacdData = async () => {
+      if (!selectedStock) return;
+      
+      setIsLoadingMACD(true);
+      try {
+        // Fetch MACD data for the selected chart timeframe
+        const data = await fetchMACD(selectedStock, macdTimeframe);
+        setMacdData(data);
+        
+        // For signal analysis, always use a fixed recent time period (e.g., 1month) 
+        // regardless of the chart timeframe to ensure consistent signal detection
+        const signalTimeSeriesData = await fetchTimeSeries(selectedStock, '1month');
+        setMacdTimeSeriesData(signalTimeSeriesData);
+        
+        // Fetch MACD data specifically for the recent period for consistent signal analysis
+        const signalMacdData = await fetchMACD(selectedStock, '3M');
+        
+        // Analyze MACD signals using consistent recent data
+        if (signalMacdData && signalTimeSeriesData) {
+          const { recentSignals } = getRecentMACDSignals(signalMacdData, signalTimeSeriesData);
+          setMacdSignals(recentSignals);
+        }
+      } catch (error) {
+        console.error('Error fetching MACD data:', error);
+        toast({
+          title: "Error",
+          description: `Failed to fetch MACD data for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          variant: "destructive",
+        });
+        setMacdData(null);
+        setMacdSignals(null);
+      } finally {
+        setIsLoadingMACD(false);
+      }
+    };
+    
+    getMacdData();
+  }, [selectedStock, macdTimeframe, toast]);
+
+  // Add handler for MACD timeframe changes
+  const handleMacdTimeframeChange = (timeframe: string) => {
+    console.log(`Changing MACD timeframe to ${timeframe}`);
+    setMacdTimeframe(timeframe);
+  };
+
+  // Toggle dropdown visibility
+  const toggleWatchlistDropdown = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    setShowWatchlistDropdown(!showWatchlistDropdown);
+    if (showRecentsDropdown) setShowRecentsDropdown(false);
+  };
+  
+  const toggleRecentsDropdown = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    setShowRecentsDropdown(!showRecentsDropdown);
+    if (showWatchlistDropdown) setShowWatchlistDropdown(false);
+  };
+  
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      // Only close if the click is outside of any dropdown container
+      if (!target.closest('.dropdown-container')) {
+        setShowWatchlistDropdown(false);
+        setShowRecentsDropdown(false);
+      }
+    };
+    
+    document.addEventListener('click', handleClickOutside);
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, []);
+
   // Beginning of the return statement
   return (
     <div className="container mx-auto p-4 space-y-6">
@@ -1985,7 +2233,7 @@ const StockAnalysis = () => {
       <style dangerouslySetInnerHTML={{ __html: fadeGrowKeyframes }} />
       
       {/* Stock Search Section */}
-      <Card>
+      <Card className="bg-neutral-50 border-none transition-all hover:none">
         <CardHeader className="pb-3">
           <CardTitle>Stock Analysis</CardTitle>
           <CardDescription>Search or select a stock to analyze</CardDescription>
@@ -2029,14 +2277,72 @@ const StockAnalysis = () => {
                 </div>
               )}
             </div>
-            <Button variant="outline">
-              Recent
-              <ChevronDown className="ml-1 h-4 w-4" />
-            </Button>
-            <Button variant="outline">
-              Watchlist
-              <ChevronDown className="ml-1 h-4 w-4" />
-            </Button>
+            <div className="relative dropdown-container" onClick={(e) => e.stopPropagation()}>
+              <Button variant="outline" onClick={toggleRecentsDropdown}>
+                Recent
+                <ChevronDown className="ml-1 h-4 w-4" />
+              </Button>
+              {showRecentsDropdown && (
+                <div className="absolute z-10 mt-1 w-48 right-0 rounded-md border bg-background shadow-lg max-h-48 overflow-y-auto">
+                  <div className="p-2">
+                    {recentVisits.length > 0 ? (
+                      recentVisits.map((item) => (
+                        <div 
+                          key={item.symbol}
+                          className="flex items-center space-x-2 rounded-md p-2 hover:bg-muted cursor-pointer"
+                          onClick={() => handleSelectStock(item.symbol, item.name)}
+                        >
+                          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                            <span className="text-xs font-semibold">{item.symbol.substring(0, 4)}</span>
+                          </div>
+                          <div className="overflow-hidden">
+                            <div className="font-medium truncate">{item.name}</div>
+                            <div className="text-sm text-muted-foreground truncate">{item.symbol}</div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-2 text-sm text-muted-foreground text-center">
+                        No recent visits
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="relative dropdown-container" onClick={(e) => e.stopPropagation()}>
+              <Button variant="outline" onClick={toggleWatchlistDropdown}>
+                Watchlist
+                <ChevronDown className="ml-1 h-4 w-4" />
+              </Button>
+              {showWatchlistDropdown && (
+                <div className="absolute z-10 mt-1 w-48 right-0 rounded-md border bg-background shadow-lg max-h-48 overflow-y-auto">
+                  <div className="p-2">
+                    {watchlist.length > 0 ? (
+                      watchlist.map((item) => (
+                        <div 
+                          key={item.symbol}
+                          className="flex items-center space-x-2 rounded-md p-2 hover:bg-muted cursor-pointer"
+                          onClick={() => handleSelectStock(item.symbol, item.name)}
+                        >
+                          <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
+                            <span className="text-xs font-semibold">{item.symbol.substring(0, 4)}</span>
+                          </div>
+                          <div className="overflow-hidden">
+                            <div className="font-medium truncate">{item.name}</div>
+                            <div className="text-sm text-muted-foreground truncate">{item.symbol}</div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-2 text-sm text-muted-foreground text-center">
+                        Add stocks to your watchlist
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -2056,7 +2362,7 @@ const StockAnalysis = () => {
                   : 'opacity-0 -translate-x-full pointer-events-none'}
             `}
           >
-            <div className="mb-4">
+            <div className="mb-4 px-6">
               <h2 className="text-2xl font-semibold">Market Sectors</h2>
               <p className="text-sm text-muted-foreground">Select a sector to explore stocks</p>
             </div>
@@ -2065,7 +2371,7 @@ const StockAnalysis = () => {
               {marketSectors.map((sector) => (
                 <div 
                   key={sector.id} 
-                  className="bg-amber-300 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-amber-400 transition-colors text-black aspect-square transform hover:scale-105 transition-transform duration-200"
+                  className="bg-[#ff9999] bg-opacity-50 rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-opacity-100 transition-all text-black aspect-square transform hover:scale-105 duration-200"
                   onClick={() => !isAnimating && handleSelectSector(sector.id)}
                 >
                   <div className="mb-3">
@@ -2088,16 +2394,16 @@ const StockAnalysis = () => {
                   : 'opacity-0 translate-x-full pointer-events-none'}
             `}
           >
-            <div className="mb-4 flex items-center">
+            <div className="mb-4 flex items-center px-6">
               <Button 
                 variant="ghost" 
-                size="icon" 
-                className="mr-2"
+                size="sm" 
+                className="mr-12 flex items-center px-3"
                 onClick={() => !isAnimating && handleBackToSectors()}
                 disabled={isAnimating}
               >
                 <ChevronLeft className="h-4 w-4 mr-1" />
-                Back
+                <span>Back</span>
               </Button>
               <h2 className="text-2xl font-semibold">
                 {marketSectors.find(s => s.id === selectedSector)?.name} Stocks
@@ -2110,7 +2416,7 @@ const StockAnalysis = () => {
                 ?.stocks.map((stock, index) => (
                   <Card 
                     key={stock.symbol} 
-                    className="hover:shadow-md transition-shadow cursor-pointer"
+                    className="bg-neutral-50 border-none transition-all hover:shadow-md cursor-pointer"
                     onClick={() => handleSelectStock(stock.symbol, stock.name)}
                     style={{
                       opacity: 0,
@@ -3434,6 +3740,9 @@ const StockAnalysis = () => {
                   <div className="grid md:grid-cols-3 gap-6">
                     <div className="space-y-3">
                       <h4 className="text-sm font-medium mb-3">Simple Moving Average</h4>
+                      <div className="text-xs text-muted-foreground mb-4">
+                        <p>SMA calculates the average of prices over a specified time period, showing trend direction and support/resistance levels.</p>
+                      </div>
                       {isLoadingTechnical ? (
                         <SkeletonLoader className="h-4" count={4} />
                       ) : (
@@ -3550,6 +3859,9 @@ const StockAnalysis = () => {
                   <div className="grid md:grid-cols-3 gap-6">
                     <div className="space-y-3">
                       <h4 className="text-sm font-medium mb-3">Exponential Moving Average</h4>
+                      <div className="text-xs text-muted-foreground mb-4">
+                        <p>EMA gives more weight to recent prices, making it more responsive to new information than SMA.</p>
+                      </div>
                       {isLoadingTechnical ? (
                         <SkeletonLoader className="h-4" count={4} />
                       ) : (
@@ -3688,6 +4000,9 @@ const StockAnalysis = () => {
                   <div className="grid md:grid-cols-3 gap-6">
                     <div className="space-y-3">
                       <h4 className="text-sm font-medium mb-3">Relative Strength Index</h4>
+                      <div className="text-xs text-muted-foreground mb-4">
+                        <p>RSI measures the speed and magnitude of price movements. Values above 70 indicate overbought conditions, while below 30 suggest oversold conditions.</p>
+                      </div>
                       {isLoadingTechnical || rsiLoading ? (
                         <SkeletonLoader className="h-4" count={4} />
                       ) : (
@@ -3756,7 +4071,11 @@ const StockAnalysis = () => {
                 <TabsContent value="macd" className="m-0">
                   <div className="grid md:grid-cols-3 gap-6">
                     <div className="space-y-3">
-                      <h4 className="text-sm font-medium mb-3">MACD</h4>
+                      <h4 className="text-sm font-medium mb-3">Moving Average Convergence-Divergence</h4>
+                      <div className="text-xs text-muted-foreground mb-4">
+                        <p className="mb-1">MACD is a trend-following momentum indicator that shows the relationship between two moving averages of a security's price.</p>
+                        <p>The MACD is calculated by subtracting the 26-period EMA from the 12-period EMA.</p>
+                      </div>
                       {isLoadingTechnical ? (
                         <SkeletonLoader className="h-4" count={4} />
                       ) : (
@@ -3768,56 +4087,109 @@ const StockAnalysis = () => {
                                 {technicalData?.macd !== undefined ? technicalData?.macd?.toFixed(2) : 'N/A'}
                               </span>
                             </div>
-                            <Badge 
-                              variant="outline" 
-                              className={
-                                technicalData?.macdSignal === "Bullish" 
-                                  ? "bg-green-100 text-green-800 border-green-200" 
-                                  : technicalData?.macdSignal === "Bearish"
-                                  ? "bg-red-100 text-red-800 border-red-200"
-                                  : "bg-yellow-100 text-yellow-800 border-yellow-200"
-                              }
-                            >
-                              {technicalData?.macdSignal ?? 'N/A'}
-                            </Badge>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              {technicalData?.macdSignals && technicalData.macdSignals.length > 0 && technicalData.macdSignals[0]}
+                          </div>
+                          
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-sm">Signal</span>
+                              <span className="text-sm font-medium">
+                                {macdData?.values && macdData.values.length > 0 ? parseFloat(macdData.values[0]?.macd_signal || '0').toFixed(2) : 'N/A'}
+                              </span>
                             </div>
                           </div>
                           
-                          <div className="mt-4">
-                            <div className="text-sm text-muted-foreground mb-1">MACD Signals</div>
-                            {technicalData?.macdSignals && technicalData.macdSignals.length > 0 ? (
-                              <div className="flex flex-wrap gap-1">
-                                {technicalData.macdSignals.map((signal, index) => (
-                                  <Badge 
-                                    key={index}
-                                    variant="outline" 
-                                    className={
-                                      signal.toLowerCase().includes('bullish') || 
-                                      signal.toLowerCase().includes('above')
-                                        ? "bg-green-100 text-green-800 border-green-200" 
-                                        : signal.toLowerCase().includes('bearish') || 
-                                          signal.toLowerCase().includes('below')
-                                          ? "bg-red-100 text-red-800 border-red-200"
-                                          : "bg-yellow-100 text-yellow-800 border-yellow-200"
-                                    }
-                                  >
-                                    {signal}
-                                  </Badge>
-                                ))}
-                              </div>
-                            ) : (
-                              <span className="text-sm">No signals available</span>
-                            )}
+                          <div>
+                            <div className="flex justify-between mb-1">
+                              <span className="text-sm">Histogram</span>
+                              <span className="text-sm font-medium">
+                                {macdData?.values && macdData.values.length > 0 ? parseFloat(macdData.values[0]?.macd_hist || '0').toFixed(2) : 'N/A'}
+                              </span>
+                            </div>
                           </div>
+                          
+                          {/* MACD Signals */}
+                          {!isLoadingMACD && macdSignals && (
+                            <div className="mt-4">
+                              <div className="space-y-2">
+                                {macdSignals.bullishCrossover && (
+                                  <Badge className="bg-green-100 text-green-800 border-green-200 mr-2 hover:bg-green-100">
+                                    Bullish Crossover
+                                  </Badge>
+                                )}
+                                {macdSignals.bearishCrossover && (
+                                  <Badge className="bg-red-100 text-red-800 border-red-200 mr-2 hover:bg-red-100">
+                                    Bearish Crossover
+                                  </Badge>
+                                )}
+                                {macdSignals.bullishZeroCrossover && (
+                                  <Badge className="bg-green-100 text-green-800 border-green-200 mr-2 hover:bg-green-100">
+                                    Zero Line Bullish Cross
+                                  </Badge>
+                                )}
+                                {macdSignals.bearishZeroCrossover && (
+                                  <Badge className="bg-red-100 text-red-800 border-red-200 mr-2 hover:bg-red-100">
+                                    Zero Line Bearish Cross
+                                  </Badge>
+                                )}
+                                {macdSignals.bullishDivergence && (
+                                  <Badge className="bg-green-100 text-green-800 border-green-200 mr-2 hover:bg-green-100">
+                                    Bullish Divergence
+                                  </Badge>
+                                )}
+                                {macdSignals.bearishDivergence && (
+                                  <Badge className="bg-red-100 text-red-800 border-red-200 mr-2 hover:bg-red-100">
+                                    Bearish Divergence
+                                  </Badge>
+                                )}
+                                {macdSignals.histogramIncreasing && (
+                                  <Badge className="bg-green-100 text-green-800 border-green-200 mr-2 hover:bg-green-100">
+                                    Momentum Increasing
+                                  </Badge>
+                                )}
+                                {macdSignals.histogramDecreasing && (
+                                  <Badge className="bg-red-100 text-red-800 border-red-200 mr-2 hover:bg-red-100">
+                                    Momentum Decreasing
+                                  </Badge>
+                                )}
+                                {!macdSignals.bullishCrossover && 
+                                 !macdSignals.bearishCrossover && 
+                                 !macdSignals.bullishZeroCrossover && 
+                                 !macdSignals.bearishZeroCrossover && 
+                                 !macdSignals.bullishDivergence && 
+                                 !macdSignals.bearishDivergence && 
+                                 !macdSignals.histogramIncreasing && 
+                                 !macdSignals.histogramDecreasing && (
+                                  <div className="text-xs text-muted-foreground">
+                                    No recent signals detected
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </>
                       )}
                     </div>
                     
                     <div className="md:col-span-2">
-                      <div className="h-full flex flex-col mt-[-50px]">
-                        <MockChart type="MACD Indicator" height={350} />
+                      <div className="h-full flex flex-col">
+                        {isLoadingMACD ? (
+                          <div className="h-[350px] flex items-center justify-center">
+                            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+                          </div>
+                        ) : (!macdData || !macdData.values || macdData.values.length === 0) ? (
+                          <div className="h-[350px] flex items-center justify-center">
+                            <p className="text-muted-foreground">No MACD data available</p>
+                          </div>
+                        ) : (
+                          <div className="h-[350px]">
+                            {/* MACD Chart component */}
+                            <MACDChart 
+                              data={macdData}
+                              onTimeframeChange={handleMacdTimeframeChange}
+                              timeframe={macdTimeframe}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

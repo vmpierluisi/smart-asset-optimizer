@@ -7,27 +7,27 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
-export function SignIn() {
+export function ForgotPassword() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn } = useAuth();
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const { resetPassword } = useAuth();
   const navigate = useNavigate();
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     
     try {
-      const { error } = await signIn(email, password);
+      const { error } = await resetPassword(email);
       
       if (error) {
         toast.error(error.message);
         return;
       }
       
-      toast.success("Signed in successfully!");
-      navigate("/");
+      setIsSubmitted(true);
+      toast.success("Check your email for password reset instructions");
     } catch (error) {
       toast.error("An unexpected error occurred");
       console.error(error);
@@ -36,17 +36,41 @@ export function SignIn() {
     }
   };
 
+  if (isSubmitted) {
+    return (
+      <div className="flex justify-center items-center min-h-screen bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Check Your Email</CardTitle>
+            <CardDescription>
+              We've sent you an email with a link to reset your password.
+            </CardDescription>
+          </CardHeader>
+          <CardFooter className="flex flex-col space-y-4">
+            <Button 
+              variant="outline" 
+              className="w-full" 
+              onClick={() => navigate("/signin")}
+            >
+              Back to Sign In
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="flex justify-center items-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Sign In</CardTitle>
+          <CardTitle>Reset Password</CardTitle>
           <CardDescription>
-            Enter your credentials to access your account
+            Enter your email address and we'll send you a link to reset your password
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSignIn} className="space-y-4">
+          <form onSubmit={handleResetPassword} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -58,43 +82,19 @@ export function SignIn() {
                 required
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-              <div className="text-right">
-                <Button 
-                  variant="link" 
-                  className="p-0 h-auto text-xs font-normal text-muted-foreground"
-                  onClick={() => navigate("/forgot-password")}
-                  type="button"
-                >
-                  Forgot your password?
-                </Button>
-              </div>
-            </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Loading..." : "Sign In"}
+              {isLoading ? "Sending..." : "Send Reset Link"}
             </Button>
           </form>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
-          <div className="text-sm text-muted-foreground text-center">
-            Don't have an account?
-          </div>
           <Button 
-            variant="outline" 
+            variant="link" 
             className="w-full" 
-            onClick={() => navigate("/signup")}
+            onClick={() => navigate("/signin")}
             disabled={isLoading}
           >
-            Create Account
+            Back to Sign In
           </Button>
         </CardFooter>
       </Card>

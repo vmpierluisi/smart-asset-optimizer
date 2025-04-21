@@ -9,6 +9,8 @@ import StockAnalysis from './pages/StockAnalysis'
 import NotFound from './pages/NotFound'
 import { SignIn } from './pages/SignIn'
 import { SignUp } from './pages/SignUp'
+import { ForgotPassword } from './pages/ForgotPassword'
+import { ResetPassword } from './pages/ResetPassword'
 import Profile from './pages/Profile'
 import Settings from './pages/Settings'
 import { AuthProvider } from './lib/auth'
@@ -37,6 +39,8 @@ createRoot(document.getElementById('root')!).render(
           } />
           <Route path="signin" element={<SignIn />} />
           <Route path="signup" element={<SignUp />} />
+          <Route path="forgot-password" element={<ForgotPassword />} />
+          <Route path="reset-password" element={<ResetPassword />} />
           <Route path="profile" element={
             <ProtectedRoute>
               <Profile />

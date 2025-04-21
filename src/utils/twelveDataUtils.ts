@@ -283,6 +283,34 @@ export interface SMAData {
 // Using the same structure as SMA data since both APIs return the same format
 export interface EMAData extends SMAData {}
 
+// Interface for MACD data response from our edge function
+export interface MACDData {
+  symbol: string;
+  meta: {
+    symbol: string;
+    interval: string;
+    currency: string;
+    exchange_timezone: string;
+    exchange: string;
+    mic_code: string;
+    type: string;
+    indicator: {
+      name: string;
+      fast_period: number;
+      series_type: string;
+      signal_period: number;
+      slow_period: number;
+    }
+  };
+  values: {
+    datetime: string;
+    macd: string;
+    macd_signal: string;
+    macd_hist: string;
+  }[];
+  status: string;
+}
+
 // Interface for RSI data response from our edge function
 export interface RSIData {
   symbol: string;
@@ -309,6 +337,161 @@ export interface RSIData {
     close?: number;
   }[];
   status: string;
+}
+
+/**
+ * Interface for MACD value with price data included for divergence analysis
+ */
+export interface MACDValue {
+  datetime: string;
+  macd: number;
+  macd_signal: number;
+  macd_hist: number;
+  price: number; // Include price for divergence analysis
+}
+
+/**
+ * Interface for MACD signals detected in analysis
+ */
+export interface MACDSignals {
+  bullishCrossover: boolean;
+  bearishCrossover: boolean;
+  bullishZeroCrossover: boolean;
+  bearishZeroCrossover: boolean;
+  bullishDivergence?: boolean;
+  bearishDivergence?: boolean;
+  histogramIncreasing: boolean;
+  histogramDecreasing: boolean;
+}
+
+/**
+ * Analyzes MACD data to detect technical signals
+ * @param current Current MACD value with price
+ * @param previous Previous MACD value with price
+ * @param historicalData Array of historical MACD values (for divergence analysis)
+ * @returns Object containing detected MACD signals
+ */
+export function analyzeMACDSignals(
+  current: MACDValue,
+  previous?: MACDValue,
+  historicalData?: MACDValue[] // For divergence
+): MACDSignals {
+  const signals: MACDSignals = {
+    bullishCrossover: false,
+    bearishCrossover: false,
+    bullishZeroCrossover: false,
+    bearishZeroCrossover: false,
+    histogramIncreasing: false,
+    histogramDecreasing: false,
+  };
+
+  if (previous) {
+    // 1. MACD Line and Signal Line Crossovers
+    signals.bullishCrossover = previous.macd < previous.macd_signal && current.macd > current.macd_signal;
+    signals.bearishCrossover = previous.macd > previous.macd_signal && current.macd < current.macd_signal;
+
+    // 2. Zero Line Crossovers
+    signals.bullishZeroCrossover = previous.macd <= 0 && current.macd > 0;
+    signals.bearishZeroCrossover = previous.macd >= 0 && current.macd < 0;
+
+    // 5. Histogram Interpretation
+    signals.histogramIncreasing = Math.abs(current.macd_hist) > Math.abs(previous.macd_hist) && Math.sign(current.macd_hist) === Math.sign(previous.macd_hist);
+    signals.histogramDecreasing = Math.abs(current.macd_hist) < Math.abs(previous.macd_hist) && Math.sign(current.macd_hist) === Math.sign(previous.macd_hist);
+  }
+
+  // 3. Divergence (Checking against a history of data)
+  if (historicalData && historicalData.length >= 2) {
+    const n = 2; // Check the last 2 points for a simple divergence
+
+    // Bullish Divergence: Price makes lower lows, MACD makes higher lows
+    const priceLows = historicalData.slice(-n).map(item => item.price);
+    const macdLows = historicalData.slice(-n).map(item => item.macd);
+    if (priceLows[0] > priceLows[1] && macdLows[0] < macdLows[1]) {
+      signals.bullishDivergence = true;
+    }
+
+    // Bearish Divergence: Price makes higher highs, MACD makes lower highs
+    const priceHighs = historicalData.slice(-n).map(item => item.price);
+    const macdHighs = historicalData.slice(-n).map(item => item.macd);
+    if (priceHighs[0] < priceHighs[1] && macdHighs[0] > macdHighs[1]) {
+      signals.bearishDivergence = true;
+    }
+  }
+
+  return signals;
+}
+
+/**
+ * Processes MACD data with price data to detect recent signals
+ * @param macdData MACD data from Twelve Data API
+ * @param timeSeriesData Time series data for the same period (for price information)
+ * @returns Object containing recent MACD signals for display
+ */
+export function getRecentMACDSignals(macdData: MACDData, timeSeriesData: TimeSeriesData): { 
+  recentSignals: MACDSignals, 
+  macdValues: MACDValue[] 
+} {
+  if (!macdData?.values || !timeSeriesData?.data || macdData.values.length === 0 || timeSeriesData.data.length === 0) {
+    return { 
+      recentSignals: {
+        bullishCrossover: false,
+        bearishCrossover: false,
+        bullishZeroCrossover: false,
+        bearishZeroCrossover: false,
+        histogramIncreasing: false,
+        histogramDecreasing: false
+      },
+      macdValues: []
+    };
+  }
+
+  // Create a map of dates to prices for quick lookup
+  const priceMap = new Map<string, number>();
+  timeSeriesData.data.forEach(item => {
+    priceMap.set(item.date, item.close);
+  });
+
+  // Convert MACD string values to numbers and add price data
+  const macdValues: MACDValue[] = macdData.values.map(item => {
+    // Extract date in format that matches the time series data
+    const dateStr = item.datetime.split('T')[0];
+    const price = priceMap.get(dateStr) || 0;
+
+    return {
+      datetime: item.datetime,
+      macd: parseFloat(item.macd),
+      macd_signal: parseFloat(item.macd_signal),
+      macd_hist: parseFloat(item.macd_hist),
+      price
+    };
+  }).filter(item => item.price > 0); // Filter out items without matching price data
+
+  // Get the most recent 2 days of data for signal analysis
+  if (macdValues.length < 2) {
+    return {
+      recentSignals: {
+        bullishCrossover: false,
+        bearishCrossover: false,
+        bullishZeroCrossover: false,
+        bearishZeroCrossover: false,
+        histogramIncreasing: false,
+        histogramDecreasing: false
+      },
+      macdValues
+    };
+  }
+
+  // Get the two most recent data points
+  const current = macdValues[macdValues.length - 1];
+  const previous = macdValues[macdValues.length - 2];
+
+  // Use the last 5 data points for divergence analysis
+  const historicalData = macdValues.slice(-5);
+
+  // Analyze the signals
+  const recentSignals = analyzeMACDSignals(current, previous, historicalData);
+
+  return { recentSignals, macdValues };
 }
 
 /**
@@ -1968,6 +2151,129 @@ export const fetchRecommendations = async (symbol: string): Promise<Recommendati
     
   } catch (error) {
     console.error('Error fetching recommendations from Twelve Data:', error);
+    return null;
+  }
+};
+
+/**
+ * Fetches Moving Average Convergence Divergence (MACD) data from the Twelve Data API via Supabase Edge Function
+ * @param symbol The stock symbol to fetch MACD data for (e.g. AAPL)
+ * @param timeframe The timeframe to fetch data for (3M, 6M, 1Y)
+ * @returns MACD data including macd, signal line, and histogram values for the specified timeframe
+ */
+export const fetchMACD = async (symbol: string, timeframe: string = '3M'): Promise<MACDData | null> => {
+  try {
+    // Use local static data as fallback when in development or if API fails
+    const useFallback = import.meta.env.DEV && import.meta.env.VITE_USE_LOCAL_STOCK_DATA === 'true';
+    
+    if (useFallback) {
+      // Simulate network delay to make it feel like a real API
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Determine the number of days to generate based on timeframe
+      let dataLength = 90; // Default 3M
+      if (timeframe === '6M') dataLength = 180;
+      if (timeframe === '1Y') dataLength = 365;
+      
+      // Generate mock MACD data for the specified timeframe
+      const today = new Date();
+      const mockData = Array.from({ length: dataLength }, (_, i) => {
+        const date = new Date(today);
+        date.setDate(date.getDate() - (dataLength - i));
+        
+        // Create oscillating MACD values
+        const macdBase = Math.sin(i / 20) * 3;
+        const macd = (macdBase).toFixed(2);
+        
+        // Signal line follows MACD with some lag
+        const signalBase = Math.sin((i - 5) / 20) * 2.8;
+        const macd_signal = (signalBase).toFixed(2);
+        
+        // Histogram is the difference between MACD and signal
+        const macd_hist = (macdBase - signalBase).toFixed(2);
+        
+        return {
+          datetime: date.toISOString().split('T')[0],
+          macd,
+          macd_signal,
+          macd_hist
+        };
+      });
+      
+      const mockResponse = {
+        symbol: symbol,
+        meta: {
+          symbol: symbol,
+          interval: "1day",
+          currency: "USD",
+          exchange_timezone: "America/New_York",
+          exchange: "NASDAQ",
+          mic_code: "XNAS",
+          type: "Common Stock",
+          indicator: {
+            name: "MACD - Moving Average Convergence Divergence",
+            fast_period: 12,
+            series_type: "close",
+            signal_period: 9,
+            slow_period: 26
+          }
+        },
+        values: mockData,
+        status: "ok"
+      };
+      
+      console.log('Using mock MACD data:', mockResponse);
+      return mockResponse;
+    }
+    
+    // Call the Supabase Edge Function that interfaces with Twelve Data API
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Supabase environment variables are missing');
+      throw new Error('Supabase environment variables are missing');
+    }
+    
+    console.log(`Fetching MACD data for ${symbol} from ${supabaseUrl}/functions/v1/twelve-macd`);
+    
+    const response = await fetch(`${supabaseUrl}/functions/v1/twelve-macd`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+      },
+      body: JSON.stringify({ 
+        symbol: symbol.trim(),
+        timeframe
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Twelve Data MACD API error:', errorText);
+      throw new Error(`Twelve Data MACD API error: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    console.log('MACD API response:', data);
+    
+    // Verify data structure before returning
+    if (!data || !data.values || !Array.isArray(data.values)) {
+      console.error('Invalid MACD data structure:', data);
+      
+      // If API returned error format, throw with the error message
+      if (data && data.error) {
+        throw new Error(`API Error: ${data.error}`);
+      }
+      
+      throw new Error('Invalid MACD data structure received from API');
+    }
+    
+    return data as MACDData;
+    
+  } catch (error) {
+    console.error('Error fetching MACD data from Twelve Data:', error);
     return null;
   }
 };
