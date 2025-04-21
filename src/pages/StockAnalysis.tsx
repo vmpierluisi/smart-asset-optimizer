@@ -54,10 +54,7 @@ import {
   StockSuggestion, 
   fetchStockQuote, 
   StockQuote, 
-  fetchStockPriceChanges, 
-  StockPriceChanges, 
   fetchValuationRatios, 
-  ValuationData,
   FinancialHealthData,
   fetchFinancialHealth,
   TechnicalIndicatorData,
@@ -66,9 +63,7 @@ import {
   fetchNewsSentiment,
   RiskAnalysisData,
   fetchRiskAnalysis,
-  AnalystRatings,
-  PriceTarget,
-  fetchAnalystRatings
+  PriceTarget
 } from "@/utils/fmpFinanceUtils";
 // Import our new Twelve Data utility
 import { 
@@ -92,12 +87,12 @@ import {
   EMAData,
   fetchRSI,
   RSIData,
-  fetchRecommendations,
   RecommendationsData,
   fetchMACD,
   MACDData,
   getRecentMACDSignals,
-  MACDSignals
+  MACDSignals,
+  fetchRecommendations
 } from "@/utils/twelveDataUtils";
 import { PriceChart } from "@/components/PriceChart";
 import { useStockPrices } from "@/hooks/useStockPrices";
@@ -115,6 +110,9 @@ import SMAChart from "@/components/SMAChart";
 import EMAChart from "@/components/EMAChart";
 import RSIChart from '@/components/RSIChart';
 import MACDChart from '@/components/MACDChart';
+import SkeletonLoader from '@/components/SkeletonLoader';
+import MockChart from '@/components/MockChart';
+import GaugeChart from '@/components/GaugeChart';
 
 // Define CSS keyframes for animations
 const fadeGrowKeyframes = `
@@ -130,150 +128,6 @@ const fadeGrowKeyframes = `
   }
 `;
 
-// Move SkeletonLoader definition here
-const SkeletonLoader = ({ className = '', count = 1 }: { className?: string, count?: number }) => {
-  return (
-    <>
-      {Array(count).fill(0).map((_, index) => (
-        <div key={index} className={`animate-pulse bg-muted rounded ${className}`}></div>
-      ))}
-    </>
-  );
-};
-
-// Mock chart component - would be replaced with actual chart library
-const MockChart = ({ type, height = 200 }: { type: string, height?: number }) => {
-  return (
-    <div 
-      className="w-full rounded-md border border-dashed flex items-center justify-center"
-      style={{ height: `${height}px` }}
-    >
-      <div className="text-muted-foreground flex flex-col items-center">
-        <LineChart className="h-8 w-8 mb-2" />
-        <span>{type} Chart</span>
-      </div>
-    </div>
-  );
-};
-
-// RSI indicator component (simplified from previous GaugeChart)
-const GaugeChart = ({ value, min = 0, max = 100, label }: { value: number, min?: number, max?: number, label: string }) => {
-  // Ensure value is within min/max range
-  const boundedValue = Math.min(Math.max(value, min), max);
-  
-  // For RSI-specific display
-  const isRsi = label === "RSI";
-  const isSentiment = label === "Sentiment Score";
-  
-  // Determine RSI status and styling
-  const getRsiStatus = () => {
-    if (!isRsi) return { text: "", color: "", bgColor: "", borderColor: "" };
-    
-    if (boundedValue <= 30) {
-      return { 
-        text: "Oversold", 
-        color: "text-green-700", 
-        bgColor: "bg-green-100", 
-        borderColor: "border-green-300" 
-      };
-    }
-    if (boundedValue >= 70) {
-      return { 
-        text: "Overbought", 
-        color: "text-red-700", 
-        bgColor: "bg-red-100", 
-        borderColor: "border-red-300" 
-      };
-    }
-    return { 
-      text: "Neutral", 
-      color: "text-amber-700", 
-      bgColor: "bg-amber-100", 
-      borderColor: "border-amber-300" 
-    };
-  };
-  
-  // Determine Sentiment status and styling
-  const getSentimentStatus = () => {
-    if (!isSentiment) return { text: "", color: "", bgColor: "", borderColor: "" };
-    
-    if (boundedValue < 30) {
-      return { 
-        text: "Negative", 
-        color: "text-red-700", 
-        bgColor: "bg-red-100", 
-        borderColor: "border-red-300" 
-      };
-    }
-    if (boundedValue > 70) {
-      return { 
-        text: "Positive", 
-        color: "text-green-700", 
-        bgColor: "bg-green-100", 
-        borderColor: "border-green-300" 
-      };
-    }
-    return { 
-      text: "Neutral", 
-      color: "text-amber-700", 
-      bgColor: "bg-amber-100", 
-      borderColor: "border-amber-300" 
-    };
-  };
-  
-  const rsiStatus = getRsiStatus();
-  const sentimentStatus = getSentimentStatus();
-  
-  return (
-    <div className="flex flex-col items-center justify-center py-3">
-      <div className="text-4xl font-bold mb-2" style={{ 
-        color: isSentiment 
-          ? (boundedValue < 30 ? "#dc2626" : boundedValue > 70 ? "#16a34a" : "#d97706")
-          : (boundedValue <= 30 ? "#16a34a" : boundedValue >= 70 ? "#dc2626" : "#d97706")
-      }}>
-        {value.toFixed(1)}
-      </div>
-      <div className="text-sm text-muted-foreground mb-3">{label}</div>
-      
-      {isRsi && (
-        <div className={`px-3 py-1 rounded-full text-sm border ${rsiStatus.bgColor} ${rsiStatus.color} ${rsiStatus.borderColor}`}>
-          {rsiStatus.text}
-        </div>
-      )}
-      
-      {isSentiment && (
-        <div className={`px-3 py-1 rounded-full text-sm border ${sentimentStatus.bgColor} ${sentimentStatus.color} ${sentimentStatus.borderColor}`}>
-          {sentimentStatus.text}
-        </div>
-      )}
-      
-      <div className="w-40 h-1 bg-gray-200 rounded-full relative mt-4">
-        <div className="absolute inset-0 flex">
-          {isSentiment ? (
-            <>
-              <div className="w-[30%] h-full bg-red-500 rounded-l-full"></div>
-              <div className="w-[40%] h-full bg-amber-500"></div>
-              <div className="w-[30%] h-full bg-green-500 rounded-r-full"></div>
-            </>
-          ) : (
-            <>
-              <div className="w-[30%] h-full bg-green-500 rounded-l-full"></div>
-              <div className="w-[40%] h-full bg-amber-500"></div>
-              <div className="w-[30%] h-full bg-red-500 rounded-r-full"></div>
-            </>
-          )}
-        </div>
-        <div 
-          className="absolute top-0 w-1 h-3 bg-black rounded-full -mt-1" 
-          style={{ 
-            left: `${((boundedValue - min) / (max - min)) * 100}%`,
-            transform: 'translateX(-50%)'
-          }}
-        ></div>
-      </div>
-    </div>
-  );
-};
 
 // Define market sectors based on GICS
 const marketSectors = [
@@ -494,7 +348,6 @@ const DailyRangeGauge = ({ low, high, current, open }: { low: number, high: numb
       
       <div className="flex justify-between text-xs text-muted-foreground w-40">
         <span>${low.toFixed(2)}</span>
-        <span className="text-xs font-medium">Open: ${open.toFixed(2)}</span>
         <span>${high.toFixed(2)}</span>
       </div>
     </div>
@@ -982,26 +835,24 @@ const StockAnalysis = () => {
           
           setPriceChanges(calculatedChanges);
         } else {
-          // Fallback to original API if calculation fails
-          console.log('Calculation failed, falling back to original API');
-          const changes = await fetchStockPriceChanges(selectedStock);
-          setPriceChanges(changes);
+          // Calculation failed and fetchStockPriceChanges is no longer available. Clear price changes and show error.
+          setPriceChanges(null);
+          toast({
+            title: "Error",
+            description: `Failed to calculate price changes for ${selectedStock}.`,
+            variant: "destructive",
+          });
         }
       } catch (error) {
         console.error('Error calculating stock price changes:', error);
         
-        try {
-          // Fallback to original API if calculation fails
-          const changes = await fetchStockPriceChanges(selectedStock);
-          setPriceChanges(changes);
-        } catch (fallbackError) {
-          console.error('Error fetching stock price changes (fallback):', fallbackError);
-          toast({
-            title: "Error",
-            description: `Failed to fetch price changes for ${selectedStock}: ${fallbackError instanceof Error ? fallbackError.message : 'Unknown error'}`,
-            variant: "destructive",
-          });
-        }
+        // Fallback removed: fetchStockPriceChanges no longer exists. If calculation fails, clear price changes and show error.
+        setPriceChanges(null);
+        toast({
+          title: "Error",
+          description: `Failed to calculate price changes for ${selectedStock}.`,
+          variant: "destructive",
+        });
       } finally {
         setIsLoadingPriceChanges(false);
       }
@@ -1117,7 +968,7 @@ const StockAnalysis = () => {
       setIsLoadingAnalystRatings(true);
       try {
         console.log('Fetching analyst ratings for:', selectedStock);
-        const data = await fetchAnalystRatings(selectedStock);
+        const data = await fetchRecommendations(selectedStock);
         console.log('Analyst ratings data received:', data);
         setAnalystRatingsData(data); // Corrected: set state directly with the returned data
       } catch (error) {
@@ -2442,7 +2293,7 @@ const StockAnalysis = () => {
         // Analysis Sections (Rendered only when a stock is selected)
         <>
           {/* Stock Overview Section */}
-          <Card>
+          <Card className="bg-neutral-50 border-none transition-all hover:none">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div>
                 <div className="flex items-center">
@@ -2848,7 +2699,7 @@ const StockAnalysis = () => {
           </Card>
 
           {/* Performance Analysis Section */}
-          <Card>
+          <Card className="bg-neutral-50 border-none transition-all hover:none">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div>
                 <CardTitle className="text-xl">Performance Analysis</CardTitle>
@@ -3116,7 +2967,7 @@ const StockAnalysis = () => {
           </Card>
 
           {/* Financial Health Section */}
-          <Card>
+          <Card className="bg-neutral-50 border-none transition-all hover:none">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div>
                 <CardTitle className="text-xl">Financial Health</CardTitle>
@@ -3535,7 +3386,7 @@ const StockAnalysis = () => {
           </Card>
 
           {/* Valuation Analysis Section */}
-          <Card>
+          <Card className="bg-neutral-50 border-none transition-all hover:none">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div>
                 <CardTitle className="text-xl">Valuation Analysis</CardTitle>
@@ -3708,7 +3559,7 @@ const StockAnalysis = () => {
           </Card>
 
           {/* Technical Analysis Section */}
-          <Card>
+          <Card className="bg-neutral-50 border-none transition-all hover:none">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div>
                 <CardTitle className="text-xl">Technical Indicators</CardTitle>
@@ -4199,7 +4050,7 @@ const StockAnalysis = () => {
           </Card>
 
           {/* News and Sentiment Section */}
-          <Card>
+          <Card className="bg-neutral-50 border-none transition-all hover:none">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div>
                 <CardTitle className="text-xl">News & Sentiment</CardTitle>
@@ -4550,7 +4401,7 @@ const StockAnalysis = () => {
           </Card>
 
           {/* Risk Analysis Section */}
-          <Card>
+          <Card className="bg-neutral-50 border-none transition-all hover:none">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div>
                 <CardTitle className="text-xl">Risk Analysis</CardTitle>

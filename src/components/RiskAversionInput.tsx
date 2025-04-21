@@ -13,7 +13,7 @@ export const RiskAversionInput: React.FC<RiskAversionInputProps> = ({ value, onC
   return (
     <div className="space-y-4">
       <label className="block text-sm font-medium text-gray-700">
-        Risk Aversion (γ)
+
         <span className="ml-2 text-sm text-gray-500">
           Current: {value.toFixed(1)}
         </span>

@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { fetchHistoricalPrices, HistoricalPrice } from '@/utils/fmpFinanceUtils';
+import { fetchTimeSeries, TimeSeriesData } from '@/utils/twelveDataUtils';
 import { toast } from '@/hooks/use-toast';
 
 export interface StockPriceData {
-  data: HistoricalPrice[];
+  data: { date: string; close: number }[];
   loading: boolean;
   error: string | null;
 }
@@ -58,8 +58,20 @@ export const useStockPrices = (symbol: string | null, timeframe: string): StockP
             startDate.setFullYear(endDate.getFullYear() - 1); // Default to 1Y
         }
 
-        const priceData = await fetchHistoricalPrices(symbol, startDate, endDate);
-        setData(priceData);
+        const periodMap: Record<string, string> = {
+          '1D': '1day',
+          '1W': '1week',
+          '1M': '1month',
+          '3M': '3month',
+          '6M': '6month',
+          'YTD': 'ytd',
+          '1Y': '1year',
+          '5Y': 'max',
+        };
+        const period = periodMap[timeframe] || '1year';
+        const timeSeriesData: TimeSeriesData = await fetchTimeSeries(symbol, period);
+        setData(timeSeriesData.data);
+
       } catch (err) {
         console.error('Error fetching stock prices:', err);
         setError(err instanceof Error ? err.message : 'An unknown error occurred');

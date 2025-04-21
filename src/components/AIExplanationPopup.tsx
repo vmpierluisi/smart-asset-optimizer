@@ -8,6 +8,7 @@ import {
   DialogDescription,
   DialogClose 
 } from "@/components/ui/dialog";
+import { useSidebar } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -401,251 +402,252 @@ export function AIExplanationPopup({
   if (!isOpen) return null;
 
   // Determine position and size based on state
-  const getContainerStyles = () => {
+  // Overlay matches AnalysisSidebar fullscreen overlay (doesn't cover AppSidebar)
+const { state: appSidebarState } = useSidebar();
+const getContainerStyles = () => {
     if (isFullscreen) {
-      return {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        width: '100vw',
-        height: '100vh',
-        zIndex: 100,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)'
-      } as const;
-    }
-    
+    // Sidebar width: expanded = 16rem (256px), collapsed = 3rem (48px)
+    const sidebarWidth = appSidebarState === "expanded" ? "16rem" : "3rem";
+    return {
+      position: "fixed" as const,
+      top: 0,
+      left: sidebarWidth,
+      width: `calc(100vw - ${sidebarWidth})`,
+      height: "100vh",
+      zIndex: 50,
+      display: "flex",
+      alignItems: "stretch",
+      justifyContent: "center",
+      backgroundColor: "rgba(0, 0, 0, 0.5)",
+      transition: "left 0.3s cubic-bezier(0.4,0,0.2,1), width 0.3s cubic-bezier(0.4,0,0.2,1), background 0.2s",
+    };
+  } else {
     return {
       position: 'fixed',
       inset: 0,
       zIndex: 50,
       pointerEvents: 'none'
     } as const;
-  };
-  
-  const getContentStyles = () => {
-    if (isFullscreen) {
-      return {
-        x: 0,
-        y: 0,
-        position: 'relative',
-        width: '90vw',
-        maxWidth: '800px',
-        height: '80vh',
-        maxHeight: '80vh'
-      } as const;
-    }
-    
-    if (isMinimized) {
-      return {
-        x: position.x,
-        y: position.y,
-        position: 'fixed',
-        top: 'auto',
-        right: '90px', // Further increased right padding
-        left: 'auto',
-        bottom: '80px',
-        transform: 'none',
-        zIndex: 50
-      } as const;
-    }
-    
+  }
+};
+
+const getContentStyles = () => {
+  if (isFullscreen) {
+    return {
+      x: 0,
+      y: 0,
+      position: 'relative',
+      width: '100%',
+      maxWidth: '100%',
+      height: '100%',
+      maxHeight: '100%'
+    } as const;
+  }
+
+  if (isMinimized) {
     return {
       x: position.x,
       y: position.y,
       position: 'fixed',
-      bottom: '120px',
       top: 'auto',
-      right: '80px', // Further increased right padding
+      right: '90px', // Further increased right padding
       left: 'auto',
+      bottom: '80px',
       transform: 'none',
-      zIndex: 50,
-      maxWidth: '480px',
-      height: 'auto',
-      maxHeight: 'calc(100vh - 200px)',
-      paddingRight: '12px' // Add padding for scrollbar
+      zIndex: 50
     } as const;
-  };
+  }
 
-  return (
-    <div ref={dragConstraintsRef} style={getContainerStyles()}>
-      <motion.div
-        drag={!isFullscreen}
-        dragConstraints={dragConstraintsRef}
-        dragMomentum={false}
-        dragElastic={0}
-        dragTransition={{ power: 0, timeConstant: 0 }}
-        className="pointer-events-auto absolute"
-        initial={{ x: 0, y: 0 }}
-        animate={isFullscreen ? { x: 0, y: 0 } : { x: position.x, y: position.y }}
-        transition={{ 
-          type: "spring", 
-          stiffness: 300, 
-          damping: 30,
-          duration: 0.3
-        }}
-        style={getContentStyles()}
-        onDragEnd={(_, info) => {
-          if (!isFullscreen) {
-            setPosition({
-              x: position.x + info.offset.x,
-              y: position.y + info.offset.y
-            });
-          }
-        }}
-      >
-        {isMinimized ? (
-          <div className="bg-background rounded-full p-2 shadow-lg border cursor-pointer mr-1" onClick={handleMaximize}>
-            <div className="flex items-center gap-2 px-3 py-1">
-              <Cpu className="h-4 w-4" />
-              <span className="text-sm font-medium">{title} Chat</span>
-              <Expand className="h-4 w-4" />
-            </div>
+  return {
+    x: position.x,
+    y: position.y,
+    position: 'fixed',
+    bottom: '120px',
+    top: 'auto',
+    right: '80px', // Further increased right padding
+    left: 'auto',
+    transform: 'none',
+    zIndex: 50,
+    maxWidth: '480px',
+    height: 'auto',
+    maxHeight: 'calc(100vh - 200px)',
+    paddingRight: '12px' // Add padding for scrollbar
+  } as const;
+};
+
+return (
+  <div ref={dragConstraintsRef} style={getContainerStyles()}>
+    {/* Overlay and container logic now matches AnalysisSidebar fullscreen */}
+    <motion.div
+      drag={!isFullscreen}
+      dragConstraints={dragConstraintsRef}
+      dragMomentum={false}
+      dragElastic={0}
+      dragTransition={{ power: 0, timeConstant: 0 }}
+      className="pointer-events-auto absolute"
+      initial={{ x: 0, y: 0 }}
+      animate={isFullscreen ? { x: 0, y: 0 } : { x: position.x, y: position.y }}
+      transition={{ 
+        type: "spring", 
+        stiffness: 300, 
+        damping: 30,
+        duration: 0.3
+      }}
+      style={getContentStyles()}
+      onDragEnd={(_, info) => {
+        if (!isFullscreen) {
+          setPosition({
+            x: position.x + info.offset.x,
+            y: position.y + info.offset.y
+          });
+        }
+      }}
+    >
+      {isMinimized ? (
+        <div className="bg-background rounded-full p-2 shadow-lg border cursor-pointer mr-1" onClick={handleMaximize}>
+          <div className="flex items-center gap-2 px-3 py-1">
+            <Cpu className="h-4 w-4" />
+            <span className="text-sm font-medium">{title} Chat</span>
+            <Expand className="h-4 w-4" />
           </div>
-        ) : (
-          <div className={`bg-background border rounded-lg shadow-lg flex flex-col ${isFullscreen ? 'w-full h-full' : 'max-w-[500px] max-h-[80vh] flex flex-col mr-2'}`}>
-            <div className="flex items-center justify-between p-4 border-b">
-              <div className="flex items-center gap-2">
-                <Cpu className="h-5 w-5" />
-                <h3 className="text-lg font-semibold">{title} Explained</h3>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="icon" onClick={handleMinimize} className="h-8 w-8" title="Minimize">
-                  <ChevronsUp className="h-4 w-4" />
-                </Button>
-                {isFullscreen ? (
-                  <Button variant="ghost" size="icon" onClick={handleExitFullscreen} className="h-8 w-8" title="Exit Fullscreen">
-                    <Shrink className="h-4 w-4" />
-                  </Button>
-                ) : (
-                  <Button variant="ghost" size="icon" onClick={handleFullscreen} className="h-8 w-8" title="Fullscreen">
-                    <Expand className="h-4 w-4" />
-                  </Button>
-                )}
-                <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8" title="Close">
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
+        </div>
+      ) : (
+        <div className={
+          isFullscreen
+            ? "max-w-2xl mx-auto rounded-xl border bg-background/95 backdrop-blur-lg flex flex-col w-full h-full shadow-xl"
+            : "bg-background border rounded-lg shadow-lg flex flex-col max-w-[500px] max-h-[80vh] mr-2"
+        }>
+          <div className="flex items-center justify-between p-4 border-b">
+            <div className="flex items-center gap-2">
+              <Cpu className="h-5 w-5" />
+              <h3 className="text-lg font-semibold">{title} Explained</h3>
             </div>
-            
-            <div className={`p-4 space-y-3 ${isFullscreen ? 'flex-1 overflow-hidden flex flex-col' : 'flex-1 overflow-auto flex flex-col min-h-[400px]'}`}>
-              <p className="text-sm text-muted-foreground">
-                AI-powered explanation and insights about {title.toLowerCase()}. Ask follow-up questions for more details.
-                {Object.keys(availableSections).length > 0 && (
-                  <span> Use <span className="bg-muted px-1 rounded">@SectionName</span> to include specific sections.</span>
-                )}
-              </p>
-              
-              <ScrollArea className={`${isFullscreen ? 'flex-1' : 'h-[300px] min-h-[250px]'} pr-4`}>
-                <div className="space-y-4">
-                  {messages.map((message, index) => (
-                    <div 
-                      key={index} 
-                      className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div 
-                        className={`px-4 py-2 rounded-lg max-w-[80%] ${message.role === 'user' 
-                            ? 'bg-primary text-primary-foreground' 
-                            : 'bg-muted'
-                        } ${message.role === 'assistant' && message.content === '' && isLoading ? 'min-h-[3rem]' : ''}`}
-                      >
-                        {message.role === 'assistant' ? (
-                          message.content ? (
-                            <MarkdownRenderer content={message.content} />
-                          ) : isLoading ? (
-                            <div className="flex items-center h-4 space-x-1 ml-1">
-                              <span className="w-1.5 h-1.5 bg-current rounded-full animate-typing-dot-1"></span>
-                              <span className="w-1.5 h-1.5 bg-current rounded-full animate-typing-dot-2"></span>
-                              <span className="w-1.5 h-1.5 bg-current rounded-full animate-typing-dot-3"></span>
-                            </div>
-                          ) : null
-                        ) : (
-                          message.content
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  {messages.length === 0 && isLoading && (
-                    <div className="flex items-center justify-center h-full">
-                      <div className="flex items-center space-x-2">
-                        <span className="w-3 h-3 bg-primary rounded-full animate-typing-dot-1"></span>
-                        <span className="w-3 h-3 bg-primary rounded-full animate-typing-dot-2"></span>
-                        <span className="w-3 h-3 bg-primary rounded-full animate-typing-dot-3"></span>
-                      </div>
-                    </div>
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
-              </ScrollArea>
-              
-              {/* Selected tags */}
-              {selectedTags.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {selectedTags.map(tag => (
-                    <Badge key={tag.id} variant="outline" className="flex items-center gap-1 bg-muted">
-                      <Tag className="h-3 w-3" />
-                      {tag.name}
-                    </Badge>
-                  ))}
-                </div>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="icon" onClick={handleMinimize} className="h-8 w-8" title="Minimize">
+                <ChevronsUp className="h-4 w-4" />
+              </Button>
+              {isFullscreen ? (
+                <Button variant="ghost" size="icon" onClick={handleExitFullscreen} className="h-8 w-8" title="Exit Fullscreen">
+                  <Shrink className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button variant="ghost" size="icon" onClick={handleFullscreen} className="h-8 w-8" title="Fullscreen">
+                  <Expand className="h-4 w-4" />
+                </Button>
               )}
-              
-              <form onSubmit={handleSubmit} className="flex w-full gap-2 relative mt-auto">
-                <div className="relative flex-1">
-                  <Input
-                    ref={inputRef}
-                    value={input}
-                    onChange={handleInputChange}
-                    onKeyDown={handleKeyDown}
-                    onClick={handleInputClick}
-                    placeholder="Ask a follow-up question... Use @Section to reference other data"
-                    disabled={isLoading}
-                    className="flex-1"
-                  />
-                  
-                  {/* Tag suggestions dropdown */}
-                  {tagSuggestions.length > 0 && (
-                    <div className="absolute left-0 right-0 bottom-full mb-1 bg-background border rounded-md shadow-md z-50 max-h-[120px] overflow-y-auto">
-                      {tagSuggestions.map(tag => (
-                        <div 
-                          key={tag.id}
-                          className="px-3 py-2 hover:bg-muted cursor-pointer flex items-center gap-2"
-                          onClick={() => insertTag(tag)}
-                        >
-                          <Tag className="h-3 w-3" />
-                          <span>{tag.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                
-                <Button type="submit" size="icon" disabled={isLoading || !input.trim()}>
-                  {isLoading ? (
-                    <div className="flex items-center space-x-1">
-                      <span className="w-1 h-1 bg-background rounded-full animate-typing-dot-1"></span>
-                      <span className="w-1 h-1 bg-background rounded-full animate-typing-dot-2"></span>
-                      <span className="w-1 h-1 bg-background rounded-full animate-typing-dot-3"></span>
-                    </div>
-                  ) : (
-                    <Send className="h-4 w-4" />
-                  )}
-                </Button>
-              </form>
-            </div>
-            
-            <div className="text-xs text-muted-foreground text-center p-2 border-t">
-              <div className="flex justify-center items-center">
-                <span>Powered by Gemini 2.0 Flash via OpenRouter</span>
-              </div>
+              <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8" title="Close">
+                <X className="h-4 w-4" />
+              </Button>
             </div>
           </div>
-        )}
-      </motion.div>
-    </div>
-  );
-} 
+          <div className={`p-4 space-y-3 ${isFullscreen ? 'flex-1 overflow-hidden flex flex-col' : 'flex-1 overflow-auto flex flex-col min-h-[400px]'}`}>
+            <p className="text-sm text-muted-foreground">
+              AI-powered explanation and insights about {title.toLowerCase()}. Ask follow-up questions for more details.
+              {Object.keys(availableSections).length > 0 && (
+                <span> Use <span className="bg-muted px-1 rounded">@SectionName</span> to include specific sections.</span>
+              )}
+            </p>
+            <ScrollArea className={`${isFullscreen ? 'flex-1' : 'h-[300px] min-h-[250px]'} pr-4`}>
+              <div className="space-y-4">
+                {messages.map((message, index) => (
+                  <div
+                    key={index}
+                    className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`px-4 py-2 rounded-lg max-w-[80%] ${message.role === 'user'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted'
+                      } ${message.role === 'assistant' && message.content === '' && isLoading ? 'min-h-[3rem]' : ''}`}
+                    >
+                      {message.role === 'assistant' ? (
+                        message.content ? (
+                          <MarkdownRenderer content={message.content} />
+                        ) : isLoading ? (
+                          <div className="flex items-center h-4 space-x-1 ml-1">
+                            <span className="w-1.5 h-1.5 bg-current rounded-full animate-typing-dot-1"></span>
+                            <span className="w-1.5 h-1.5 bg-current rounded-full animate-typing-dot-2"></span>
+                            <span className="w-1.5 h-1.5 bg-current rounded-full animate-typing-dot-3"></span>
+                          </div>
+                        ) : null
+                      ) : (
+                        message.content
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {messages.length === 0 && isLoading && (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="flex items-center space-x-2">
+                      <span className="w-3 h-3 bg-primary rounded-full animate-typing-dot-1"></span>
+                      <span className="w-3 h-3 bg-primary rounded-full animate-typing-dot-2"></span>
+                      <span className="w-3 h-3 bg-primary rounded-full animate-typing-dot-3"></span>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+            </ScrollArea>
+            {/* Selected tags */}
+            {selectedTags.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {selectedTags.map(tag => (
+                  <Badge key={tag.id} variant="outline" className="flex items-center gap-1 bg-muted">
+                    <Tag className="h-3 w-3" />
+                    {tag.name}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            <form onSubmit={handleSubmit} className="flex w-full gap-2 relative mt-auto">
+              <div className="relative flex-1">
+                <Input
+                  ref={inputRef}
+                  value={input}
+                  onChange={handleInputChange}
+                  onKeyDown={handleKeyDown}
+                  onClick={handleInputClick}
+                  placeholder="Ask a follow-up question... Use @Section to reference other data"
+                  disabled={isLoading}
+                  className="flex-1"
+                />
+                {/* Tag suggestions dropdown */}
+                {tagSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 bottom-full mb-1 bg-background border rounded-md shadow-md z-50 max-h-[120px] overflow-y-auto">
+                    {tagSuggestions.map(tag => (
+                      <div
+                        key={tag.id}
+                        className="px-3 py-2 hover:bg-muted cursor-pointer flex items-center gap-2"
+                        onClick={() => insertTag(tag)}
+                      >
+                        <Tag className="h-3 w-3" />
+                        <span>{tag.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <Button type="submit" size="icon" disabled={isLoading || !input.trim()}>
+                {isLoading ? (
+                  <div className="flex items-center space-x-1">
+                    <span className="w-1 h-1 bg-background rounded-full animate-typing-dot-1"></span>
+                    <span className="w-1 h-1 bg-background rounded-full animate-typing-dot-2"></span>
+                    <span className="w-1 h-1 bg-background rounded-full animate-typing-dot-3"></span>
+                  </div>
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+              </Button>
+            </form>
+          </div>
+          <div className="text-xs text-muted-foreground text-center p-2 border-t">
+            <div className="flex justify-center items-center">
+              <span>Powered by Gemini 2.0 Flash via OpenRouter</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </motion.div>
+  </div>
+);
+}

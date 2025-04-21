@@ -84,9 +84,9 @@ export const StockInput: React.FC<StockInputProps> = ({ stocks, onChange }) => {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-1">
       <label className="block text-sm font-medium text-gray-700">
-        Enter Company Name or Stock Symbol
+
       </label>
       <div className="relative">
         <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">

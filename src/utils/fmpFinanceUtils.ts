@@ -48,10 +48,7 @@ export interface StockSuggestion {
   exchange: string;
 }
 
-export interface HistoricalPrice {
-  date: Date;
-  close: number;
-}
+
 
 export interface StockQuote {
   symbol: string;
@@ -70,32 +67,9 @@ export interface StockQuote {
   open?: number;
 }
 
-export interface StockPriceChanges {
-  symbol: string;
-  returns: {
-    period: string;
-    value: number;
-    direction: 'up' | 'down';
-  }[];
-  volatility?: number;
-  sharpeRatio?: number;
-  beta?: number;
-  alpha?: number;
-}
 
-export interface ValuationData {
-  peRatio: string;
-  forwardPE: string;
-  pegRatio: string;
-  priceToBook: string;
-  priceToSales: string;
-  evToEbitda: string;
-  dividendYield: string;
-  dividendGrowth5Y: string;
-  fairValueLow: number;
-  fairValueHigh: number;
-  eps: string;
-}
+
+
 
 // New Interfaces
 export interface FinancialHealthData {
@@ -176,14 +150,7 @@ export interface NewsItem {
   imageUrl?: string; // Banner image URL
 }
 
-export interface AnalystRatings {
-  strongBuy: number;
-  buy: number;
-  hold: number;
-  sell: number;
-  strongSell: number;
-  consensus: string;
-}
+
 
 export interface PriceTarget {
   targetHigh: number;
@@ -334,148 +301,6 @@ export const fetchStockQuote = async (symbol: string): Promise<StockQuote> => {
   } catch (error) {
     console.error('Error fetching stock quote with FMP API:', error);
     throw error;
-  }
-};
-
-// Fetch historical stock prices using the FMP API
-export const fetchHistoricalPrices = async (
-  symbol: string, 
-  startDate?: Date, 
-  endDate?: Date
-): Promise<HistoricalPrice[]> => {
-  try {
-    // Call the Supabase Edge Function that interfaces with FMP API
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('Supabase environment variables are missing');
-      throw new Error('Supabase environment variables are missing');
-    }
-    
-    const response = await fetch(`${supabaseUrl}/functions/v1/historical-prices`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({
-        symbol,
-        startDate: startDate ? startDate.toISOString() : undefined,
-        endDate: endDate ? endDate.toISOString() : undefined
-      }),
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`FMP API error: ${response.status} ${errorText}`);
-    }
-    
-    const data = await response.json();
-    
-    if (!data || !Array.isArray(data) || data.length === 0) {
-      throw new Error(`No data received for symbol ${symbol}`);
-    }
-    
-    // Process the data
-    return data.map((item: any) => ({
-      date: new Date(item.date),
-      close: parseFloat(item.close),
-    }));
-    
-  } catch (error) {
-    console.error('Error fetching historical prices with FMP API:', error);
-    throw error;
-  }
-};
-
-// Fetch historical stock price changes using the FMP API
-export const fetchStockPriceChanges = async (symbol: string): Promise<StockPriceChanges> => {
-  try {
-    // Call the Supabase Edge Function that interfaces with FMP API
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('Supabase environment variables are missing');
-      throw new Error('Supabase environment variables are missing');
-    }
-    
-    const response = await fetch(`${supabaseUrl}/functions/v1/stock-price-change`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({ symbol }),
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`FMP API error: ${response.status} ${errorText}`);
-    }
-    
-    const data = await response.json();
-    
-    if (!data || !data.returns || !Array.isArray(data.returns)) {
-      throw new Error(`Invalid price change data received for symbol ${symbol}`);
-    }
-    
-    return data as StockPriceChanges;
-    
-  } catch (error) {
-    console.error('Error fetching stock price changes with FMP API:', error);
-    throw error;
-  }
-};
-
-// Fetch valuation ratios using the FMP API
-export const fetchValuationRatios = async (symbol: string): Promise<ValuationData> => {
-  try {
-    // Call the Supabase Edge Function that interfaces with FMP API
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('Supabase environment variables are missing');
-      throw new Error('Supabase environment variables are missing');
-    }
-    
-    // Call the stock-ratios edge function
-    const response = await fetch(`${supabaseUrl}/functions/v1/stock-ratios`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({ symbol }),
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`FMP API error: ${response.status} ${errorText}`);
-    }
-    
-    const valuationData = await response.json();
-    return valuationData as ValuationData;
-    
-  } catch (error) {
-    console.error('Error fetching valuation ratios with FMP API:', error);
-    
-    // Return default/fallback values if API call fails
-    return {
-      peRatio: 'N/A',
-      forwardPE: 'N/A',
-      pegRatio: 'N/A',
-      priceToBook: 'N/A',
-      priceToSales: 'N/A',
-      evToEbitda: 'N/A',
-      dividendYield: '0.00',
-      dividendGrowth5Y: '0.00',
-      fairValueLow: 0,
-      fairValueHigh: 0,
-      eps: 'N/A'
-    };
   }
 };
 
@@ -782,6 +607,46 @@ export const fetchNewsSentiment = async (symbol: string): Promise<NewsSentimentD
 };
 
 // Fetch Risk Analysis Data
+import { fetchStockStatistics } from './twelveDataUtils';
+
+export const fetchValuationRatios = async (symbol: string): Promise<{
+  peRatio: string;
+  forwardPE: string;
+  pegRatio: string;
+  priceToSales: string;
+  priceToBook: string;
+  evToEbitda: string;
+  dividendYield: string;
+  dividendGrowth5Y: string;
+  fairValueLow: number;
+  fairValueHigh: number;
+  eps: string;
+} | null> => {
+  try {
+    const stats = await fetchStockStatistics(symbol);
+    if (!stats || !stats.statistics) return null;
+    const v = stats.statistics.valuations_metrics;
+    const d = stats.statistics.dividends_and_splits;
+    const f = stats.statistics.financials;
+    return {
+      peRatio: v?.trailing_pe?.toString() ?? 'N/A',
+      forwardPE: v?.forward_pe?.toString() ?? 'N/A',
+      pegRatio: v?.peg_ratio?.toString() ?? 'N/A',
+      priceToSales: v?.price_to_sales_ttm?.toString() ?? 'N/A',
+      priceToBook: v?.price_to_book_mrq?.toString() ?? 'N/A',
+      evToEbitda: v?.enterprise_to_ebitda?.toString() ?? 'N/A',
+      dividendYield: d?.forward_annual_dividend_yield?.toString() ?? 'N/A',
+      dividendGrowth5Y: d?.five_year_average_dividend_yield?.toString() ?? 'N/A',
+      fairValueLow: 0, // Not provided by stats, set to 0 or adjust as needed
+      fairValueHigh: 0, // Not provided by stats, set to 0 or adjust as needed
+      eps: f?.income_statement?.diluted_eps_ttm?.toString() ?? 'N/A',
+    };
+  } catch (error) {
+    console.error('Error fetching valuation ratios:', error);
+    return null;
+  }
+};
+
 export const fetchRiskAnalysis = async (symbol: string): Promise<RiskAnalysisData | null> => {
   try {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -847,41 +712,6 @@ export const fetchMacdData = async (symbol: string): Promise<MacdData | null> =>
 
   } catch (error) {
     console.error('Error fetching MACD data:', error);
-    return null;
-  }
-};
-
-// Fetch Analyst Ratings and Price Target data
-export const fetchAnalystRatings = async (symbol: string): Promise<AnalystRatings | null> => {
-  try {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('Supabase environment variables are missing');
-      return null; // Return null directly
-    }
-
-    const response = await fetch(`${supabaseUrl}/functions/v1/analyst-ratings`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({ symbol }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Error fetching analyst ratings for ${symbol}: ${response.status} ${errorText}`);
-      return null;
-    }
-
-    const data = await response.json();
-    return data as AnalystRatings;
-
-  } catch (error) {
-    console.error('Error fetching analyst ratings:', error);
     return null;
   }
 };

@@ -19,7 +19,7 @@ export const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
   // Calculate which preset is active based on the current start date
   const getActivePreset = (): string => {
     const end = new Date();
-    const diffMonths = Math.round((end.getTime() - value.start.getTime()) / (30 * 24 * 60 * 60 * 1000));
+    const diffMonths = Math.floor((end.getTime() - value.start.getTime()) / (30 * 24 * 60 * 60 * 1000));
     
     if (diffMonths <= 6) return "6m";
     if (diffMonths <= 12) return "1y";
@@ -72,7 +72,7 @@ export const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
     <div className="space-y-6">
       <div>
         <Label className="block text-sm font-medium text-gray-700 mb-2">
-          Select Date Range
+
         </Label>
         <ToggleGroup 
           type="single" 
