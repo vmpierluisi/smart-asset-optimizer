@@ -46,6 +46,7 @@ export function AIExplanationPopup({
   section,
   availableSections = {}
 }: AIExplanationPopupProps) {
+  // State management
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -55,46 +56,67 @@ export function AIExplanationPopup({
   const [tagSuggestions, setTagSuggestions] = useState<SectionTag[]>([]);
   const [selectedTags, setSelectedTags] = useState<SectionTag[]>([]);
   const [cursorPosition, setCursorPosition] = useState<number | null>(null);
+  
+  // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const dragConstraintsRef = useRef(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const hasInitializedRef = useRef<boolean>(false);
+  const hasAskedInitialQuestionRef = useRef<boolean>(false);
 
+  // Handle component initialization and cleanup
   useEffect(() => {
-    if (isOpen && messages.length === 0) {
-      abortControllerRef.current = new AbortController();
-      if (Object.keys(cardContext || {}).length > 0) {
-        handleInitialQuestion();
-      }
-    } else if (!isOpen) {
-      abortControllerRef.current?.abort();
-      abortControllerRef.current = null;
-      setIsLoading(false);
+    // Only initialize once when component mounts
+    if (!hasInitializedRef.current) {
+      hasInitializedRef.current = true;
     }
 
+    // Cleanup function runs when component unmounts
     return () => {
-      abortControllerRef.current?.abort();
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
     };
-  }, [isOpen, cardContext]);
+  }, []);
 
-  // Reset to fullscreen mode when opened
+  // Handle popup open/close state changes - simplified to prevent infinite loops
   useEffect(() => {
     if (isOpen) {
+      // When opening the popup
       setIsFullscreen(true);
       setIsMinimized(false);
+      
+      // Create new abort controller for API requests
+      if (!abortControllerRef.current) {
+        abortControllerRef.current = new AbortController();
+      }
+      
+      // NOTE: We've removed the automatic initial question feature to prevent infinite loops
+      
+    } else {
+      // When closing the popup
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      setIsLoading(false);
+      hasAskedInitialQuestionRef.current = false;
     }
-  }, [isOpen]);
+  }, [isOpen]); // Only depend on isOpen
 
+  // Scroll to bottom when messages change
   useEffect(() => {
-    if (messagesEndRef.current && !isMinimized) {
+    if (messagesEndRef.current && !isMinimized && messages.length > 0) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isMinimized]);
 
-  // Update tag suggestions when input changes
+  // Handle tag suggestions
   useEffect(() => {
-    // Check if input contains '@' character
-    if (!input || !cursorPosition) {
+    // Skip if no input or cursor position
+    if (!input || cursorPosition === null) {
       setTagSuggestions([]);
       return;
     }
@@ -302,10 +324,7 @@ export function AIExplanationPopup({
     }
   };
 
-  const handleInitialQuestion = async () => {
-    const initialQuestion = `Please explain the ${title.toLowerCase()} data and what it means.`;
-    await processStream(initialQuestion);
-  };
+  // Initial question is now handled directly in the useEffect
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -484,7 +503,7 @@ return (
       dragMomentum={false}
       dragElastic={0}
       dragTransition={{ power: 0, timeConstant: 0 }}
-      className="pointer-events-auto absolute"
+      className="pointer-events-auto absolute top-0 left-0 w-full"
       initial={{ x: 0, y: 0 }}
       animate={isFullscreen ? { x: 0, y: 0 } : { x: position.x, y: position.y }}
       transition={{ 
@@ -541,12 +560,6 @@ return (
             </div>
           </div>
           <div className={`p-4 space-y-3 ${isFullscreen ? 'flex-1 overflow-hidden flex flex-col' : 'flex-1 overflow-auto flex flex-col min-h-[400px]'}`}>
-            <p className="text-sm text-muted-foreground">
-              AI-powered explanation and insights about {title.toLowerCase()}. Ask follow-up questions for more details.
-              {Object.keys(availableSections).length > 0 && (
-                <span> Use <span className="bg-muted px-1 rounded">@SectionName</span> to include specific sections.</span>
-              )}
-            </p>
             <ScrollArea className={`${isFullscreen ? 'flex-1' : 'h-[300px] min-h-[250px]'} pr-4`}>
               <div className="space-y-4">
                 {messages.map((message, index) => (

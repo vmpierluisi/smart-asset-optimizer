@@ -5,7 +5,6 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
 import { RefreshCw } from 'lucide-react';
 import { formatCurrency, formatNumber, formatPercent } from '@/utils/formatters';
 

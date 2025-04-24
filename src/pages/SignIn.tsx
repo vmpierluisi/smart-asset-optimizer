@@ -38,7 +38,7 @@ export function SignIn() {
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-background p-4">
-      <Card className="w-full max-w-md">
+      <Card className="w-full max-w-md bg-neutral-50 rounded-lg border-0 shadow-none">
         <CardHeader>
           <CardTitle>Sign In</CardTitle>
           <CardDescription>
@@ -79,7 +79,11 @@ export function SignIn() {
                 </Button>
               </div>
             </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
+            <Button
+  type="submit"
+  className="w-full bg-accent text-accent-foreground hover:opacity-80 border border-input"
+  disabled={isLoading}
+>
               {isLoading ? "Loading..." : "Sign In"}
             </Button>
           </form>

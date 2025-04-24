@@ -24,16 +24,7 @@ const LandingPage = () => {
             <div className="md:w-1/2 mt-10 md:mt-0">
               <div className="relative">
                 <div className="absolute -inset-1 bg-gradient-to-r from-[#ffcccc] to-[#ff9999] rounded-lg blur opacity-25"></div>
-                <div className="relative bg-white p-6 rounded-lg shadow-lg">
-                  <img 
-                    src="/assets/dashboard-preview.svg" 
-                    alt="Dashboard Preview" 
-                    className="w-full rounded"
-                    onError={(e) => {
-                      e.currentTarget.src = "https://placehold.co/600x400/ff9999/white?text=Smart+Asset+Optimizer";
-                    }}
-                  />
-                </div>
+                
               </div>
             </div>
           </div>
@@ -156,14 +147,7 @@ const LandingPage = () => {
               <div className="relative">
                 <div className="absolute -inset-1 bg-gradient-to-r from-[#ffcccc] to-[#ff9999] rounded-lg blur opacity-25"></div>
                 <div className="relative bg-white rounded-lg shadow-lg">
-                  <img 
-                    src="/assets/portfolio-assessment.svg" 
-                    alt="Portfolio Assessment" 
-                    className="w-full rounded"
-                    onError={(e) => {
-                      e.currentTarget.src = "https://placehold.co/600x400/ff9999/white?text=Portfolio+Assessment";
-                    }}
-                  />
+
                 </div>
               </div>
             </div>

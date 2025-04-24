@@ -5,8 +5,7 @@ import {
   XAxis,
   YAxis,
   Tooltip,
-  ResponsiveContainer,
-  Legend
+  ResponsiveContainer
 } from 'recharts';
 import { HistoricalPrice } from '@/utils/fmpFinanceUtils';
 
@@ -162,14 +161,14 @@ export const PriceChart: React.FC<PriceChartProps> = ({
               strokeDasharray: '3 3'
             }}
           />
-          <Legend />
+          {/* Legend removed */}
           <Line
             type="monotone"
             dataKey="close"
             name="Price"
             stroke="#8884d8"
-            activeDot={{ r: 8 }}
             strokeWidth={2}
+            dot={false}
           />
         </LineChart>
       </ResponsiveContainer>

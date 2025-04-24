@@ -26,6 +26,11 @@ export default defineConfig(({ mode }) => ({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/analyze-portfolio/, ''),
       },
+      '/api/news-breaking': {
+        target: 'http://localhost:54321/functions/v1/news-breaking',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/news-breaking/, ''),
+      },
     },
   },
 }))

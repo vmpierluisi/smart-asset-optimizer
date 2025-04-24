@@ -7,12 +7,15 @@ import {
   CardTitle, 
   CardFooter
 } from "@/components/ui/card";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+
 import { cn } from "@/lib/utils";
 import { 
   ArrowDown, 
@@ -475,29 +478,66 @@ const StockAnalysis = () => {
   // Get RSI data for the selected stock using our custom hook
   const { rsi: polygonRsi, loading: rsiLoading, error: rsiError } = useRsi(selectedStock);
 
-  // Load watchlist from localStorage on initial render
+  // Import useAuth hook
+  const { user } = useAuth();
+
+  // Load watchlist from Supabase if user is logged in, otherwise from localStorage
   useEffect(() => {
-    const storedWatchlist = localStorage.getItem("stockWatchlist");
-    if (storedWatchlist) {
-      try {
-        const parsedWatchlist = JSON.parse(storedWatchlist);
-        if (Array.isArray(parsedWatchlist)) {
-          setWatchlist(parsedWatchlist);
-        } else {
-          console.error("Stored watchlist is not an array:", parsedWatchlist);
-          localStorage.removeItem("stockWatchlist"); // Clear invalid data
+    const loadWatchlist = async () => {
+      if (user) {
+        try {
+          // Fetch watchlist from Supabase
+          const { data, error } = await supabase
+            .from('watchlist')
+            .select('symbol, name')
+            .eq('user_id', user.id);
+
+          if (error) throw error;
+
+          if (data && Array.isArray(data)) {
+            setWatchlist(data);
+            // Also update localStorage for faster loading next time
+            localStorage.setItem("stockWatchlist", JSON.stringify(data));
+          }
+        } catch (error) {
+          console.error("Error fetching watchlist from Supabase:", error);
+          // Fall back to localStorage if Supabase fetch fails
+          loadFromLocalStorage();
         }
-      } catch (error) {
-        console.error("Error parsing watchlist from localStorage:", error);
-        localStorage.removeItem("stockWatchlist"); // Clear corrupted data
+      } else {
+        // If not logged in, load from localStorage
+        loadFromLocalStorage();
       }
-    }
-    
-    // Load recent visits from localStorage
+    };
+
+    const loadFromLocalStorage = () => {
+      const storedWatchlist = localStorage.getItem("stockWatchlist");
+      if (storedWatchlist) {
+        try {
+          const parsedWatchlist = JSON.parse(storedWatchlist);
+          if (Array.isArray(parsedWatchlist)) {
+            setWatchlist(parsedWatchlist);
+          } else {
+            console.error("Stored watchlist is not an array:", parsedWatchlist);
+            localStorage.removeItem("stockWatchlist"); // Clear invalid data
+          }
+        } catch (error) {
+          console.error("Error parsing watchlist from localStorage:", error);
+          localStorage.removeItem("stockWatchlist"); // Clear corrupted data
+        }
+      }
+    };
+
+    loadWatchlist();
+  }, [user]);
+  
+  // Load recent visits from localStorage
+  useEffect(() => {
     const storedRecentVisits = localStorage.getItem("stockRecentVisits");
     if (storedRecentVisits) {
       try {
         const parsedRecentVisits = JSON.parse(storedRecentVisits);
+
         if (Array.isArray(parsedRecentVisits)) {
           setRecentVisits(parsedRecentVisits);
         } else {
@@ -1527,32 +1567,73 @@ const StockAnalysis = () => {
   };
 
   // Toggle stock in watchlist
-  const toggleWatchlist = () => {
+  const toggleWatchlist = async () => {
     if (!selectedStock || !stockData) return; // Need stock data to get the name
+    if (!user) {
+      // If user is not logged in, show a toast notification
+      toast({
+        title: "Login Required",
+        description: "Please log in to save stocks to your watchlist.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     const stockName = stockData.name || selectedStock; // Fallback to symbol if name isn't loaded yet
 
-    let updatedWatchlist;
-    if (isInWatchlist) {
-      // Remove from watchlist
-      updatedWatchlist = watchlist.filter(item => item.symbol !== selectedStock);
+    try {
+      let updatedWatchlist;
+      if (isInWatchlist) {
+        // Remove from watchlist in Supabase
+        const { error } = await supabase
+          .from('watchlist')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('symbol', selectedStock);
+
+        if (error) throw error;
+        
+        // Update local state
+        updatedWatchlist = watchlist.filter(item => item.symbol !== selectedStock);
+        toast({
+          title: "Removed from Watchlist",
+          description: `${stockName} (${selectedStock}) removed.`,
+        });
+      } else {
+        // Add to watchlist in Supabase
+        const newItem = { 
+          user_id: user.id, 
+          symbol: selectedStock, 
+          name: stockName,
+          created_at: new Date().toISOString()
+        };
+        
+        const { error } = await supabase
+          .from('watchlist')
+          .insert(newItem);
+
+        if (error) throw error;
+        
+        // Update local state
+        const newWatchlistItem: WatchlistItem = { symbol: selectedStock, name: stockName };
+        updatedWatchlist = [...watchlist, newWatchlistItem];
+        toast({
+          title: "Added to Watchlist",
+          description: `${stockName} (${selectedStock}) added.`,
+        });
+      }
+
+      setWatchlist(updatedWatchlist);
+      // Also update localStorage as a backup and for faster loading
+      localStorage.setItem("stockWatchlist", JSON.stringify(updatedWatchlist));
+    } catch (error) {
+      console.error('Error updating watchlist:', error);
       toast({
-        title: "Removed from Watchlist",
-        description: `${stockName} (${selectedStock}) removed.`,
-      });
-    } else {
-      // Add to watchlist
-      const newItem: WatchlistItem = { symbol: selectedStock, name: stockName };
-      updatedWatchlist = [...watchlist, newItem];
-      toast({
-        title: "Added to Watchlist",
-        description: `${stockName} (${selectedStock}) added.`,
+        title: "Error",
+        description: "Failed to update your watchlist. Please try again.",
+        variant: "destructive"
       });
     }
-
-    setWatchlist(updatedWatchlist);
-    // Persist watchlist to localStorage
-    localStorage.setItem("stockWatchlist", JSON.stringify(updatedWatchlist));
   };
 
   // Toggle more stock details section
