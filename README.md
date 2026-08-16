@@ -1,69 +1,84 @@
-# Welcome to your Lovable project
+# Smart Asset Optimizer
 
-## Project info
+A full-stack investment-analysis web app: search any stock for a deep technical + fundamental breakdown, build and optimize a portfolio with modern-portfolio-theory math, and skim market news — with optional AI explanations of every metric.
 
-**URL**: https://lovable.dev/projects/92226cd8-7c9b-41ca-989c-3a85adb4fd98
+Built with React + TypeScript on the front end and Supabase (Postgres, Auth, Edge Functions) on the back end, consolidated onto a small, clean set of market-data providers.
 
-## How can I edit this code?
+> **Run it in 60 seconds with zero API keys** — the app ships with a built-in **mock mode** that serves realistic, deterministic fixture data, so you can explore every feature without a backend or provider account. See [Quick start](#quick-start).
 
-There are several ways of editing your application.
+## Features
 
-**Use Lovable**
+- **Stock Analysis** — real-time quote, candlestick/line price chart, and per-section analysis: moving averages (SMA/EMA 20/50/200), RSI, MACD with signal detection, valuation ratios, financial health, earnings history, analyst ratings, price targets, dividends, news sentiment, and a risk breakdown (beta, volatility, VaR, max drawdown).
+- **Portfolio Optimizer** — mean-variance optimization over a chosen basket of stocks (expected return, volatility, VaR/ES), computed client-side with `mathjs`.
+- **Market News** — market-wide and per-ticker news with sentiment.
+- **AI explanations** — an "explain this" popup on each analysis card streams a plain-English explanation of the metrics in context.
+- **Accounts** — email/password auth, a personal watchlist, and saved preferences, all protected by row-level security.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/92226cd8-7c9b-41ca-989c-3a85adb4fd98) and start prompting.
+## Architecture
 
-Changes made via Lovable will be committed automatically to this repo.
+```
+React (Vite) ──► useQuery hooks ──► invokeFunction()  ──►  Supabase Edge Functions  ──►  Data providers
+  UI + charts     (react-query      (one unified client   (Deno; one per endpoint)      • Twelve Data (market data,
+                   data layer)        wrapping                                             indicators, fundamentals)
+                                      supabase.functions)                                • Marketaux (news)
+                                                                                         • OpenRouter (AI)
+        │                                   │
+        └─ Mock mode short-circuits here ───┘   Supabase Postgres + Auth + RLS
+           (bundled fixtures, no network)       (user_profiles, user_preferences, watchlist)
+```
 
-**Use your preferred IDE**
+- **One API client.** Every backend call goes through `invokeFunction(name, body)` in [`src/lib/apiClient.ts`](src/lib/apiClient.ts), which wraps `supabase.functions.invoke`, centralizes auth/error handling, and transparently swaps in fixture data when mock mode is on.
+- **react-query as the data layer.** Feature sections read from lazy `useQuery` hooks ([`src/hooks/stock-analysis/queries.ts`](src/hooks/stock-analysis/queries.ts)); below-the-fold sections defer their fetch until scrolled into view, keeping request volume within provider rate limits.
+- **Provider consolidation.** Market data, technical indicators, and fundamentals come from **Twelve Data**; news from **Marketaux**; AI from **OpenRouter**. Edge functions live in [`supabase/functions/`](supabase/functions/).
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Tech stack
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+React 18 · TypeScript · Vite · Tailwind CSS · shadcn/ui · TanStack Query · Recharts / visx · mathjs · Supabase (Postgres, Auth, Edge Functions on Deno) · Vitest.
 
-Follow these steps:
+## Quick start
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+Requires Node.js 18+.
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
+npm install
+cp .env.example .env   # defaults to mock mode — no keys needed
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+Open http://localhost:8080. In mock mode you can browse everything immediately; protected pages (Optimizer, Stock Analysis, Market News) require an account, which you can create from the app.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Running against live data
 
-**Use GitHub Codespaces**
+1. Create a Supabase project and apply the migration in [`supabase/migrations/`](supabase/migrations/) (`user_profiles` + a `handle_new_user` trigger, `user_preferences`, `watchlist`, all with RLS).
+2. Deploy the edge functions in [`supabase/functions/`](supabase/functions/) and set the provider secrets:
+   ```bash
+   supabase secrets set TWELVE_DATA_API_KEY=… MARKETAUX_DATA_API_KEY=… OPENROUTER_API_KEY=…
+   ```
+3. In `.env`, set `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` to your project and `VITE_USE_LOCAL_STOCK_DATA=false`.
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+> Twelve Data's free tier is rate-limited (~8 req/min). The app lazy-loads sections to stay within it; a paid tier removes the constraint. Mock mode has no limits.
 
-## What technologies are used for this project?
+## Scripts
 
-This project is built with .
+| Command | Description |
+| --- | --- |
+| `npm run dev` | Start the dev server (port 8080) |
+| `npm run build` | Production build |
+| `npm test` | Run the Vitest unit suite |
+| `npm run typecheck` | Type-check without emitting |
+| `npm run lint` | ESLint |
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Project layout
 
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/92226cd8-7c9b-41ca-989c-3a85adb4fd98) and click on Share -> Publish.
-
-## I want to use a custom domain - is that possible?
-
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+```
+src/
+  lib/apiClient.ts        Unified edge-function client + mock-mode switch
+  mocks/                  Deterministic fixture generators for mock mode
+  hooks/stock-analysis/   Lazy react-query data hooks + visibility gating
+  utils/                  Provider-specific data transforms + indicator math
+  components/             UI (shadcn/ui based) + charts
+  pages/                  Routes (Stock Analysis, Optimizer, Market News, auth, …)
+supabase/
+  functions/              Deno edge functions (one per endpoint)
+  migrations/             Postgres schema + RLS
+```

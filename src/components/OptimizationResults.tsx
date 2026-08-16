@@ -10,12 +10,8 @@ import { localPoint } from '@visx/event';
 import { bisector } from 'd3-array';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import { useResizeObserver } from '../hooks/useResizeObserver';
-import { PortfolioAnalysis } from './PortfolioAnalysis';
 import { usePortfolioAnalysis } from '@/hooks/usePortfolioAnalysis';
-import { usePortfolioAnalysisParsed } from '@/hooks/usePortfolioAnalysisParsed';
-import { MarkdownRenderer } from '@/components/ui/MarkdownRenderer';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
 import { AIExplanationPopup } from '@/components/AIExplanationPopup';
 import { Cpu } from 'lucide-react';
 
@@ -70,7 +66,7 @@ const getBenchmarkName = (symbol: string): string => {
 const bisectDate = bisector<HistoricalData, Date>((d) => d.date).left;
 
 export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ results }) => {
-  const { analyzePortfolio, isAnalyzing, error } = usePortfolioAnalysis();
+  const { analyzePortfolio } = usePortfolioAnalysis();
   
   // AI Explanation Popup state
   const [showAIExplanation, setShowAIExplanation] = useState({
@@ -260,7 +256,7 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
                 left={margin.left} 
                 label="Portfolio Value ($K)"
                 labelOffset={40}
-                tickFormat={formatCurrencyK}
+                tickFormat={(value) => formatCurrencyK(Number(value))}
                 labelProps={{
                   fill: '#374151',
                   textAnchor: 'middle',
@@ -344,8 +340,8 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
               {tooltipData && (
                 <g>
                   <line
-                    x1={tooltipLeft}
-                    x2={tooltipLeft}
+                    x1={tooltipLeft ?? 0}
+                    x2={tooltipLeft ?? 0}
                     y1={margin.top}
                     y2={height - margin.bottom}
                     stroke="#374151"
@@ -354,8 +350,8 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
                     pointerEvents="none"
                   />
                   <circle
-                    cx={tooltipLeft}
-                    cy={tooltipTop}
+                    cx={tooltipLeft ?? 0}
+                    cy={tooltipTop ?? 0}
                     r={4}
                     fill="#059669"
                     stroke="white"
@@ -365,7 +361,7 @@ export const OptimizationResults: React.FC<OptimizationResultsProps> = ({ result
                   {results.benchmarkSymbols.map(symbol => (
                     <circle
                       key={symbol}
-                      cx={tooltipLeft}
+                      cx={tooltipLeft ?? 0}
                       cy={yScale(tooltipData.benchmarks[symbol])}
                       r={3}
                       fill={BENCHMARK_COLORS[symbol] || '#64748B'}

@@ -1,17 +1,6 @@
-import { Home, BarChart, LineChart, BarChart2, User } from "lucide-react";
+import { Home, BarChart, LineChart, BarChart2 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarTrigger,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  useSidebar,
-} from "@/components/ui/sidebar";
+import { Sidebar, SidebarContent, SidebarTrigger, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
 import { UserMenu, UserButton } from "./UserMenu";
 import { useAuth } from "@/lib/auth";
 

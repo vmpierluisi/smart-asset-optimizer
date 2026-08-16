@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchTimeSeries, TimeSeriesData } from '@/utils/twelveDataUtils';
+import { HistoricalPrice } from '@/utils/fmpFinanceUtils';
 import { toast } from '@/hooks/use-toast';
 
 export interface StockPriceData {

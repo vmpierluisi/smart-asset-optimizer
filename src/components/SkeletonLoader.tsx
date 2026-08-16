@@ -1,4 +1,3 @@
-import React from 'react';
 
 // Simple skeleton loader component
 const SkeletonLoader = ({ className = '', count = 1 }: { className?: string, count?: number }) => {

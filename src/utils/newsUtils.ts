@@ -1,51 +1,14 @@
-// Types for Marketaux API response
+/**
+ * Market-news data layer — consolidated onto a single provider (Marketaux)
+ * through the unified `invokeFunction` client. (Previously this mixed Marketaux
+ * for breaking/general news with Alpha Vantage for "market" news and hardcoded
+ * the old Supabase project URL.)
+ */
+import { invokeFunction } from '@/lib/apiClient';
+
 export interface MarketauxNewsResponse {
-  meta: {
-    found: number;
-    returned: number;
-    limit: number;
-    page: number;
-  };
+  meta: { found: number; returned: number; limit: number; page: number };
   data: NewsArticle[];
-}
-
-// Available industries for filtering general news
-export const AVAILABLE_INDUSTRIES = [
-  "Technology",
-  "Industrials",
-  "N/A",
-  "Consumer Cyclical",
-  "Healthcare",
-  "Communication Services",
-  "Financial Services",
-  "Consumer Defensive",
-  "Basic Materials",
-  "Real Estate",
-  "Energy",
-  "Utilities",
-  "Financial",
-  "Services",
-  "Consumer Goods",
-  "Industrial Goods"
-];
-
-export interface NewsArticle {
-  uuid: string;
-  title: string;
-  description: string;
-  keywords: string;
-  snippet: string;
-  url: string;
-  image_url: string;
-  language: string;
-  published_at: string;
-  source: string;
-  relevance_score: number | null;
-  entities: Entity[];
-  similar: any[];
-  // Extended properties for processed articles
-  formattedDate?: string;
-  overallSentiment?: number;
 }
 
 export interface Entity {
@@ -67,16 +30,32 @@ export interface Highlight {
   highlighted_in: string;
 }
 
-/**
- * Interface for articles after being processed by extractNewsData
- */
+export interface NewsArticle {
+  uuid: string;
+  title: string;
+  description: string;
+  keywords: string;
+  snippet: string;
+  url: string;
+  image_url: string;
+  language: string;
+  published_at: string;
+  source: string;
+  relevance_score: number | null;
+  entities: Entity[];
+  similar: unknown[];
+  formattedDate?: string;
+  overallSentiment?: number;
+}
+
+/** Article shape consumed by the news UI. */
 export interface ProcessedNewsArticle {
   id: string;
   title: string;
   description: string;
   snippet: string;
   url: string;
-  imageUrl: string; // camelCase version of image_url
+  imageUrl: string;
   publishedAt: Date;
   source: string;
   formattedDate: string;
@@ -89,105 +68,57 @@ export interface ProcessedNewsArticle {
   } | null;
 }
 
-/**
- * Fetches breaking news from the Supabase Edge Function
- */
+/** Industries available for filtering general news. */
+export const AVAILABLE_INDUSTRIES = [
+  'Technology', 'Industrials', 'N/A', 'Consumer Cyclical', 'Healthcare',
+  'Communication Services', 'Financial Services', 'Consumer Defensive',
+  'Basic Materials', 'Real Estate', 'Energy', 'Utilities', 'Financial',
+  'Services', 'Consumer Goods', 'Industrial Goods',
+];
+
+// --- fetchers (all Marketaux via invokeFunction) ---------------------------
+
 export async function fetchBreakingNews(): Promise<MarketauxNewsResponse | null> {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-    
-    const response = await fetch('https://hymucchmkpgemxcxngpe.supabase.co/functions/v1/news-breaking', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-      },
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Error response from news API: ${response.status}`, errorText);
-      // Don't throw, just return null to prevent infinite loops
-      return null;
-    }
-    
-    const data = await response.json();
-    return data as MarketauxNewsResponse;
+    return await invokeFunction<MarketauxNewsResponse>('news-breaking', {});
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      console.error('Request timed out after 10 seconds');
-    } else {
-      console.error('Failed to fetch breaking news:', error);
-    }
+    console.error('Failed to fetch breaking news:', error);
     return null;
   }
 }
 
-/**
- * Fetches general news from the Supabase Edge Function
- * @param options Optional parameters for filtering news
- */
 export async function fetchGeneralNews(options?: {
   symbol?: string;
   sortBy?: 'relevance' | 'sentiment' | 'date';
   industries?: string[];
 }): Promise<MarketauxNewsResponse | null> {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-    
-    const response = await fetch('https://hymucchmkpgemxcxngpe.supabase.co/functions/v1/news-general', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-      },
-      body: JSON.stringify({
-        symbol: options?.symbol || '',
-        sortBy: options?.sortBy || 'date',
-        industries: options?.industries || AVAILABLE_INDUSTRIES
-      }),
-      signal: controller.signal
+    return await invokeFunction<MarketauxNewsResponse>('news-general', {
+      symbol: options?.symbol || '',
+      sortBy: options?.sortBy || 'date',
+      industries: options?.industries || AVAILABLE_INDUSTRIES,
     });
-    
-    clearTimeout(timeoutId);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Error response from general news API: ${response.status}`, errorText);
-      // Don't throw, just return null to prevent infinite loops
-      return null;
-    }
-    
-    const data = await response.json();
-    return data as MarketauxNewsResponse;
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      console.error('Request timed out after 10 seconds');
-    } else {
-      console.error('Failed to fetch general news:', error);
-    }
+    console.error('Failed to fetch general news:', error);
     return null;
   }
 }
 
-/**
- * Extracts relevant information from news articles
- * @returns Array of ProcessedNewsArticle
- */
-export function extractNewsData(newsResponse: MarketauxNewsResponse | null): ProcessedNewsArticle[] {
-  if (!newsResponse || !newsResponse.data || newsResponse.data.length === 0) {
-    return [];
-  }
-  
+export async function fetchMarketNews(): Promise<MarketauxNewsResponse | null> {
   try {
-    return newsResponse.data.map(article => ({
+    return await invokeFunction<MarketauxNewsResponse>('news-market', {});
+  } catch (error) {
+    console.error('Failed to fetch market news:', error);
+    return null;
+  }
+}
+
+// --- processing / helpers --------------------------------------------------
+
+export function extractNewsData(newsResponse: MarketauxNewsResponse | null): ProcessedNewsArticle[] {
+  if (!newsResponse?.data?.length) return [];
+  try {
+    return newsResponse.data.map((article) => ({
       id: article.uuid,
       title: article.title,
       description: article.description,
@@ -197,14 +128,15 @@ export function extractNewsData(newsResponse: MarketauxNewsResponse | null): Pro
       publishedAt: new Date(article.published_at),
       source: article.source,
       formattedDate: article.formattedDate || formatPublishedDate(article.published_at),
-      overallSentiment: article.overallSentiment || 0,
-      // Extract the main entity if available
-      mainEntity: article.entities && article.entities.length > 0 ? {
-        symbol: article.entities[0].symbol,
-        name: article.entities[0].name,
-        type: article.entities[0].type,
-        sentimentScore: article.entities[0].sentiment_score
-      } : null
+      overallSentiment: article.overallSentiment ?? article.entities?.[0]?.sentiment_score ?? 0,
+      mainEntity: article.entities?.length
+        ? {
+            symbol: article.entities[0].symbol,
+            name: article.entities[0].name,
+            type: article.entities[0].type,
+            sentimentScore: article.entities[0].sentiment_score,
+          }
+        : null,
     }));
   } catch (error) {
     console.error('Error processing news data:', error);
@@ -212,41 +144,24 @@ export function extractNewsData(newsResponse: MarketauxNewsResponse | null): Pro
   }
 }
 
-/**
- * Returns the average overallSentiment from an array of news articles
- */
+/** Average `overallSentiment` across a set of articles. */
 export function getAverageMarketSentiment(articles: { overallSentiment?: number }[]): number {
-  if (!articles || articles.length === 0) return 0;
-  const sentiments = articles.map(a => typeof a.overallSentiment === 'number' ? a.overallSentiment : 0);
-  const avg = sentiments.reduce((sum, s) => sum + s, 0) / sentiments.length;
-  return Number(avg.toFixed(3));
+  if (!articles?.length) return 0;
+  const sum = articles.reduce((acc, a) => acc + (typeof a.overallSentiment === 'number' ? a.overallSentiment : 0), 0);
+  return Number((sum / articles.length).toFixed(3));
 }
 
-/**
- * Converts a sentiment score from -1 to 1 scale to 0-100 scale for UI display
- */
+/** Convert a sentiment score from [-1, 1] to a 0–100 display scale. */
 export function convertSentimentToDisplayScale(sentiment: number): number {
-  // Convert from [-1, 1] to [0, 100]
   return Math.round((sentiment + 1) * 50);
 }
 
-/**
- * Formats the published date to a readable format
- */
 export function formatPublishedDate(dateString: string): string {
-  const date = new Date(dateString);
   return new Intl.DateTimeFormat('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(date);
+    year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+  }).format(new Date(dateString));
 }
 
-/**
- * Gets sentiment classification based on sentiment score
- */
 export function getSentimentClass(score: number | null): 'positive' | 'negative' | 'neutral' {
   if (score === null) return 'neutral';
   if (score > 0.2) return 'positive';
@@ -254,23 +169,25 @@ export function getSentimentClass(score: number | null): 'positive' | 'negative'
   return 'neutral';
 }
 
-/**
- * Fetches and processes the breaking news data
- */
-export async function getProcessedBreakingNews() {
-  const newsResponse = await fetchBreakingNews();
-  return extractNewsData(newsResponse);
+// --- fetch + process convenience wrappers ----------------------------------
+
+export async function getProcessedBreakingNews(): Promise<ProcessedNewsArticle[]> {
+  return extractNewsData(await fetchBreakingNews());
 }
 
-/**
- * Fetches and processes the general news data
- * @param options Optional parameters for filtering news
- */
 export async function getProcessedGeneralNews(options?: {
   symbol?: string;
   sortBy?: 'relevance' | 'sentiment' | 'date';
   industries?: string[];
-}) {
-  const newsResponse = await fetchGeneralNews(options);
-  return extractNewsData(newsResponse);
+}): Promise<ProcessedNewsArticle[]> {
+  return extractNewsData(await fetchGeneralNews(options));
+}
+
+export async function getProcessedMarketNews(): Promise<ProcessedNewsArticle[]> {
+  return extractNewsData(await fetchMarketNews());
+}
+
+/** Alias kept for the market-news carousel. */
+export async function getProcessedMarketTrendNews(): Promise<ProcessedNewsArticle[]> {
+  return extractNewsData(await fetchMarketNews());
 }

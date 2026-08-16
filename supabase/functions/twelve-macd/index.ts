@@ -77,7 +77,7 @@ serve(async (req) => {
     
     // Calculate date range: today and historical period based on timeframe
     const endDate = end_date ? new Date(end_date) : new Date();
-    let startDate = new Date(endDate);
+    const startDate = new Date(endDate);
     
     // Set start_date based on timeframe (3M, 6M, or 1Y)
     switch (timeframe) {

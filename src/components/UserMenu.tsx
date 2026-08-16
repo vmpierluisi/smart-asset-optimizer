@@ -1,12 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import { User, LogOut, Settings } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
+import { SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
 
 export function UserMenu() {
-  const { user, signOut } = useAuth();
+  const { signOut } = useAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {

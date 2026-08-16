@@ -1,4 +1,3 @@
-import React from 'react';
 import { LineChart } from 'lucide-react';
 
 // Mock chart component - useful as a placeholder

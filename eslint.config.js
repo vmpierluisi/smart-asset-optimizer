@@ -23,7 +23,20 @@ export default tseslint.config(
         "warn",
         { allowConstantExport: true },
       ],
+      // Unused vars are enforced by tsc (noUnusedLocals) instead.
       "@typescript-eslint/no-unused-vars": "off",
+      // `any` is discouraged but sometimes pragmatic (dynamic API payloads,
+      // chart libs); surface it as a warning rather than a hard error.
+      "@typescript-eslint/no-explicit-any": "warn",
+      "react-hooks/exhaustive-deps": "warn",
+    },
+  },
+  {
+    // shadcn/ui is generated boilerplate we don't hand-maintain.
+    files: ["src/components/ui/**/*.{ts,tsx}"],
+    rules: {
+      "@typescript-eslint/no-empty-object-type": "off",
+      "react-refresh/only-export-components": "off",
     },
   }
 );

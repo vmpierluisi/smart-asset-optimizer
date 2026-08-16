@@ -1,4 +1,3 @@
-import React from 'react';
 import PriceRangeGauge from './PriceRangeGauge'; // Import the base gauge
 
 interface WeekRangeGaugeProps {

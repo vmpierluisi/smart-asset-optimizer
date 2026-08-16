@@ -1,16 +1,5 @@
 import React from 'react';
-import {
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  BarChart,
-  Bar,
-  ComposedChart,
-  Area,
-  ReferenceLine
-} from 'recharts';
+import { XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, ComposedChart } from 'recharts';
 import { TimeSeriesData } from '@/utils/twelveDataUtils';
 
 interface CandlestickProps {
@@ -47,8 +36,8 @@ const CandlestickChart: React.FC<CandlestickProps> = ({
     }));
 
     // Calculate min and max values for Y-axis with more padding
-    const minValue = Math.min(...chartData.map(item => item.low));
-    const maxValue = Math.max(...chartData.map(item => item.high));
+    const minValue = Math.min(...chartData.map((item: any) => item.low));
+    const maxValue = Math.max(...chartData.map((item: any) => item.high));
 
     // Add 5% padding to the top and bottom of the range
     const range = maxValue - minValue;
@@ -57,11 +46,6 @@ const CandlestickChart: React.FC<CandlestickProps> = ({
     const yAxisMax = maxValue + padding;
 
     console.log("Price range:", { minValue, maxValue, yAxisMin, yAxisMax }); // For debugging
-
-    // Create a custom domain function to define the Y-axis range
-    const getAxisDomain = () => {
-      return [yAxisMin, yAxisMax];
-    };
 
     // Determine appropriate date format based on timeframe
     const getDateFormat = () => {
@@ -215,12 +199,12 @@ const CandlestickChart: React.FC<CandlestickProps> = ({
               type="number"
               tick={{ fontSize: 14 }}
               domain={[
-                (dataMin) => {
+                (dataMin: number) => {
                   // Find the minimum of low values
-                  const minPrice = Math.min(...chartData.map(item => item.low));
+                  const minPrice = Math.min(...chartData.map((item: any) => item.low));
                   
                   // Calculate a percentage-based buffer based on price range
-                  const maxPrice = Math.max(...chartData.map(item => item.high));
+                  const maxPrice = Math.max(...chartData.map((item: any) => item.high));
                   const priceRange = maxPrice - minPrice;
                   
                   // For very narrow price ranges, use a minimum range of 1% of price
@@ -230,12 +214,12 @@ const CandlestickChart: React.FC<CandlestickProps> = ({
                   // Calculate a nice round number below the minimum with buffer
                   return Math.floor((minPrice - buffer) * 20) / 20; // Round down to nearest 0.05
                 }, 
-                (dataMax) => {
+                (dataMax: number) => {
                   // Find the maximum of high values
-                  const maxPrice = Math.max(...chartData.map(item => item.high));
+                  const maxPrice = Math.max(...chartData.map((item: any) => item.high));
                   
                   // Calculate a percentage-based buffer based on price range
-                  const minPrice = Math.min(...chartData.map(item => item.low));
+                  const minPrice = Math.min(...chartData.map((item: any) => item.low));
                   const priceRange = maxPrice - minPrice;
                   
                   // For very narrow price ranges, use a minimum range of 1% of price
@@ -348,9 +332,9 @@ const CandlestickChart: React.FC<CandlestickProps> = ({
               width={60}
               domain={[
                 0, 
-                (dataMax) => {
+                (dataMax: number) => {
                   // Find the maximum volume
-                  const maxVolume = Math.max(...chartData.map(item => item.volume));
+                  const maxVolume = Math.max(...chartData.map((item: any) => item.volume));
                   // Add 20% buffer on top
                   return maxVolume * 1.2;
                 }

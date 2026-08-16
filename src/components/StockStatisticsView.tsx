@@ -1,7 +1,6 @@
 import React from 'react';
 import { useStockStatistics } from '@/hooks/useStockStatistics';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
