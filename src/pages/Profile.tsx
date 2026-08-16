@@ -1,4 +1,3 @@
-import { useAuth } from "@/lib/auth";
 import { useState, useEffect } from "react";
 import { fetchStockQuote, StockQuote } from "@/utils/fmpFinanceUtils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,7 +18,6 @@ interface WatchlistDetail extends WatchlistItem {
 }
 
 export default function Profile() {
-  const { user } = useAuth();
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [watchlistDetails, setWatchlistDetails] = useState<WatchlistDetail[]>([]);
 

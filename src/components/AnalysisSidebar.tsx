@@ -1,18 +1,11 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { StockInput } from './StockInput';
 import { DateRangeSelector } from './DateRangeSelector';
 import { PortfolioValueInput } from './PortfolioValueInput';
 import { RiskAversionInput } from './RiskAversionInput';
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  useSidebar,
-} from "@/components/ui/sidebar";
+import { useSidebar } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, SlidersHorizontal, Calendar, DollarSign, Target } from "lucide-react";
+import { ArrowLeft, SlidersHorizontal, Calendar, DollarSign, Target } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface AnalysisSidebarProps {
@@ -67,11 +60,6 @@ export function AnalysisSidebar({
   const handleExitFullscreen = () => {
     setIsFullscreen(false);
     setIsExpanded(true);
-    setIsMinimized(false);
-  };
-  const toggleSidebar = () => {
-    setIsExpanded((prev) => !prev);
-    setIsFullscreen(false);
     setIsMinimized(false);
   };
   const expandSidebar = () => {

@@ -1,18 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogFooter,
-  DialogDescription,
-  DialogClose 
-} from "@/components/ui/dialog";
 import { useSidebar } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Cpu, Send, ChevronRight, Minimize, Maximize, X, Tag, Square, Expand, Shrink, ChevronsUp } from "lucide-react";
+import { Cpu, Send, X, Tag, Expand, Shrink, ChevronsUp } from "lucide-react";
 import { sendAIRequest } from '@/utils/aiApiClient';
 import { Badge } from "@/components/ui/badge";
 import { MarkdownRenderer } from "@/components/ui/MarkdownRenderer";
@@ -56,7 +47,8 @@ export function AIExplanationPopup({
   const [tagSuggestions, setTagSuggestions] = useState<SectionTag[]>([]);
   const [selectedTags, setSelectedTags] = useState<SectionTag[]>([]);
   const [cursorPosition, setCursorPosition] = useState<number | null>(null);
-  
+  const { state: appSidebarState } = useSidebar();
+
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -153,25 +145,20 @@ export function AIExplanationPopup({
     setSelectedTags([]);
 
     // Extract tags from content and collect additional context
-    const additionalContext = {};
+    const additionalContext: Record<string, unknown> = {};
     
     // Extract all @tags from user content
     const tagMatches = userContent.match(/@(\w+)/g);
     if (tagMatches) {
-      console.log('Found tag matches:', tagMatches);
       tagMatches.forEach(tagMatch => {
         const tagName = tagMatch.substring(1); // Remove the @ symbol
-        console.log('Looking for section with name:', tagName);
         const section = Object.values(availableSections).find(
           s => s.name.toLowerCase() === tagName.toLowerCase()
         );
         
         if (section) {
-          console.log('Found matching section:', section.id);
           // Add the section's context to the additional context
           additionalContext[section.id] = section.getContext();
-        } else {
-          console.log('No matching section found for tag:', tagName);
         }
       });
     }
@@ -186,15 +173,12 @@ export function AIExplanationPopup({
         taggedSections: Object.keys(additionalContext)
       };
       
-      console.log('Sending expanded context to API:', expandedContext);
-      console.log('Tagged sections:', Object.keys(additionalContext));
       
       const response = await sendAIRequest({ 
         messages: apiMessages,
         cardContext: expandedContext
       });
 
-      console.log('API response received:', response.status, response.statusText);
       
       if (!response.body) {
         throw new Error('Response body is null');
@@ -205,13 +189,11 @@ export function AIExplanationPopup({
       const decoder = new TextDecoder();
       let accumulatedContent = '';
       
-      console.log('Starting to read response stream');
 
       // Create a loop that processes one chunk at a time
       while (true) {
         // Check if we need to abort
         if (abortControllerRef.current?.signal.aborted) {
-          console.log('Stream reading aborted.');
           reader.cancel();
           break;
         }
@@ -221,13 +203,11 @@ export function AIExplanationPopup({
         
         // If we're done, exit the loop
         if (done) {
-          console.log('Stream reading completed');
           break;
         }
         
         // Decode the chunk
         const chunk = decoder.decode(value, { stream: true });
-        console.log('Received chunk:', chunk);
         
         try {
           // Process the chunk - split by newlines and look for data: lines
@@ -243,7 +223,6 @@ export function AIExplanationPopup({
               
               // Handle the [DONE] signal
               if (content === '[DONE]') {
-                console.log('Received [DONE] signal');
                 continue;
               }
               
@@ -271,8 +250,6 @@ export function AIExplanationPopup({
               } catch (e) {
                 console.error('Error parsing JSON:', e, 'Line:', content);
               }
-            } else {
-              console.log('Unexpected line format:', line);
             }
           }
         } catch (e) {
@@ -422,7 +399,6 @@ export function AIExplanationPopup({
 
   // Determine position and size based on state
   // Overlay matches AnalysisSidebar fullscreen overlay (doesn't cover AppSidebar)
-const { state: appSidebarState } = useSidebar();
 const getContainerStyles = () => {
     if (isFullscreen) {
     // Sidebar width: expanded = 16rem (256px), collapsed = 3rem (48px)

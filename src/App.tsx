@@ -11,18 +11,14 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <div className="flex h-screen w-screen overflow-hidden">
-        <SidebarProvider>
+      <SidebarProvider>
+        <div className="flex h-screen w-full overflow-hidden">
           <AppSidebar />
-          <main className="flex-1 w-full h-full overflow-hidden">
-            <div className="flex w-screen h-screen overflow-auto">
-              <div className="flex-1 h-full w-full mx-auto pr-10">
-                <Outlet />
-              </div>
-            </div>
+          <main className="flex-1 h-full overflow-y-auto">
+            <Outlet />
           </main>
-        </SidebarProvider>
-      </div>
+        </div>
+      </SidebarProvider>
       <Toaster />
       <Sonner />
     </TooltipProvider>

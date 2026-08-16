@@ -31,7 +31,7 @@ export const DateRangeSelector: React.FC<DateRangeSelectorProps> = ({
 
   const handlePresetChange = (preset: string) => {
     const end = new Date();
-    let start = new Date();
+    const start = new Date();
     
     switch (preset) {
       case "6m":

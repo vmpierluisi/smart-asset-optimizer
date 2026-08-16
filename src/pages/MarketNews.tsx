@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { getProcessedBreakingNews, getProcessedGeneralNews, ProcessedNewsArticle, Entity, getAverageMarketSentiment, convertSentimentToDisplayScale, AVAILABLE_INDUSTRIES } from "@/utils/newsUtils";
+import { useState, useEffect, useCallback } from "react";
+import { getProcessedBreakingNews, ProcessedNewsArticle, getAverageMarketSentiment, convertSentimentToDisplayScale } from "@/utils/newsUtils";
 import { 
   Card, 
   CardContent, 
@@ -13,7 +13,6 @@ import {
   ArrowUp, 
   BarChart, 
   Clock, 
-  Coffee, 
   DollarSign, 
   Flame, 
   Info, 
@@ -23,11 +22,9 @@ import {
   TrendingUp 
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import GaugeChart from "@/components/GaugeChart";
 import { Separator } from "@/components/ui/separator";
-import "keen-slider/keen-slider.min.css";
-import { useKeenSlider } from "keen-slider/react";
+import MarketNewsCarousel from "@/components/MarketNewsCarousel";
 
 const MarketNews = () => {
   const [newsArticles, setNewsArticles] = useState<ProcessedNewsArticle[]>([]);
@@ -140,7 +137,6 @@ const MarketNews = () => {
           (now - breakingNewsCache.timestamp) < CACHE_DURATION && 
           breakingNewsCache.articles.length > 0) {
         
-        console.log('Using cached breaking news');
         setHeadlines(breakingNewsCache.headlines);
         setNewsArticles(breakingNewsCache.articles);
         setLastUpdated(new Date(breakingNewsCache.timestamp).toLocaleString());
@@ -154,7 +150,6 @@ const MarketNews = () => {
         if (!processedNews || processedNews.length === 0) {
           // If no news but we have cache, use it as fallback
           if (breakingNewsCache) {
-            console.log('No new breaking news, using cached data');
             setHeadlines(breakingNewsCache.headlines);
             setNewsArticles(breakingNewsCache.articles);
             setLastUpdated(new Date(breakingNewsCache.timestamp).toLocaleString());
@@ -192,7 +187,6 @@ const MarketNews = () => {
         
         // If API call fails but we have cache, use it as fallback
         if (breakingNewsCache) {
-          console.log('API error, using cached breaking news');
           setHeadlines(breakingNewsCache.headlines);
           setNewsArticles(breakingNewsCache.articles);
           setNewsError("Unable to refresh news (rate limit). Showing cached content.");
@@ -243,24 +237,13 @@ const MarketNews = () => {
       setLastUpdated(new Date(lastUpdatedStr).toLocaleString());
     }
   }, [getBreakingNews]);
-  
-  // Function to check if we should refresh based on time (for manual checks)
-  const shouldRefreshNews = useCallback(() => {
-    const lastUpdatedStr = localStorage.getItem('newsLastUpdated');
-    
-    if (!lastUpdatedStr) return true;
-    
-    const lastUpdatedTime = new Date(lastUpdatedStr).getTime();
-    const currentTime = new Date().getTime();
-    const sixHoursInMs = 6 * 60 * 60 * 1000;
-    
-    return currentTime - lastUpdatedTime > sixHoursInMs;
-  }, []);
 
-  // Initialize news data on component mount
+  // Initialize news data once on mount. loadHeadlines is intentionally omitted:
+  // it depends on the cache it also sets, so including it causes a fetch loop.
   useEffect(() => {
     loadHeadlines();
-  }, [loadHeadlines]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   // Save breaking news cache to localStorage when it changes
   useEffect(() => {
@@ -456,10 +439,8 @@ const MarketNews = () => {
 
       {/* Keen-slider Carousel for Blank Cards */}
       <div className="w-full py-1">
-        <CarouselBlankCards />
+        <MarketNewsCarousel />
       </div>
-
-
 
       {/* Asset Performance Dashboard */}
       <Card className="w-full overflow-hidden bg-neutral-50 border-0 shadow-none">
@@ -523,399 +504,6 @@ const MarketNews = () => {
     </div>
   );
 };
-const CarouselBlankCards = () => {
-  const [newsArticles, setNewsArticles] = useState<ProcessedNewsArticle[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string>("");
-  const numDots = 3; // Limit to 3 cards based on API limit
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const sliderDomRef = React.useRef<HTMLDivElement | null>(null);
-  
-  // Filter state
-  const [selectedIndustry, setSelectedIndustry] = useState<string | null>(null);
-  
-  // Filter out "N/A" industry and create a filtered list of industries for badges
-  const filteredIndustries = AVAILABLE_INDUSTRIES.filter(industry => industry !== "N/A");
-  
-  // Cache for news articles by industry to reduce API calls
-  const [newsCache, setNewsCache] = useState<Record<string, { articles: ProcessedNewsArticle[], timestamp: number }>>({});
-  const [sliderRef, instanceRef] = useKeenSlider<HTMLDivElement>({
-    // When the slider is created, mark it as loaded
-    created() {
-      console.log("Slider created");
-    },
-    loop: true,
-    slides: {
-      perView: 'auto',
-      spacing: 40,
-    },
-    drag: {
-      rubberband: false,  // Disable rubberband effect for smoother scrolling
-    },
-    mode: "snap",  // Ensure it snaps to slides for better UX
-    renderMode: "performance",  // Prioritize performance
-    dragSpeed: 0.5,  // Reduce drag speed to make carousel less responsive
-    slideChanged(slider) {
-      setCurrentSlide(slider.track.details.rel);
-    },
-  });
-
-  // Fetch news articles on component mount
-  // Fetch news articles based on selected industry with caching
-  useEffect(() => {
-    // Cache duration - 5 minutes (in milliseconds)
-    const CACHE_DURATION = 5 * 60 * 1000;
-    
-    const fetchNews = async (retryCount: number = 0) => {
-      try {
-        setIsLoading(true);
-        
-        // Create a cache key based on the selected industry
-        const cacheKey = selectedIndustry || 'all';
-        const now = Date.now();
-        
-        // Check if we have valid cached data
-        if (newsCache[cacheKey] && 
-            (now - newsCache[cacheKey].timestamp) < CACHE_DURATION && 
-            newsCache[cacheKey].articles.length > 0) {
-          
-          console.log(`Using cached news for ${cacheKey}`);
-          setNewsArticles(newsCache[cacheKey].articles);
-          setError("");
-        } else {
-          // No valid cache, fetch from API
-          let articles = [];
-          
-          try {
-            if (selectedIndustry) {
-              // Fetch news for the selected industry
-              articles = await getProcessedGeneralNews({
-                industries: [selectedIndustry],
-                sortBy: "date"
-              });
-            } else {
-              // Fetch general news from all industries (except N/A)
-              articles = await getProcessedGeneralNews({
-                industries: filteredIndustries,
-                sortBy: "date"
-              });
-            }
-            
-            console.log(`Fetched news articles for ${selectedIndustry || 'all industries'}:`, articles);
-            
-            // Only update cache if we actually got articles back
-            if (articles && articles.length > 0) {
-              setNewsCache(prev => ({
-                ...prev,
-                [cacheKey]: {
-                  articles,
-                  timestamp: now
-                }
-              }));
-              
-              setNewsArticles(articles);
-              setError("");
-            } else {
-              // If we got an empty array but have stale cache, use it
-              if (newsCache[cacheKey] && newsCache[cacheKey].articles.length > 0) {
-                console.log(`Empty response but using stale cache for ${cacheKey}`);
-                setNewsArticles(newsCache[cacheKey].articles);
-                setError("Unable to refresh news. Showing cached content.");
-              } else {
-                // No articles and no cache
-                setNewsArticles([]);
-                setError("No news articles available at this time.");
-              }
-            }
-          } catch (err) {
-            // If API call fails but we have stale cache, use it as fallback
-            if (newsCache[cacheKey] && newsCache[cacheKey].articles.length > 0) {
-              console.log(`API error but using stale cache for ${cacheKey}`);
-              setNewsArticles(newsCache[cacheKey].articles);
-              setError("Unable to refresh news (rate limit). Showing cached content.");
-            } else {
-              // No cache available, show empty state instead of rethrowing
-              console.error("No cached data available and API call failed:", err);
-              setNewsArticles([]);
-              setError("Failed to fetch news articles. Please try again later.");
-            }
-          }
-        }
-        
-        // Reset to first slide when changing industries
-        if (instanceRef.current) {
-          instanceRef.current.moveToIdx(0);
-        }
-      } catch (err) {
-        // This catch block will only run for errors outside the API call
-        setError("Failed to fetch news articles. Please try again later.");
-        console.error("Error in fetchNews function:", err);
-        // Ensure we always have something to display
-        if (!newsArticles.length) {
-          setNewsArticles([]);
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    // Implement retry mechanism with backoff
-    const MAX_RETRIES = 3;
-    const BACKOFF_DELAY = 500; // 500ms
-    
-    const attemptFetch = async (retryCount: number) => {
-      try {
-        await fetchNews(retryCount);
-      } catch (err) {
-        if (retryCount < MAX_RETRIES) {
-          console.log(`Retry ${retryCount + 1} in ${BACKOFF_DELAY}ms...`);
-          setTimeout(() => attemptFetch(retryCount + 1), BACKOFF_DELAY);
-        } else {
-          console.error("Max retries exceeded. Giving up.");
-          setError("Failed to fetch news articles after multiple retries.");
-        }
-      }
-    };
-    
-    attemptFetch(0);
-  }, [selectedIndustry, filteredIndustries, newsCache]);
-
-  // Add global event handlers to completely block browser history navigation during carousel interaction
-  React.useEffect(() => {
-    // First, add a preventive measure at the document level to capture and prevent all 
-    // horizontal swipe gestures that might trigger browser navigation
-    const preventBrowserBack = (e: Event) => {
-      // This blocks the 'swipe to navigate' browser gesture entirely
-      e.preventDefault();
-    };
-    
-    // Register a preventive handler for all relevant navigation events
-    window.addEventListener('popstate', preventBrowserBack);
-    
-    // Handle trackpad and touch swipes directly on the carousel
-    const sliderEl = sliderDomRef.current;
-    if (!sliderEl || !instanceRef.current) return;
-    
-    // Handler for wheel events with reduced responsiveness
-    const handleWheel = (e: WheelEvent) => {
-      // Block all horizontal wheel events in the carousel to prevent browser history navigation
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-        e.preventDefault();
-        e.stopPropagation();
-        
-        // Add a threshold to make the carousel less responsive
-        // Only process events with significant horizontal movement
-        if (Math.abs(e.deltaX) < 5) return;
-        
-        const inst = instanceRef.current;
-        if (!inst) return;
-        
-        // With loop enabled, we can simply call next/prev without checking boundaries
-        if (e.deltaX > 0) {
-          inst.next();
-        } else if (e.deltaX < 0) {
-          inst.prev();
-        }
-      }
-    };
-    
-    // Handle touch events with reduced responsiveness
-    let touchStartX = 0;
-    let touchMoveX = 0;
-    
-    const handleTouchStart = (e: TouchEvent) => {
-      touchStartX = e.touches[0].clientX;
-    };
-    
-    const handleTouchMove = (e: TouchEvent) => {
-      // Prevent browser navigation
-      e.preventDefault();
-      e.stopPropagation();
-      
-      touchMoveX = e.touches[0].clientX;
-    };
-    
-    const handleTouchEnd = (e: TouchEvent) => {
-      const deltaX = touchStartX - touchMoveX;
-      
-      // Only respond to significant swipes (higher threshold = less responsive)
-      if (Math.abs(deltaX) < 50) return;
-      
-      const inst = instanceRef.current;
-      if (!inst) return;
-      
-      // With loop enabled, we can simply call next/prev without checking boundaries
-      if (deltaX > 0) {
-        inst.next();
-      } else {
-        inst.prev();
-      }
-    };
-    
-    // Add capture phase event listeners to ensure we handle events before they propagate
-    sliderEl.addEventListener('wheel', handleWheel, { passive: false, capture: true });
-    sliderEl.addEventListener('touchstart', handleTouchStart, { passive: true, capture: true });
-    sliderEl.addEventListener('touchmove', handleTouchMove, { passive: false, capture: true });
-    sliderEl.addEventListener('touchend', handleTouchEnd, { passive: true, capture: true });
-    
-    // Clean up all event listeners
-    return () => {
-      window.removeEventListener('popstate', preventBrowserBack);
-      sliderEl.removeEventListener('wheel', handleWheel, { capture: true });
-      sliderEl.removeEventListener('touchstart', handleTouchStart, { capture: true });
-      sliderEl.removeEventListener('touchmove', handleTouchMove, { capture: true });
-      sliderEl.removeEventListener('touchend', handleTouchEnd, { capture: true });
-    };
-  }, [sliderRef, instanceRef]);
-
-  // Use a callback ref to assign both the keen-slider ref and the DOM ref
-  const combinedSliderRef = React.useCallback((node: HTMLDivElement | null) => {
-    sliderRef(node);
-    sliderDomRef.current = node;
-  }, [sliderRef]);
-
-  // Debounce timer ref
-  const debounceTimerRef = React.useRef<number | null>(null);
-  
-  // Handle industry selection with debounce
-  const handleIndustrySelect = (industry: string | null) => {
-    // Clear any existing debounce timer
-    if (debounceTimerRef.current) {
-      window.clearTimeout(debounceTimerRef.current);
-    }
-    
-    // Prevent unnecessary re-renders if selecting the same industry
-    if (industry === selectedIndustry) return;
-    
-    // Show loading state immediately
-    setIsLoading(true);
-    
-    // Debounce the actual industry change (250ms)
-    debounceTimerRef.current = window.setTimeout(() => {
-      setSelectedIndustry(industry);
-      debounceTimerRef.current = null;
-    }, 250);
-  };
-  
-  return (
-    <div className="w-full flex flex-col items-center space-y-4">
-      {/* Industry filter badges */}
-      <div className="flex flex-wrap gap-2 justify-center pb-2 w-full max-w-[900px]">
-        <Badge 
-          variant={selectedIndustry === null ? "default" : "outline"}
-          className={`cursor-pointer transition-all ${selectedIndustry === null ? 'bg-primary hover:bg-primary/90' : 'hover:bg-secondary'}`}
-          onClick={() => handleIndustrySelect(null)}
-        >
-          General
-        </Badge>
-        
-        {filteredIndustries.map((industry) => (
-          <Badge
-            key={industry}
-            variant={selectedIndustry === industry ? "default" : "outline"}
-            className={`cursor-pointer transition-all ${selectedIndustry === industry ? 'bg-primary hover:bg-primary/90' : 'hover:bg-secondary'}`}
-            onClick={() => handleIndustrySelect(industry)}
-          >
-            {industry}
-          </Badge>
-        ))}
-      </div>
-      
-      <div 
-        ref={combinedSliderRef} 
-        className="keen-slider w-full"
-        style={{ 
-          overscrollBehaviorX: "none", 
-          touchAction: "none", // Prevent all touch actions to avoid browser history navigation
-          WebkitOverflowScrolling: "touch", // Better touch handling
-          position: "relative", // Ensure proper stacking context
-          zIndex: 10 // Higher z-index to ensure events are captured
-        }}
-        onTouchStart={(e) => e.stopPropagation()} // Additional protection against touch propagation
-      >
-        {isLoading ? (
-          // Display loading skeletons while fetching news
-          [...Array(3)].map((_, idx) => (
-            <div key={idx} className="keen-slider__slide flex items-center justify-center">
-              <div className="w-[480px] h-[340px] bg-neutral-100 rounded-xl flex items-center justify-center animate-pulse">
-                <p className="text-neutral-400">Loading news...</p>
-              </div>
-            </div>
-          ))
-        ) : error ? (
-          // Display error message if fetching fails
-          <div className="keen-slider__slide flex items-center justify-center">
-            <div className="w-[480px] h-[340px] bg-neutral-50 rounded-xl flex items-center justify-center flex-col p-6">
-              <p className="text-red-500 font-medium mb-2">{error}</p>
-              {error.includes("rate limit") && (
-                <p className="text-sm text-gray-600 text-center">
-                  The free API plan has limited requests. We're showing cached articles until the rate limit resets.
-                </p>
-              )}
-            </div>
-          </div>
-        ) : (
-          // Display news articles
-          newsArticles.slice(0, 3).map((article, idx) => {
-            // Get the industry from the mainEntity property (if available)
-            const primaryIndustry = article.mainEntity ? article.mainEntity.type : "News";
-              
-            return (
-              <div
-                key={idx}
-                className="keen-slider__slide flex items-center justify-center"
-              >
-                <div className="w-[480px] h-[340px] bg-neutral-50 rounded-xl overflow-hidden relative group">
-                  {/* News image taking up the whole card */}
-                  <img 
-                    src={article.imageUrl || '/placeholder-news.jpg'} 
-                    alt={article.title}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                  />
-                  
-                  {/* Industry badge in top right */}
-                  <div className="absolute top-3 right-3 z-10">
-                    <Badge 
-                      variant="secondary" 
-                      className="bg-white/80 text-primary font-medium shadow-sm backdrop-blur-sm hover:bg-white/90"
-                    >
-                      {primaryIndustry}
-                    </Badge>
-                  </div>
-                  
-                  {/* Semi-transparent title banner at bottom */}
-                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 backdrop-blur-sm p-4 transition-all duration-300 group-hover:bg-black/70">
-                    <h3 className="text-white font-medium line-clamp-2">{article.title}</h3>
-                    <p className="text-white/80 text-sm mt-1">{article.source} • {article.formattedDate}</p>
-                  </div>
-                  
-                  {/* Clickable overlay for the entire card */}
-                  <a 
-                    href={article.url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="absolute inset-0 z-20 cursor-pointer" 
-                    aria-label={`Read article: ${article.title}`}
-                  />
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-      <div className="flex justify-center mt-4 space-x-1">
-        {[...Array(Math.min(numDots, newsArticles.length))].map((_, idx) => (
-          <button
-            key={idx}
-            onClick={() => instanceRef.current?.moveToIdx(idx)}
-            className={`w-2 h-2 rounded-full transition-colors duration-200 border-none focus:outline-none ${currentSlide === idx ? "bg-primary" : "bg-neutral-300"}`}
-            aria-label={`Go to slide ${idx + 1}`}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
 
 export default MarketNews;
  

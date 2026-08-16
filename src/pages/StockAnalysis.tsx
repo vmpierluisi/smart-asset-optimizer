@@ -1,11 +1,10 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle, 
-  CardFooter
+import { useState, useEffect, useMemo } from 'react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -14,25 +13,16 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
 
 import { cn } from "@/lib/utils";
-import { 
-  ArrowDown, 
-  ArrowUp, 
-  BarChart2, 
-  Briefcase,
+import {
+  ArrowDown,
+  ArrowUp,
   ChevronDown,
   ChevronLeft,
-  Cpu, 
-  DollarSign, 
-  LineChart, 
-  PieChart as PieChartIcon,
-  Search, 
+  Cpu,
+  Search,
   Star,
-  TrendingDown, 
-  TrendingUp,
-  Building,
   Building2,
   Factory,
   Heart,
@@ -52,61 +42,42 @@ import {
   Tooltip as RechartsTooltip
 } from "recharts";
 import { AIExplanationPopup } from "@/components/AIExplanationPopup";
-import { 
-  searchStocks, 
-  StockSuggestion, 
-  fetchStockQuote, 
-  StockQuote, 
-  fetchValuationRatios, 
-  FinancialHealthData,
-  fetchFinancialHealth,
-  TechnicalIndicatorData,
-  fetchTechnicalIndicators,
-  NewsSentimentData,
-  fetchNewsSentiment,
-  RiskAnalysisData,
-  fetchRiskAnalysis,
-  PriceTarget
+import {
+  searchStocks,
+  StockSuggestion,
+  StockQuote,
+  AnalystRatings,
+  ValuationData,
+  StockPriceChanges
 } from "@/utils/fmpFinanceUtils";
+import {
+  useEarnings,
+  useValuation,
+  useFinancialHealth,
+  useTechnicalIndicators,
+  useNewsSentiment,
+  useRiskAnalysis,
+  useRecommendations,
+  useCompanyLogo,
+  useCompanyProfile,
+  useDividend,
+  usePriceTarget,
+  useRSI,
+  useMACD,
+  useStockQuote,
+  useMovingAverage,
+  useHistoricalTimeSeries,
+} from "@/hooks/stock-analysis/queries";
+import { useInView } from "@/hooks/stock-analysis/useInView";
+import { isMockMode } from "@/lib/apiClient";
 // Import our new Twelve Data utility
-import { 
-  fetchTwelveDataQuote, 
-  TwelveDataStockQuote, 
-  fetchDividendYield, 
-  DividendYieldData, 
-  fetchTimeSeries, 
-  fetchHistoricalTimeSeries,
-  TimeSeriesData,
-  fetchStockStatistics,
-  fetchPriceTarget,
-  PriceTargetData,
-  fetchSMA20,
-  fetchSMA50,
-  fetchSMA200,
-  SMAData,
-  fetchEMA20,
-  fetchEMA50,
-  fetchEMA200,
-  EMAData,
-  fetchRSI,
-  RSIData,
-  RecommendationsData,
-  fetchMACD,
-  MACDData,
-  getRecentMACDSignals,
-  MACDSignals,
-  fetchRecommendations
-} from "@/utils/twelveDataUtils";
+import { TimeSeriesData } from "@/utils/twelveDataUtils";
 import { PriceChart } from "@/components/PriceChart";
-import { useStockPrices } from "@/hooks/useStockPrices";
 import { useTimeSeries } from "@/hooks/useTimeSeries"; // Add new import
 import { useRsi } from "@/hooks/useRsi";
 import { toast } from "@/hooks/use-toast";
-import { fetchCompanyLogo, CompanyLogoData } from "@/utils/twelveDataUtils";
-import { fetchCompanyProfile, CompanyProfileData } from "@/utils/twelveDataUtils";
 // Add this import at the top, after the other imports
 import CandlestickChart from "@/components/CandlestickChart";
-import StockStatisticsView from "@/components/StockStatisticsView";
 import { useStockStatistics } from "@/hooks/useStockStatistics";
 import { StockStatisticsData } from "@/utils/twelveDataUtils";
 import SMAChart from "@/components/SMAChart";
@@ -357,30 +328,6 @@ const DailyRangeGauge = ({ low, high, current, open }: { low: number, high: numb
   );
 };
 
-// Add EarningsData interface BEFORE the component definition, not inside it
-interface EarningReport {
-  date: string;
-  time: string;
-  eps_estimate: number;
-  eps_actual: number;
-  difference: number;
-  surprise_prc: number;
-}
-
-interface EarningsData {
-  meta: {
-    symbol: string;
-    name: string;
-    currency: string;
-    exchange: string;
-    mic_code: string;
-    exchange_timezone: string;
-  };
-  earnings: EarningReport[];
-  status: string;
-}
-
-// First part of the component declaration - we'll complete it in subsequent edits
 const StockAnalysis = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStock, setSelectedStock] = useState<string | null>(null);
@@ -388,31 +335,34 @@ const StockAnalysis = () => {
   const [timeframe, setTimeframe] = useState("1Y");
   const [suggestions, setSuggestions] = useState<StockSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [stockData, setStockData] = useState<StockQuote | null>(null);
-  const [twelveDataStockData, setTwelveDataStockData] = useState<TwelveDataStockQuote | null>(null);
   const [stockStatistics, setStockStatistics] = useState<StockStatisticsData | null>(null);
-  const [isLoadingQuote, setIsLoadingQuote] = useState(false);
-  const [isLoadingTwelveDataQuote, setIsLoadingTwelveDataQuote] = useState(false);
-  const [priceChanges, setPriceChanges] = useState<StockPriceChanges | null>(null);
-  const [isLoadingPriceChanges, setIsLoadingPriceChanges] = useState(false);
-  const [valuationData, setValuationData] = useState<ValuationData | null>(null);
-  const [isLoadingValuation, setIsLoadingValuation] = useState(false);
-  const [financialHealthData, setFinancialHealthData] = useState<FinancialHealthData | null>(null);
-  const [isLoadingFinancialHealth, setIsLoadingFinancialHealth] = useState(false);
-  const [technicalData, setTechnicalData] = useState<TechnicalIndicatorData | null>(null);
-  const [isLoadingTechnical, setIsLoadingTechnical] = useState(false);
-  const [newsData, setNewsData] = useState<NewsSentimentData | null>(null);
-  const [isLoadingNews, setIsLoadingNews] = useState(false);
-  const [riskData, setRiskData] = useState<RiskAnalysisData | null>(null);
-  const [isLoadingRisk, setIsLoadingRisk] = useState(false);
-  const [analystRatingsData, setAnalystRatingsData] = useState<AnalystRatings | null>(null);
-  const [isLoadingAnalystRatings, setIsLoadingAnalystRatings] = useState(false);
-  const [recommendationsData, setRecommendationsData] = useState<RecommendationsData | null>(null);
-  const [isLoadingRecommendations, setIsLoadingRecommendations] = useState(false);
-  const [logoData, setLogoData] = useState<CompanyLogoData | null>(null);
-  const [isLoadingLogo, setIsLoadingLogo] = useState(false);
-  const [profileData, setProfileData] = useState<CompanyProfileData | null>(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  // Primary quote via lazy hook; stockData is the StockQuote view of the same data.
+  const { data: twelveDataStockData, isLoading: isLoadingTwelveDataQuote } = useStockQuote(selectedStock);
+  const stockData = (twelveDataStockData ?? null) as StockQuote | null;
+  const isLoadingQuote = isLoadingTwelveDataQuote;
+  // 5-year history for the historical-returns (priceChanges) calc, from the cache.
+  const { data: historicalTimeSeriesData, isLoading: isLoadingPriceChanges } = useHistoricalTimeSeries(selectedStock);
+  // Visibility gates: below-the-fold sections defer their fetches until scrolled
+  // into view, keeping the initial burst small (fits Twelve Data's free-tier limit).
+  // In mock mode there is no rate limit, so load everything eagerly for the best
+  // demo UX; in real mode, defer below-the-fold sections until scrolled into view.
+  const eagerLoad = isMockMode();
+  const fundamentalsView = useInView<HTMLDivElement>();
+  const technicalView = useInView<HTMLDivElement>();
+  const sentimentView = useInView<HTMLDivElement>();
+
+  // --- Section data via lazy react-query hooks (was manual useState+useEffect) ---
+  const { data: valuationData, isLoading: isLoadingValuation } = useValuation(selectedStock, { enabled: eagerLoad || fundamentalsView.hasBeenInView });
+  const { data: financialHealthData, isLoading: isLoadingFinancialHealth } = useFinancialHealth(selectedStock, { enabled: eagerLoad || fundamentalsView.hasBeenInView });
+  const { data: technicalData, isLoading: isLoadingTechnical } = useTechnicalIndicators(selectedStock, { enabled: eagerLoad || technicalView.hasBeenInView });
+  const { data: newsData, isLoading: isLoadingNews } = useNewsSentiment(selectedStock, { enabled: eagerLoad || sentimentView.hasBeenInView });
+  const { data: riskData, isLoading: isLoadingRisk } = useRiskAnalysis(selectedStock, { enabled: eagerLoad || sentimentView.hasBeenInView });
+  const { data: recommendationsData, isLoading: isLoadingRecommendations } = useRecommendations(selectedStock, { enabled: eagerLoad || sentimentView.hasBeenInView });
+  // Analyst ratings render from the same recommendations data (was a duplicate fetch).
+  const analystRatingsData = (recommendationsData ?? null) as AnalystRatings | null;
+  const isLoadingAnalystRatings = isLoadingRecommendations;
+  const { data: logoData, isLoading: isLoadingLogo } = useCompanyLogo(selectedStock);
+  const { data: profileData, isLoading: isLoadingProfile } = useCompanyProfile(selectedStock);
   const [showAIExplanation, setShowAIExplanation] = useState<{
     isOpen: boolean;
     title: string;
@@ -444,9 +394,6 @@ const StockAnalysis = () => {
 
   // Add a new state variable to track the chart type after the other state variables
   const [chartType, setChartType] = useState<'line' | 'candlestick'>('candlestick');
-
-  // Get historical price data using our custom hook - OLD approach
-  const { data: priceData, loading: priceLoading, error: priceError } = useStockPrices(selectedStock, timeframe);
   
   // Get historical price data using our new Twelve Data hook
   const { data: timeSeriesData, loading: timeSeriesLoading, error: timeSeriesError } = useTimeSeries(selectedStock, convertTimeframeToTimePeriod(timeframe));
@@ -476,7 +423,7 @@ const StockAnalysis = () => {
   }
 
   // Get RSI data for the selected stock using our custom hook
-  const { rsi: polygonRsi, loading: rsiLoading, error: rsiError } = useRsi(selectedStock);
+  const { rsi: polygonRsi, loading: rsiLoading } = useRsi(selectedStock);
 
   // Import useAuth hook
   const { user } = useAuth();
@@ -583,71 +530,6 @@ const StockAnalysis = () => {
     return () => clearTimeout(debounceTimer);
   }, [searchQuery]);
 
-  // Fetch stock quote data from Twelve Data API when selected stock changes
-  useEffect(() => {
-    const getTwelveDataStockQuote = async () => {
-      if (!selectedStock) return;
-      
-      setIsLoadingTwelveDataQuote(true);
-      try {
-        const quote = await fetchTwelveDataQuote(selectedStock);
-        setTwelveDataStockData(quote);
-        
-        // Also update the stockData state to use the new data (for compatibility)
-        setStockData({
-          symbol: quote.symbol,
-          name: quote.name,
-          price: quote.price,
-          change: quote.change,
-          changePercent: quote.changePercent,
-          marketCap: quote.marketCap,
-          peRatio: quote.peRatio,
-          dividendYield: quote.dividendYield,
-          volume: quote.volume,
-          avgVolume: quote.avgVolume,
-          exchange: quote.exchange,
-          high52Week: quote.high52Week,
-          low52Week: quote.low52Week
-        });
-      } catch (error) {
-        console.error('Error fetching Twelve Data stock quote:', error);
-        toast({
-          title: "Error",
-          description: `Failed to fetch quote for ${selectedStock} from Twelve Data: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          variant: "destructive",
-        });
-        
-        // Fallback to the original FMP API if Twelve Data fails
-        getStockQuote();
-      } finally {
-        setIsLoadingTwelveDataQuote(false);
-      }
-    };
-    
-    // Call the new function instead of the old one
-    getTwelveDataStockQuote();
-    
-  }, [selectedStock]);
-
-  // Keep the original getStockQuote function as a fallback
-  const getStockQuote = async () => {
-    if (!selectedStock) return;
-    
-    setIsLoadingQuote(true);
-    try {
-      const quote = await fetchStockQuote(selectedStock);
-      setStockData(quote);
-    } catch (error) {
-      console.error('Error fetching stock quote:', error);
-      toast({
-        title: "Error",
-        description: `Failed to fetch quote for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoadingQuote(false);
-    }
-  };
 
   /**
    * Calculate returns for various time periods from historical time series data
@@ -656,12 +538,9 @@ const StockAnalysis = () => {
    */
   const calculateHistoricalReturns = (timeSeriesData: TimeSeriesData | null): StockPriceChanges | null => {
     if (!timeSeriesData || !timeSeriesData.data || timeSeriesData.data.length === 0) {
-      console.log('No time series data available or empty data array');
       return null;
     }
 
-    console.log(`Processing ${timeSeriesData.data.length} data points for ${timeSeriesData.symbol}`);
-    console.log('Data range:', timeSeriesData.data[timeSeriesData.data.length-1].date, 'to', timeSeriesData.data[0].date);
 
     const symbol = timeSeriesData.symbol;
     const data = timeSeriesData.data;
@@ -758,7 +637,6 @@ const StockAnalysis = () => {
 
     // 1 Year return (252-255 trading days ago)
     if (data.length > 252) {
-      console.log('Calculating 1Y return, data points available:', data.length);
       const oneYearAgoPrice = getPriceAtIndex(252);
       const oneYearReturn = calculatePercentChange(oneYearAgoPrice);
       console.log('1Y return calculation:', { 
@@ -774,7 +652,6 @@ const StockAnalysis = () => {
       });
     } else if (data.length > 126) {
       // If we have at least 6 months of data, calculate an estimated 1Y return
-      console.log('Estimating 1Y return with limited data:', data.length, 'points');
       const oldestAvailablePrice = data[data.length - 1].close;
       const estimatedReturn = calculatePercentChange(oldestAvailablePrice);
       returns.push({
@@ -786,7 +663,6 @@ const StockAnalysis = () => {
 
     // 5 Year return (1260-1265 trading days ago) or max available
     if (data.length > 1260) {
-      console.log('Calculating 5Y return, data points available:', data.length);
       const fiveYearAgoPrice = getPriceAtIndex(1260);
       const fiveYearReturn = calculatePercentChange(fiveYearAgoPrice);
       console.log('5Y return calculation:', { 
@@ -803,7 +679,6 @@ const StockAnalysis = () => {
     } else if (data.length > 252) {
       // If we don't have 5 years of data but have at least 1 year,
       // use the oldest available data point for an approximation
-      console.log('Estimating 5Y return with limited data:', data.length, 'points');
       const oldestPrice = data[data.length - 1].close;
       const maxHistoricalReturn = calculatePercentChange(oldestPrice);
       returns.push({
@@ -814,7 +689,7 @@ const StockAnalysis = () => {
     }
 
     // Calculate volatility (standard deviation of daily returns)
-    let volatility = null;
+    let volatility: number | null = null;
     if (data.length > 20) {
       // Calculate daily returns
       const dailyReturns: number[] = [];
@@ -847,246 +722,11 @@ const StockAnalysis = () => {
     };
   };
 
-  // Fetch stock price changes when selected stock changes
-  useEffect(() => {
-    const getStockPriceChanges = async () => {
-      if (!selectedStock) return;
-      
-      setIsLoadingPriceChanges(true);
-      
-      try {
-        // Fetch 5-year historical data specifically for calculating returns
-        // This will always fetch 5 years of data regardless of timeframe
-        console.log('Fetching historical data for returns calculation:', selectedStock);
-        const timestamp = new Date().getTime();
-        const historicalTimeSeriesData = await fetchHistoricalTimeSeries(selectedStock, timestamp);
-        console.log('Received historical time series data:', historicalTimeSeriesData.data.length, 'data points');
-        
-        // Calculate returns from historical data
-        const calculatedChanges = calculateHistoricalReturns(historicalTimeSeriesData);
-        
-        if (calculatedChanges) {
-          console.log('Calculated returns from historical data:', calculatedChanges.returns);
-          // Log specific returns we're looking for
-          const oneYearReturn = calculatedChanges.returns.find(r => r.period === '1Y');
-          const fiveYearReturn = calculatedChanges.returns.find(r => r.period === '5Y');
-          console.log('1Y return:', oneYearReturn);
-          console.log('5Y return:', fiveYearReturn);
-          
-          setPriceChanges(calculatedChanges);
-        } else {
-          // Calculation failed and fetchStockPriceChanges is no longer available. Clear price changes and show error.
-          setPriceChanges(null);
-          toast({
-            title: "Error",
-            description: `Failed to calculate price changes for ${selectedStock}.`,
-            variant: "destructive",
-          });
-        }
-      } catch (error) {
-        console.error('Error calculating stock price changes:', error);
-        
-        // Fallback removed: fetchStockPriceChanges no longer exists. If calculation fails, clear price changes and show error.
-        setPriceChanges(null);
-        toast({
-          title: "Error",
-          description: `Failed to calculate price changes for ${selectedStock}.`,
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoadingPriceChanges(false);
-      }
-    };
-    
-    getStockPriceChanges();
-  }, [selectedStock]);
-
-  // Fetch valuation ratios when selected stock changes
-  useEffect(() => {
-    const getValuationRatios = async () => {
-      if (!selectedStock) return;
-      
-      setIsLoadingValuation(true);
-      try {
-        const ratios = await fetchValuationRatios(selectedStock);
-        setValuationData(ratios);
-      } catch (error) {
-        console.error('Error fetching valuation ratios:', error);
-        toast({
-          title: "Error",
-          description: `Failed to fetch valuation ratios for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoadingValuation(false);
-      }
-    };
-    
-    getValuationRatios();
-  }, [selectedStock]);
-
-  // Fetch Financial Health data
-  useEffect(() => {
-    const getFinancialHealth = async () => {
-      if (!selectedStock) return;
-      
-      setIsLoadingFinancialHealth(true);
-      try {
-        const data = await fetchFinancialHealth(selectedStock);
-        setFinancialHealthData(data);
-      } catch (error) {
-        console.error('Error fetching financial health data:', error);
-        toast({
-          title: "Error",
-          description: `Failed to fetch financial health for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          variant: "destructive",
-        });
-        setFinancialHealthData(null); // Clear data on error
-      } finally {
-        setIsLoadingFinancialHealth(false);
-      }
-    };
-    
-    getFinancialHealth();
-  }, [selectedStock]);
-
-  // Fetch Technical Indicator data
-  useEffect(() => {
-    const getTechnicalIndicators = async () => {
-      if (!selectedStock) return;
-      
-      setIsLoadingTechnical(true);
-      try {
-        const data = await fetchTechnicalIndicators(selectedStock);
-        setTechnicalData(data);
-      } catch (error) {
-        console.error('Error fetching technical indicators:', error);
-        toast({
-          title: "Error",
-          description: `Failed to fetch technical indicators for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          variant: "destructive",
-        });
-        setTechnicalData(null);
-      } finally {
-        setIsLoadingTechnical(false);
-      }
-    };
-    
-    getTechnicalIndicators();
-  }, [selectedStock]);
-
-  // Fetch News and Sentiment data
-  useEffect(() => {
-    const getNewsSentiment = async () => {
-      if (!selectedStock) return;
-      
-      setIsLoadingNews(true);
-      try {
-        const data = await fetchNewsSentiment(selectedStock);
-        setNewsData(data);
-      } catch (error) {
-        console.error('Error fetching news & sentiment:', error);
-        toast({
-          title: "Error",
-          description: `Failed to fetch news & sentiment for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          variant: "destructive",
-        });
-        setNewsData(null);
-      } finally {
-        setIsLoadingNews(false);
-      }
-    };
-    
-    getNewsSentiment();
-  }, [selectedStock]);
-
-  // Fetch Analyst Ratings data
-  useEffect(() => {
-    const getAnalystRatings = async () => {
-      if (!selectedStock) return;
-      
-      setIsLoadingAnalystRatings(true);
-      try {
-        console.log('Fetching analyst ratings for:', selectedStock);
-        const data = await fetchRecommendations(selectedStock);
-        console.log('Analyst ratings data received:', data);
-        setAnalystRatingsData(data); // Corrected: set state directly with the returned data
-      } catch (error) {
-        console.error('Error fetching analyst ratings:', error);
-        toast({
-          title: "Error",
-          description: `Failed to fetch analyst ratings for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          variant: "destructive",
-        });
-        setAnalystRatingsData(null);
-      } finally {
-        setIsLoadingAnalystRatings(false);
-      }
-    };
-    
-    getAnalystRatings();
-  }, [selectedStock]);
-
-  // Fetch Recommendations data from Twelve Data
-  useEffect(() => {
-    const getRecommendationsData = async () => {
-      if (!selectedStock) return;
-      
-      setIsLoadingRecommendations(true);
-      try {
-        console.log('Fetching recommendations for:', selectedStock);
-        const data = await fetchRecommendations(selectedStock);
-        console.log('Recommendations data received:', data);
-        setRecommendationsData(data);
-      } catch (error) {
-        console.error('Error fetching recommendations:', error);
-        toast({
-          title: "Error",
-          description: `Failed to fetch recommendations for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          variant: "destructive",
-        });
-        setRecommendationsData(null);
-      } finally {
-        setIsLoadingRecommendations(false);
-      }
-    };
-    
-    getRecommendationsData();
-  }, [selectedStock]);
-
-  // Debug effect for analyst ratings data rendering
-  useEffect(() => {
-    if (analystRatingsData) {
-      console.log('Rendering pie chart with data:', analystRatingsData);
-    } else {
-      console.log('No analyst ratings data available:', analystRatingsData);
-    }
-  }, [analystRatingsData]);
-
-  // Fetch Risk Analysis data
-  useEffect(() => {
-    const getRiskAnalysis = async () => {
-      if (!selectedStock) return;
-      
-      setIsLoadingRisk(true);
-      try {
-        const data = await fetchRiskAnalysis(selectedStock);
-        setRiskData(data);
-      } catch (error) {
-        console.error('Error fetching risk analysis:', error);
-        toast({
-          title: "Error",
-          description: `Failed to fetch risk analysis for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          variant: "destructive",
-        });
-        setRiskData(null);
-      } finally {
-        setIsLoadingRisk(false);
-      }
-    };
-    
-    getRiskAnalysis();
-  }, [selectedStock]);
+  // Historical returns (priceChanges) derived from the cached 5-year series.
+  const priceChanges = useMemo(
+    () => calculateHistoricalReturns(historicalTimeSeriesData ?? null),
+    [historicalTimeSeriesData],
+  );
 
   // Handle selection of a stock suggestion from search or sector list
   const handleSelectStock = (symbol: string, name: string) => {
@@ -1650,200 +1290,10 @@ const StockAnalysis = () => {
     );
   };
 
-  // Fetch company logo when selected stock changes
-  useEffect(() => {
-    const getCompanyLogo = async () => {
-      if (!selectedStock) {
-        setLogoData(null);
-        return;
-      }
-      
-      setIsLoadingLogo(true);
-      try {
-        const logo = await fetchCompanyLogo(selectedStock);
-        setLogoData(logo);
-      } catch (error) {
-        console.error('Error fetching company logo:', error);
-        // Don't show a toast for logo errors - just silently fail
-        setLogoData(null);
-      } finally {
-        setIsLoadingLogo(false);
-      }
-    };
-    
-    getCompanyLogo();
-  }, [selectedStock]);
-
-  // Fetch company profile when selected stock changes
-  useEffect(() => {
-    const getCompanyProfile = async () => {
-      if (!selectedStock) {
-        setProfileData(null);
-        return;
-      }
-      
-      setIsLoadingProfile(true);
-      try {
-        const profile = await fetchCompanyProfile(selectedStock);
-        setProfileData(profile);
-      } catch (error) {
-        console.error('Error fetching company profile:', error);
-        // Don't show a toast for profile errors - just silently fail
-        setProfileData(null);
-      } finally {
-        setIsLoadingProfile(false);
-      }
-    };
-    
-    getCompanyProfile();
-  }, [selectedStock]);
-
-  // Add a new state for dividend data
-  const [dividendData, setDividendData] = useState<DividendYieldData | null>(null);
-  const [isLoadingDividend, setIsLoadingDividend] = useState<boolean>(false);
+  const { data: dividendData } = useDividend(selectedStock, { enabled: eagerLoad || fundamentalsView.hasBeenInView });
   
-  // Add a new useEffect for fetching dividend data
-  useEffect(() => {
-    const getDividendData = async () => {
-      if (!selectedStock) return;
-      
-      setIsLoadingDividend(true);
-      try {
-        const data = await fetchDividendYield(selectedStock);
-        setDividendData(data);
-      } catch (error) {
-        console.error('Error fetching dividend data:', error);
-        toast({
-          title: "Error",
-          description: `Failed to fetch dividend data for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          variant: "destructive",
-        });
-        setDividendData(null);
-      } finally {
-        setIsLoadingDividend(false);
-      }
-    };
-    
-    getDividendData();
-  }, [selectedStock, toast]);
-
-  // Effect to fetch time series data when timeframe changes
-  useEffect(() => {
-    // Force refetch time series data when timeframe changes
-    if (selectedStock) {
-      console.log(`Timeframe changed to ${timeframe}, refetching data for ${selectedStock}`);
-    }
-  }, [timeframe, selectedStock]);
-
-  // Add fetchEarningsData function after the other fetch functions
-  const fetchEarningsData = async (symbol: string): Promise<EarningsData> => {
-    try {
-      // Get the Supabase URL and key
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      
-      if (!supabaseUrl || !supabaseAnonKey) {
-        console.error('Supabase environment variables are missing');
-        throw new Error('Supabase environment variables are missing');
-      }
-      
-      const response = await fetch(`${supabaseUrl}/functions/v1/twelve-eps`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseAnonKey}`
-        },
-        body: JSON.stringify({ symbol })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Twelve Data EPS API error:', errorText);
-        throw new Error(`Error fetching earnings data: ${response.status} ${response.statusText}`);
-      }
-
-      const data = await response.json();
-      
-      // Check if response has an error (API might return 200 with error inside)
-      if (data.status === 'error') {
-        throw new Error(`API Error: ${data.message || 'Unknown error'}`);
-      }
-
-      // Ensure the data structure matches what we expect
-      if (!data.earnings || !Array.isArray(data.earnings)) {
-        console.warn('Earnings data structure unexpected:', data);
-        // Return a safe default structure
-        return {
-          meta: {
-            symbol: symbol,
-            name: symbol,
-            currency: 'USD',
-            exchange: '',
-            mic_code: '',
-            exchange_timezone: ''
-          },
-          earnings: [],
-          status: 'ok'
-        };
-      }
-      
-      return data;
-    } catch (error: any) {
-      console.error('Error in fetchEarningsData:', error);
-      // Return a safe default to prevent UI errors
-      return {
-        meta: {
-          symbol: symbol,
-          name: symbol,
-          currency: 'USD',
-          exchange: '',
-          mic_code: '',
-          exchange_timezone: ''
-        },
-        earnings: [],
-        status: 'ok'
-      };
-    }
-  };
-
-  // Add the earningsData state and loading state after the other state variables 
-  const [earningsData, setEarningsData] = useState<EarningsData | null>(null);
-  const [isLoadingEarnings, setIsLoadingEarnings] = useState<boolean>(false);
-
-  // Add a useEffect hook to fetch earnings data when the selected stock changes
-  useEffect(() => {
-    const getEarningsData = async () => {
-      if (!selectedStock) {
-        setEarningsData(null);
-        return;
-      }
-      
-      setIsLoadingEarnings(true);
-      try {
-        const data = await fetchEarningsData(selectedStock);
-        setEarningsData(data);
-      } catch (error: any) {
-        console.error('Error fetching earnings data:', error);
-        // Don't show a toast for earnings errors - just silently fail
-        setEarningsData({
-          meta: {
-            symbol: selectedStock,
-            name: selectedStock,
-            currency: 'USD',
-            exchange: '',
-            mic_code: '',
-            exchange_timezone: ''
-          },
-          earnings: [],
-          status: 'ok'
-        });
-      } finally {
-        setIsLoadingEarnings(false);
-      }
-    };
-    
-    getEarningsData();
-  }, [selectedStock]);
+  // Earnings (EPS) data — lazy react-query hook (mock-backed in mock mode).
+  const { data: earningsData, isLoading: isLoadingEarnings } = useEarnings(selectedStock);
 
   // Fetch stock statistics data when stock is selected
   const { data: statisticsData, loading: isLoadingStatistics } = useStockStatistics(selectedStock);
@@ -1870,189 +1320,42 @@ const StockAnalysis = () => {
     }
   };
 
-  // Add a state for price target data
-  const [priceTargetData, setPriceTargetData] = useState<PriceTargetData | null>(null);
-  const [isLoadingPriceTarget, setIsLoadingPriceTarget] = useState<boolean>(false);
+  const { data: priceTargetData, isLoading: isLoadingPriceTarget } = usePriceTarget(selectedStock, { enabled: eagerLoad || fundamentalsView.hasBeenInView });
   const [recommendationTimeframe, setRecommendationTimeframe] = useState<'current' | '1m' | '2m' | '3m'>('current');
 
-  // Fetch price target data
-  useEffect(() => {
-    const getPriceTargetData = async () => {
-      if (!selectedStock) return;
-      
-      setIsLoadingPriceTarget(true);
-      try {
-        const data = await fetchPriceTarget(selectedStock);
-        setPriceTargetData(data);
-      } catch (error) {
-        console.error('Error fetching price target data:', error);
-        toast({
-          title: "Error",
-          description: `Failed to fetch price target data for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          variant: "destructive",
-        });
-        setPriceTargetData(null);
-      } finally {
-        setIsLoadingPriceTarget(false);
-      }
-    };
-    
-    getPriceTargetData();
-  }, [selectedStock]);
-
-  // Add a state for SMA-20 data
-  const [smaData, setSmaData] = useState<SMAData | null>(null);
-  const [sma50Data, setSma50Data] = useState<SMAData | null>(null);
-  const [sma200Data, setSma200Data] = useState<SMAData | null>(null);
-  const [isLoadingSMA, setIsLoadingSMA] = useState<boolean>(false);
+  // SMA datasets (20/50/200) via lazy hooks; smaTimeframe is a user control.
   const [smaTimeframe, setSmaTimeframe] = useState<string>('3M');
-  
-  // Add a new useEffect for fetching SMA-20 and SMA-50 data
-  useEffect(() => {
-    const getSmaData = async () => {
-      if (!selectedStock) return;
-      
-      setIsLoadingSMA(true);
-      try {
-        // Fetch all SMA datasets in parallel
-        const [data20, data50, data200] = await Promise.all([
-          fetchSMA20(selectedStock, smaTimeframe),
-          fetchSMA50(selectedStock, smaTimeframe),
-          fetchSMA200(selectedStock, smaTimeframe)
-        ]);
-        
-        console.log('SMA-20 data:', data20); // Debug log
-        console.log('SMA-50 data:', data50); // Debug log
-        console.log('SMA-200 data:', data200); // Debug log
-        
-        setSmaData(data20);
-        setSma50Data(data50);
-        setSma200Data(data200);
-      } catch (error) {
-        console.error('Error fetching SMA data:', error);
-        toast({
-          title: "Error",
-          description: `Failed to fetch SMA data for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          variant: "destructive",
-        });
-        setSmaData(null);
-        setSma50Data(null);
-        setSma200Data(null);
-      } finally {
-        setIsLoadingSMA(false);
-      }
-    };
-    
-    getSmaData();
-  }, [selectedStock, smaTimeframe]);
+  const { data: smaData, isLoading: isLoadingSMA } = useMovingAverage(selectedStock, 'SMA', 20, smaTimeframe, { enabled: eagerLoad || technicalView.hasBeenInView });
+  const { data: sma50Data } = useMovingAverage(selectedStock, 'SMA', 50, smaTimeframe, { enabled: eagerLoad || technicalView.hasBeenInView });
+  const { data: sma200Data } = useMovingAverage(selectedStock, 'SMA', 200, smaTimeframe, { enabled: eagerLoad || technicalView.hasBeenInView });
 
   // Handle SMA timeframe change
   const handleSmaTimeframeChange = (timeframe: string) => {
-    console.log(`Changing SMA timeframe to ${timeframe}`);
     setSmaTimeframe(timeframe);
   };
 
-  // Add a state for EMA-20 data
-  const [emaData, setEmaData] = useState<EMAData | null>(null);
-  const [ema50Data, setEma50Data] = useState<EMAData | null>(null);
-  const [ema200Data, setEma200Data] = useState<EMAData | null>(null);
-  const [isLoadingEMA, setIsLoadingEMA] = useState<boolean>(false);
+  // EMA datasets (20/50/200) via lazy hooks; emaTimeframe is a user control.
   const [emaTimeframe, setEmaTimeframe] = useState<string>('3M');
-  
-  // Add a new useEffect for fetching EMA-20 and EMA-50 data
-  useEffect(() => {
-    const getEmaData = async () => {
-      if (!selectedStock) return;
-      
-      setIsLoadingEMA(true);
-      try {
-        // Fetch all EMA datasets in parallel
-        const [data20, data50, data200] = await Promise.all([
-          fetchEMA20(selectedStock, emaTimeframe),
-          fetchEMA50(selectedStock, emaTimeframe),
-          fetchEMA200(selectedStock, emaTimeframe)
-        ]);
-        
-        console.log('EMA-20 data:', data20); // Debug log
-        console.log('EMA-50 data:', data50); // Debug log
-        console.log('EMA-200 data:', data200); // Debug log
-        
-        setEmaData(data20);
-        setEma50Data(data50);
-        setEma200Data(data200);
-      } catch (error) {
-        console.error('Error fetching EMA data:', error);
-        toast({
-          title: "Error",
-          description: `Failed to fetch EMA data for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          variant: "destructive",
-        });
-        setEmaData(null);
-        setEma50Data(null);
-        setEma200Data(null);
-      } finally {
-        setIsLoadingEMA(false);
-      }
-    };
-    
-    getEmaData();
-  }, [selectedStock, emaTimeframe]);
+  const { data: emaData, isLoading: isLoadingEMA } = useMovingAverage(selectedStock, 'EMA', 20, emaTimeframe, { enabled: eagerLoad || technicalView.hasBeenInView });
+  const { data: ema50Data } = useMovingAverage(selectedStock, 'EMA', 50, emaTimeframe, { enabled: eagerLoad || technicalView.hasBeenInView });
+  const { data: ema200Data } = useMovingAverage(selectedStock, 'EMA', 200, emaTimeframe, { enabled: eagerLoad || technicalView.hasBeenInView });
 
   // Handle EMA timeframe change
   const handleEmaTimeframeChange = (timeframe: string) => {
-    console.log(`Changing EMA timeframe to ${timeframe}`);
     setEmaTimeframe(timeframe);
   };
 
-  // Add RSI state variables with the other chart state variables
-  const [rsiData, setRsiData] = useState<RSIData | null>(null);
-  const [isLoadingRSIChart, setIsLoadingRSIChart] = useState<boolean>(false);
+  // RSI chart data via lazy hook; rsiTimeframe is a user control.
   const [rsiTimeframe, setRsiTimeframe] = useState<string>('3M');
-
-  // Fix the RSI data fetching useEffect
-  useEffect(() => {
-    const getRsiData = async () => {
-      if (!selectedStock) return;
-      
-      setIsLoadingRSIChart(true);
-      try {
-        // Fetch RSI data
-        const data = await fetchRSI(selectedStock, rsiTimeframe);
-        
-        console.log('RSI data from Twelve Data:', data); // More descriptive debug log
-        
-        if (data && data.values && data.values.length > 0) {
-          console.log(`RSI data received with ${data.values.length} values`);
-          setRsiData(data);
-        } else {
-          console.warn('No RSI values found in the response');
-          setRsiData(null);
-        }
-      } catch (error) {
-        console.error('Error fetching RSI data:', error);
-        toast({
-          title: "Error",
-          description: `Failed to fetch RSI data for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          variant: "destructive",
-        });
-        setRsiData(null);
-      } finally {
-        setIsLoadingRSIChart(false);
-      }
-    };
-    
-    getRsiData();
-  }, [selectedStock, rsiTimeframe, toast]);
+  const { data: rsiData, isLoading: isLoadingRSIChart } = useRSI(selectedStock, rsiTimeframe, { enabled: eagerLoad || technicalView.hasBeenInView });
 
   // Handle RSI timeframe change
   const handleRsiTimeframeChange = (timeframe: string) => {
-    console.log(`Changing RSI timeframe to ${timeframe}`);
     setRsiTimeframe(timeframe);
   };
   
   // Handler for recommendation timeframe change
   const handleRecommendationTimeframeChange = (timeframe: 'current' | '1m' | '2m' | '3m') => {
-    console.log(`Changing recommendation timeframe to ${timeframe}`);
     setRecommendationTimeframe(timeframe);
   };
   
@@ -2074,57 +1377,14 @@ const StockAnalysis = () => {
     }
   };
 
-  // Add MACD state variables
-  const [macdData, setMacdData] = useState<MACDData | null>(null);
-  const [isLoadingMACD, setIsLoadingMACD] = useState<boolean>(false);
+  // MACD data + derived signals via lazy hook; macdTimeframe is a user control.
   const [macdTimeframe, setMacdTimeframe] = useState<string>('3M');
-  const [macdSignals, setMacdSignals] = useState<MACDSignals | null>(null);
-  const [macdTimeSeriesData, setMacdTimeSeriesData] = useState<TimeSeriesData | null>(null);
-  
-  // Add the useEffect for fetching MACD data
-  useEffect(() => {
-    const getMacdData = async () => {
-      if (!selectedStock) return;
-      
-      setIsLoadingMACD(true);
-      try {
-        // Fetch MACD data for the selected chart timeframe
-        const data = await fetchMACD(selectedStock, macdTimeframe);
-        setMacdData(data);
-        
-        // For signal analysis, always use a fixed recent time period (e.g., 1month) 
-        // regardless of the chart timeframe to ensure consistent signal detection
-        const signalTimeSeriesData = await fetchTimeSeries(selectedStock, '1month');
-        setMacdTimeSeriesData(signalTimeSeriesData);
-        
-        // Fetch MACD data specifically for the recent period for consistent signal analysis
-        const signalMacdData = await fetchMACD(selectedStock, '3M');
-        
-        // Analyze MACD signals using consistent recent data
-        if (signalMacdData && signalTimeSeriesData) {
-          const { recentSignals } = getRecentMACDSignals(signalMacdData, signalTimeSeriesData);
-          setMacdSignals(recentSignals);
-        }
-      } catch (error) {
-        console.error('Error fetching MACD data:', error);
-        toast({
-          title: "Error",
-          description: `Failed to fetch MACD data for ${selectedStock}: ${error instanceof Error ? error.message : 'Unknown error'}`,
-          variant: "destructive",
-        });
-        setMacdData(null);
-        setMacdSignals(null);
-      } finally {
-        setIsLoadingMACD(false);
-      }
-    };
-    
-    getMacdData();
-  }, [selectedStock, macdTimeframe, toast]);
+  const { data: macdResult, isLoading: isLoadingMACD } = useMACD(selectedStock, macdTimeframe, { enabled: eagerLoad || technicalView.hasBeenInView });
+  const macdData = macdResult?.macd ?? null;
+  const macdSignals = macdResult?.signals ?? null;
 
   // Add handler for MACD timeframe changes
   const handleMacdTimeframeChange = (timeframe: string) => {
-    console.log(`Changing MACD timeframe to ${timeframe}`);
     setMacdTimeframe(timeframe);
   };
 
@@ -3048,7 +2308,7 @@ const StockAnalysis = () => {
           </Card>
 
           {/* Financial Health Section */}
-          <Card className="bg-neutral-50 border-none transition-all hover:none">
+          <Card ref={fundamentalsView.ref} className="bg-neutral-50 border-none transition-all hover:none">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div>
                 <CardTitle className="text-xl">Financial Health</CardTitle>
@@ -3640,7 +2900,7 @@ const StockAnalysis = () => {
           </Card>
 
           {/* Technical Analysis Section */}
-          <Card className="bg-neutral-50 border-none transition-all hover:none">
+          <Card ref={technicalView.ref} className="bg-neutral-50 border-none transition-all hover:none">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div>
                 <CardTitle className="text-xl">Technical Indicators</CardTitle>
@@ -4131,7 +3391,7 @@ const StockAnalysis = () => {
           </Card>
 
           {/* News and Sentiment Section */}
-          <Card className="bg-neutral-50 border-none transition-all hover:none">
+          <Card ref={sentimentView.ref} className="bg-neutral-50 border-none transition-all hover:none">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <div>
                 <CardTitle className="text-xl">News & Sentiment</CardTitle>

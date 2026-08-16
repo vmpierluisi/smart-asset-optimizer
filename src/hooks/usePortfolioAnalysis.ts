@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { toast } from "@/hooks/use-toast";
+
 
 interface PortfolioData {
   weights: { [key: string]: number };
@@ -70,7 +70,6 @@ export const usePortfolioAnalysis = () => {
         metrics: portfolioData.metrics
       };
 
-      console.log("Sending data to API:", JSON.stringify(processedData));
 
       // Get the Supabase credentials
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -80,8 +79,6 @@ export const usePortfolioAnalysis = () => {
         throw new Error("Supabase environment variables are missing. Please check your .env file.");
       }
 
-      console.log("Supabase URL:", supabaseUrl);
-      console.log("Supabase Anon Key:", supabaseAnonKey ? "Loaded" : "Missing");
 
       // Run all analyses in parallel
       const results = await Promise.all([
@@ -184,7 +181,6 @@ export const usePortfolioAnalysis = () => {
         const { done, value } = await reader.read();
         
         if (done) {
-          console.log("Stream complete");
           break;
         }
         

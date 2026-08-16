@@ -27,7 +27,6 @@ export async function sendAIRequest(payload: AIRequestPayload): Promise<Response
   }
 
   const url = `${SUPABASE_URL}/functions/v1/stock-analysis-ai`;
-  console.log('Sending AI request to:', url);
   console.log('Request payload:', {
     messages: payload.messages,
     contextSize: payload.cardContext ? Object.keys(payload.cardContext).length : 0,
@@ -35,7 +34,6 @@ export async function sendAIRequest(payload: AIRequestPayload): Promise<Response
   });
   
   try {
-    console.log('Initiating fetch request...');
     const response = await fetch(
       url,
       {
@@ -50,8 +48,6 @@ export async function sendAIRequest(payload: AIRequestPayload): Promise<Response
       }
     );
 
-    console.log('AI response status:', response.status, response.statusText);
-    console.log('Response headers:', Object.fromEntries([...response.headers.entries()]));
     
     // Check if the response is ok
     if (!response.ok) {
@@ -88,7 +84,6 @@ export async function sendAIRequest(payload: AIRequestPayload): Promise<Response
     }
 
     // Return the raw response object
-    console.log('AI response received successfully, returning stream.');
     return response; 
   } catch (error) {
     console.error('Error in AI request function:', error);

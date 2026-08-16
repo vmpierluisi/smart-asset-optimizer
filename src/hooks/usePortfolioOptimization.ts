@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { create, all } from 'mathjs';
 import { toast } from "@/hooks/use-toast";
+import { invokeFunction } from "@/lib/apiClient";
 
 const math = create(all);
 
@@ -203,45 +204,23 @@ export const usePortfolioOptimization = () => {
         description: `Fetching historical data for ${symbol}...`,
       });
 
-      // Get Supabase environment variables
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-      
-      if (!supabaseUrl || !supabaseAnonKey) {
-        toast({
-          title: "Configuration Error",
-          description: "Supabase environment variables are missing",
-          variant: "destructive",
-        });
-        throw new Error("Supabase environment variables are missing");
-      }
-      
-      // Call the Supabase Edge Function
-      const response = await fetch(`${supabaseUrl}/functions/v1/historical-prices`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-        },
-        body: JSON.stringify({
+      // Fetch historical prices via the unified client (mock-backed in mock mode).
+      let data: unknown;
+      try {
+        data = await invokeFunction<unknown[]>('historical-prices', {
           symbol,
           startDate: startDate.toISOString(),
-          endDate: endDate.toISOString()
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
+          endDate: endDate.toISOString(),
+        });
+      } catch (err) {
         toast({
           title: "API Error",
-          description: `Error fetching data: ${errorText}`,
+          description: `Error fetching data: ${(err as Error).message}`,
           variant: "destructive",
         });
-        throw new Error(`API error: ${response.status} ${errorText}`);
+        throw err;
       }
 
-      const data = await response.json();
-      
       if (!data || !Array.isArray(data) || data.length === 0) {
         toast({
           title: "No Data",
@@ -287,7 +266,7 @@ export const usePortfolioOptimization = () => {
       throw new Error('Not enough price data to calculate returns');
     }
 
-    const returns = [];
+    const returns: number[] = [];
     for (let i = 1; i < prices.length; i++) {
       const return_i = (prices[i] - prices[i-1]) / prices[i-1];
       if (isNaN(return_i)) {

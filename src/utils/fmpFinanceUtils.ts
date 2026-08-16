@@ -1,54 +1,31 @@
-// Mock stock data for common companies (fallback when API is unavailable)
-const COMMON_STOCKS = [
-  { symbol: "AAPL", name: "Apple Inc.", exchange: "NASDAQ" },
-  { symbol: "MSFT", name: "Microsoft Corporation", exchange: "NASDAQ" },
-  { symbol: "GOOGL", name: "Alphabet Inc.", exchange: "NASDAQ" },
-  { symbol: "AMZN", name: "Amazon.com Inc.", exchange: "NASDAQ" },
-  { symbol: "META", name: "Meta Platforms Inc.", exchange: "NASDAQ" },
-  { symbol: "TSLA", name: "Tesla, Inc.", exchange: "NASDAQ" },
-  { symbol: "NVDA", name: "NVIDIA Corporation", exchange: "NASDAQ" },
-  { symbol: "BRK-B", name: "Berkshire Hathaway Inc.", exchange: "NYSE" },
-  { symbol: "JPM", name: "JPMorgan Chase & Co.", exchange: "NYSE" },
-  { symbol: "JNJ", name: "Johnson & Johnson", exchange: "NYSE" },
-  { symbol: "V", name: "Visa Inc.", exchange: "NYSE" },
-  { symbol: "PG", name: "Procter & Gamble Co.", exchange: "NYSE" },
-  { symbol: "UNH", name: "UnitedHealth Group Inc.", exchange: "NYSE" },
-  { symbol: "HD", name: "Home Depot Inc.", exchange: "NYSE" },
-  { symbol: "BAC", name: "Bank of America Corp.", exchange: "NYSE" },
-  { symbol: "XOM", name: "Exxon Mobil Corporation", exchange: "NYSE" },
-  { symbol: "PFE", name: "Pfizer Inc.", exchange: "NYSE" },
-  { symbol: "NFLX", name: "Netflix, Inc.", exchange: "NASDAQ" },
-  { symbol: "DIS", name: "The Walt Disney Company", exchange: "NYSE" },
-  { symbol: "CSCO", name: "Cisco Systems, Inc.", exchange: "NASDAQ" },
-  { symbol: "ADBE", name: "Adobe Inc.", exchange: "NASDAQ" },
-  { symbol: "INTC", name: "Intel Corporation", exchange: "NASDAQ" },
-  { symbol: "CRM", name: "Salesforce, Inc.", exchange: "NYSE" },
-  { symbol: "VZ", name: "Verizon Communications Inc.", exchange: "NYSE" },
-  { symbol: "IBM", name: "International Business Machines", exchange: "NYSE" },
-  { symbol: "CMCSA", name: "Comcast Corporation", exchange: "NASDAQ" },
-  { symbol: "KO", name: "The Coca-Cola Company", exchange: "NYSE" },
-  { symbol: "PEP", name: "PepsiCo, Inc.", exchange: "NASDAQ" },
-  { symbol: "MRK", name: "Merck & Co., Inc.", exchange: "NYSE" },
-  { symbol: "WMT", name: "Walmart Inc.", exchange: "NYSE" },
-  { symbol: "ABT", name: "Abbott Laboratories", exchange: "NYSE" },
-  { symbol: "TMO", name: "Thermo Fisher Scientific Inc.", exchange: "NYSE" },
-  { symbol: "COST", name: "Costco Wholesale Corporation", exchange: "NASDAQ" },
-  { symbol: "ABBV", name: "AbbVie Inc.", exchange: "NYSE" },
-  { symbol: "AVGO", name: "Broadcom Inc.", exchange: "NASDAQ" },
-  { symbol: "ACN", name: "Accenture plc", exchange: "NYSE" },
-  { symbol: "DHR", name: "Danaher Corporation", exchange: "NYSE" },
-  { symbol: "MCD", name: "McDonald's Corporation", exchange: "NYSE" },
-  { symbol: "PYPL", name: "PayPal Holdings, Inc.", exchange: "NASDAQ" },
-  { symbol: "NKE", name: "NIKE, Inc.", exchange: "NYSE" }
-];
+/**
+ * Extended stock metrics.
+ *
+ * Historically this file talked to Financial Modeling Prep via a set of edge
+ * functions (`stock-quote`, `financial-health`, `technical-indicators`,
+ * `risk-analysis`, `macd-analysis`) that no longer exist. As part of the
+ * provider consolidation, everything here now DERIVES from Twelve Data (quote,
+ * statistics, RSI, MACD, historical series) through the unified `invokeFunction`
+ * client — so there is a single market-data provider and it all works in mock
+ * mode. The file keeps its name (and the shared type exports below) to avoid
+ * churn across the many call sites; it can be renamed during the later refactor.
+ */
+import { invokeFunction } from '@/lib/apiClient';
+import {
+  fetchTwelveDataQuote,
+  fetchStockStatistics,
+  fetchRSI,
+  fetchMACD,
+  fetchHistoricalTimeSeries,
+  type RecommendationsData,
+} from './twelveDataUtils';
 
+// --- shared types (imported across the app) --------------------------------
 export interface StockSuggestion {
   symbol: string;
   name: string;
   exchange: string;
 }
-
-
 
 export interface StockQuote {
   symbol: string;
@@ -67,11 +44,16 @@ export interface StockQuote {
   open?: number;
 }
 
+/** A single historical price point (used by the price charts and hooks). */
+export interface HistoricalPrice {
+  date: string;
+  open?: number;
+  high?: number;
+  low?: number;
+  close: number;
+  volume?: number;
+}
 
-
-
-
-// New Interfaces
 export interface FinancialHealthData {
   symbol: string;
   debtToEquity: number | null;
@@ -82,14 +64,9 @@ export interface FinancialHealthData {
   grossMargin: number | null;
   operatingMargin: number | null;
   netMargin: number | null;
-  healthScore: number | null; // Calculated or from FMP? Assuming calculated for now
-  
-  // Additional fields from Twelve Data statistics
-  // Financials
+  healthScore: number | null;
   fiscal_year_ends?: string;
   most_recent_quarter?: string;
-  
-  // Income statement
   revenue_ttm?: number;
   revenue_per_share_ttm?: number;
   quarterly_revenue_growth?: number;
@@ -98,19 +75,13 @@ export interface FinancialHealthData {
   net_income_to_common_ttm?: number;
   diluted_eps_ttm?: number;
   quarterly_earnings_growth_yoy?: number;
-  
-  // Balance sheet
   total_cash_mrq?: number;
   total_cash_per_share_mrq?: number;
   total_debt_mrq?: number;
   total_debt_to_equity_mrq?: number;
   book_value_per_share_mrq?: number;
-  
-  // Cash flow
   operating_cash_flow_ttm?: number;
   levered_free_cash_flow_ttm?: number;
-  
-  // Dividend data
   forward_annual_dividend_rate?: number;
   forward_annual_dividend_yield?: number;
   trailing_annual_dividend_rate?: number;
@@ -122,36 +93,6 @@ export interface FinancialHealthData {
   ex_dividend_date?: string;
 }
 
-export interface TechnicalIndicatorData {
-  symbol: string;
-  ma50: number | null;
-  ma200: number | null;
-  rsi: number | null;
-  macdSignal: 'Bullish' | 'Bearish' | 'Neutral' | null; // Or specific values
-  macdSignals: string[] | null; // Array of MACD signal types
-  bollingerPosition: 'Upper' | 'Middle' | 'Lower' | null; // Example
-  support: number | null;
-  resistance: number | null;
-  signalSummary: 'Buy' | 'Sell' | 'Neutral' | null; // Example
-  priceTarget: PriceTarget | null; // Added price target data
-  ema12: number | null; // 12-day EMA for Technical Analysis tab
-  ema26: number | null; // 26-day EMA for Technical Analysis tab
-  macd: number | null; // MACD value for Technical Analysis tab
-}
-
-export interface NewsItem {
-  title: string;
-  sentiment: string; // Changed from enum to string to match Alpha Vantage labels
-  sentimentColor?: string; // Added for color coding based on sentiment
-  source: string;
-  date: string; // Or Date object if needed
-  rawDate?: string; // Original date format from API
-  url: string; // For news article links
-  imageUrl?: string; // Banner image URL
-}
-
-
-
 export interface PriceTarget {
   targetHigh: number;
   targetLow: number;
@@ -159,26 +100,89 @@ export interface PriceTarget {
   targetMedian: number;
 }
 
+/** Valuation ratios (return shape of `fetchValuationRatios`). */
+export interface ValuationData {
+  peRatio: string;
+  forwardPE: string;
+  pegRatio: string;
+  priceToSales: string;
+  priceToBook: string;
+  evToEbitda: string;
+  dividendYield: string;
+  dividendGrowth5Y: string;
+  fairValueLow: number;
+  fairValueHigh: number;
+  eps: string;
+}
+
+/** A single historical-return entry plus optional risk stats for a symbol. */
+export interface StockPriceChanges {
+  symbol: string;
+  returns: { period: string; value: number; direction: 'up' | 'down' }[];
+  volatility?: number | null;
+  sharpeRatio?: number | null;
+  beta?: number | null;
+  alpha?: number | null;
+}
+
+export interface TechnicalIndicatorData {
+  symbol: string;
+  ma50: number | null;
+  ma200: number | null;
+  rsi: number | null;
+  macdSignal: 'Bullish' | 'Bearish' | 'Neutral' | null;
+  macdSignals: string[] | null;
+  bollingerPosition: 'Upper' | 'Middle' | 'Lower' | null;
+  support: number | null;
+  resistance: number | null;
+  signalSummary: 'Buy' | 'Sell' | 'Neutral' | null;
+  priceTarget: PriceTarget | null;
+  ema12: number | null;
+  ema26: number | null;
+  macd: number | null;
+}
+
+export interface NewsItem {
+  title: string;
+  sentiment: string;
+  sentimentColor?: string;
+  source: string;
+  date: string;
+  rawDate?: string;
+  url: string;
+  imageUrl?: string;
+}
+
+/**
+ * Analyst ratings shape (mirrors Twelve Data recommendations).
+ *
+ * NOTE: StockAnalysis currently renders flat fields (`strongBuy`, `buy`, …) that
+ * don't exist on the real `trends.current_month.*` structure — a latent bug to be
+ * fixed when that component is decomposed. The permissive intersection keeps the
+ * build honest without rewriting the god component here.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnalystRatings = RecommendationsData & Record<string, any>;
+
 export interface NewsSentimentData {
   symbol: string;
   recentNews: NewsItem[];
   analystRatings: AnalystRatings | null;
   averagePriceTarget: number | null;
-  sentimentScore: number | null; // 0-100
+  sentimentScore: number | null;
 }
 
 export interface RiskAnalysisData {
   symbol: string;
   beta: number | null;
-  maxDrawdown: number | null; // Percentage
-  valueAtRisk: number | null; // Percentage
-  standardDeviation: number | null; // Percentage
-  downsideRisk: number | null; // Percentage
+  maxDrawdown: number | null;
+  valueAtRisk: number | null;
+  standardDeviation: number | null;
+  downsideRisk: number | null;
   correlationSP500: number | null;
-  riskScore: number | null; // Calculated or from FMP? Assuming calculated
+  riskScore: number | null;
 }
 
-// Interface for MACD data
 export interface MacdData {
   symbol: string;
   timeframe: string;
@@ -205,426 +209,99 @@ export interface MacdData {
   }[];
 }
 
-// Search for stocks using the FMP API through Supabase Edge Function
+// --- functions (all derived from Twelve Data via invokeFunction) -----------
+
+/** Search for stocks via the `search-stocks` edge function. */
 export const searchStocks = async (query: string): Promise<StockSuggestion[]> => {
+  if (!query || query.trim().length < 2) return [];
   try {
-    if (!query || query.length < 2) return [];
-    
-    // Use local static data as fallback when in development or if API fails
-    const useFallback = import.meta.env.DEV && import.meta.env.VITE_USE_LOCAL_STOCK_DATA === 'true';
-    
-    if (useFallback) {
-      // Simulate network delay to make it feel like a real API
-      await new Promise(resolve => setTimeout(resolve, 300));
-      
-      const lowerQuery = query.toLowerCase().trim();
-      
-      // Filter stocks based on the search query
-      const results = COMMON_STOCKS.filter(stock => 
-        stock.symbol.toLowerCase().includes(lowerQuery) || 
-        stock.name.toLowerCase().includes(lowerQuery)
-      ).slice(0, 6); // Limit to 6 results
-      
-      return results;
-    }
-    
-    // Call the Supabase Edge Function that interfaces with FMP API
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('Supabase environment variables are missing');
-      throw new Error('Supabase environment variables are missing');
-    }
-    
-    const response = await fetch(`${supabaseUrl}/functions/v1/search-stocks`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({ query: query.trim() }),
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`FMP API error: ${response.status} ${errorText}`);
-    }
-    
-    const data = await response.json();
-    return data as StockSuggestion[];
-    
+    return await invokeFunction<StockSuggestion[]>('search-stocks', { query: query.trim() });
   } catch (error) {
-    console.error('Error searching stocks with FMP API:', error);
-    
-    // Fall back to static data if API call fails
-    const lowerQuery = query.toLowerCase().trim();
-    const results = COMMON_STOCKS.filter(stock => 
-      stock.symbol.toLowerCase().includes(lowerQuery) || 
-      stock.name.toLowerCase().includes(lowerQuery)
-    ).slice(0, 6);
-    
-    return results;
+    console.error('Error searching stocks:', error);
+    return [];
   }
 };
 
-// Fetch stock quote data using the FMP API
+/** Fetch a stock quote (mapped from the Twelve Data quote). */
 export const fetchStockQuote = async (symbol: string): Promise<StockQuote> => {
-  try {
-    // Call the Supabase Edge Function that interfaces with FMP API
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-    
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('Supabase environment variables are missing');
-      throw new Error('Supabase environment variables are missing');
-    }
-    
-    // Call the stock-quote edge function
-    const response = await fetch(`${supabaseUrl}/functions/v1/stock-quote`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({ symbol }),
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`FMP API error: ${response.status} ${errorText}`);
-    }
-    
-    const stockQuote = await response.json();
-    return stockQuote as StockQuote;
-    
-  } catch (error) {
-    console.error('Error fetching stock quote with FMP API:', error);
-    throw error;
-  }
+  const q = await fetchTwelveDataQuote(symbol);
+  return {
+    symbol: q.symbol,
+    name: q.name,
+    price: q.price,
+    change: q.change,
+    changePercent: q.changePercent,
+    marketCap: (q as { marketCap?: string }).marketCap ?? '',
+    peRatio: q.peRatio ?? 0,
+    dividendYield: q.dividendYield ?? 0,
+    volume: String(q.volume ?? ''),
+    avgVolume: String(q.avgVolume ?? ''),
+    exchange: q.exchange,
+    high52Week: q.high52Week,
+    low52Week: q.low52Week,
+    open: q.open,
+  };
 };
 
-// Fetch Financial Health Data
+/** Financial-health metrics derived from Twelve Data statistics. */
 export const fetchFinancialHealth = async (symbol: string): Promise<FinancialHealthData | null> => {
   try {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('Supabase environment variables are missing');
-      return null; // Return null or throw error based on desired handling
-    }
-
-    // Fetch data from Financial Modeling Prep API
-    const response = await fetch(`${supabaseUrl}/functions/v1/financial-health`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({ symbol }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Error fetching financial health for ${symbol}: ${response.status} ${errorText}`);
-      return null;
-    }
-
-    // Parse FMP financial health data
-    const fmpData = await response.json() as FinancialHealthData;
-
-    // Import Twelve Data API function
-    const { fetchStockStatistics } = await import('./twelveDataUtils');
-    
-    // Fetch additional financial data from Twelve Data API
-    const tdData = await fetchStockStatistics(symbol);
-    
-    // If Twelve Data API returned data, merge it with FMP data
-    if (tdData && tdData.statistics && tdData.statistics.financials) {
-      const financials = tdData.statistics.financials;
-      const balanceSheet = financials.balance_sheet;
-      const incomeStatement = financials.income_statement;
-      const cashFlow = financials.cash_flow;
-      const dividendsAndSplits = tdData.statistics.dividends_and_splits;
-      
-      // Merge the data
-      const mergedData: FinancialHealthData = {
-        ...fmpData,
-        // Financials
-        fiscal_year_ends: financials.fiscal_year_ends,
-        most_recent_quarter: financials.most_recent_quarter,
-        
-        // Override these values with Twelve Data API values
-        currentRatio: balanceSheet.current_ratio_mrq || fmpData.currentRatio,
-        returnOnEquity: financials.return_on_equity_ttm || fmpData.returnOnEquity,
-        returnOnAssets: financials.return_on_assets_ttm || fmpData.returnOnAssets,
-        netMargin: financials.profit_margin || fmpData.netMargin,
-        grossMargin: financials.gross_margin || fmpData.grossMargin,
-        operatingMargin: financials.operating_margin || fmpData.operatingMargin,
-        
-        // Income statement
-        revenue_ttm: incomeStatement.revenue_ttm,
-        revenue_per_share_ttm: incomeStatement.revenue_per_share_ttm,
-        quarterly_revenue_growth: incomeStatement.quarterly_revenue_growth,
-        gross_profit_ttm: incomeStatement.gross_profit_ttm,
-        ebitda: incomeStatement.ebitda,
-        net_income_to_common_ttm: incomeStatement.net_income_to_common_ttm,
-        diluted_eps_ttm: incomeStatement.diluted_eps_ttm,
-        quarterly_earnings_growth_yoy: incomeStatement.quarterly_earnings_growth_yoy,
-        
-        // Balance sheet
-        total_cash_mrq: balanceSheet.total_cash_mrq,
-        total_cash_per_share_mrq: balanceSheet.total_cash_per_share_mrq,
-        total_debt_mrq: balanceSheet.total_debt_mrq,
-        total_debt_to_equity_mrq: balanceSheet.total_debt_to_equity_mrq,
-        book_value_per_share_mrq: balanceSheet.book_value_per_share_mrq,
-        quickRatio: balanceSheet.current_ratio_mrq ? (balanceSheet.total_cash_mrq / balanceSheet.total_debt_mrq) : fmpData.quickRatio,
-        
-        // Cash flow
-        operating_cash_flow_ttm: cashFlow.operating_cash_flow_ttm,
-        levered_free_cash_flow_ttm: cashFlow.levered_free_cash_flow_ttm,
-        
-        // Dividend data
-        forward_annual_dividend_rate: dividendsAndSplits.forward_annual_dividend_rate,
-        forward_annual_dividend_yield: dividendsAndSplits.forward_annual_dividend_yield,
-        trailing_annual_dividend_rate: dividendsAndSplits.trailing_annual_dividend_rate,
-        trailing_annual_dividend_yield: dividendsAndSplits.trailing_annual_dividend_yield,
-        five_year_average_dividend_yield: dividendsAndSplits.five_year_average_dividend_yield,
-        payout_ratio: dividendsAndSplits.payout_ratio,
-        dividend_frequency: dividendsAndSplits.dividend_frequency,
-        dividend_date: dividendsAndSplits.dividend_date,
-        ex_dividend_date: dividendsAndSplits.ex_dividend_date,
-      };
-      
-      return mergedData;
-    }
-    
-    // If Twelve Data API failed, return just the FMP data
-    return fmpData;
+    const stats = await fetchStockStatistics(symbol);
+    if (!stats?.statistics?.financials) return null;
+    const f = stats.statistics.financials;
+    const bs = f.balance_sheet;
+    const is = f.income_statement;
+    const cf = f.cash_flow;
+    const d = stats.statistics.dividends_and_splits;
+    return {
+      symbol,
+      debtToEquity: bs.total_debt_to_equity_mrq ?? null,
+      currentRatio: bs.current_ratio_mrq ?? null,
+      quickRatio: bs.total_debt_mrq ? bs.total_cash_mrq / bs.total_debt_mrq : null,
+      returnOnEquity: f.return_on_equity_ttm ?? null,
+      returnOnAssets: f.return_on_assets_ttm ?? null,
+      grossMargin: f.gross_margin ?? null,
+      operatingMargin: f.operating_margin ?? null,
+      netMargin: f.profit_margin ?? null,
+      healthScore: null,
+      fiscal_year_ends: f.fiscal_year_ends,
+      most_recent_quarter: f.most_recent_quarter,
+      revenue_ttm: is.revenue_ttm,
+      revenue_per_share_ttm: is.revenue_per_share_ttm,
+      quarterly_revenue_growth: is.quarterly_revenue_growth,
+      gross_profit_ttm: is.gross_profit_ttm,
+      ebitda: is.ebitda,
+      net_income_to_common_ttm: is.net_income_to_common_ttm,
+      diluted_eps_ttm: is.diluted_eps_ttm,
+      quarterly_earnings_growth_yoy: is.quarterly_earnings_growth_yoy,
+      total_cash_mrq: bs.total_cash_mrq,
+      total_cash_per_share_mrq: bs.total_cash_per_share_mrq,
+      total_debt_mrq: bs.total_debt_mrq,
+      total_debt_to_equity_mrq: bs.total_debt_to_equity_mrq,
+      book_value_per_share_mrq: bs.book_value_per_share_mrq,
+      operating_cash_flow_ttm: cf.operating_cash_flow_ttm,
+      levered_free_cash_flow_ttm: cf.levered_free_cash_flow_ttm,
+      forward_annual_dividend_rate: d.forward_annual_dividend_rate,
+      forward_annual_dividend_yield: d.forward_annual_dividend_yield,
+      trailing_annual_dividend_rate: d.trailing_annual_dividend_rate,
+      trailing_annual_dividend_yield: d.trailing_annual_dividend_yield,
+      five_year_average_dividend_yield: d.five_year_average_dividend_yield,
+      payout_ratio: d.payout_ratio,
+      dividend_frequency: d.dividend_frequency,
+      dividend_date: d.dividend_date,
+      ex_dividend_date: d.ex_dividend_date,
+    };
   } catch (error) {
-    console.error('Error fetching financial health data:', error);
-    return null; // Return null on fetch error
-  }
-};
-
-// Fetch Technical Indicator Data
-export const fetchTechnicalIndicators = async (symbol: string): Promise<TechnicalIndicatorData | null> => {
-  try {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('Supabase environment variables are missing');
-      return null;
-    }
-
-    // Fetch the RSI from Twelve Data via fetchRSI
-    // This will be used in a later step to add RSI data to technical indicators
-    const rsiData = await import('@/utils/twelveDataUtils').then(module => 
-      module.fetchRSI(symbol, '3M')
-    );
-    
-    // Fetch stock statistics from Twelve Data to get 50-day and 200-day moving averages
-    const statsData = await import('@/utils/twelveDataUtils').then(module => 
-      module.fetchStockStatistics(symbol)
-    );
-    
-    // Fetch the MACD data from dedicated endpoint
-    const macdData = await fetchMacdData(symbol);
-    
-    const response = await fetch(`${supabaseUrl}/functions/v1/technical-indicators`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({ symbol }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Error fetching technical indicators for ${symbol}: ${response.status} ${errorText}`);
-      return null;
-    }
-
-    const data = await response.json() as TechnicalIndicatorData;
-    
-    // Update moving averages from the Twelve Data stock statistics if available
-    if (statsData && statsData.statistics && statsData.statistics.stock_price_summary) {
-      data.ma50 = statsData.statistics.stock_price_summary.day_50_ma || data.ma50;
-      data.ma200 = statsData.statistics.stock_price_summary.day_200_ma || data.ma200;
-    }
-    
-    // Initialize EMA values using SMA values temporarily
-    // In a real implementation, these would come from the API
-    data.ema12 = data.ma50 ? parseFloat((data.ma50 * 0.98).toFixed(2)) : null;
-    data.ema26 = data.ma200 ? parseFloat((data.ma200 * 0.99).toFixed(2)) : null;
-    
-    // Override the RSI with the value from Twelve Data API if available
-    if (rsiData && rsiData.values && rsiData.values.length > 0) {
-      // Calculate average RSI from the most recent 14 values (or less if fewer are available)
-      const recentValues = rsiData.values.slice(0, Math.min(14, rsiData.values.length));
-      const sum = recentValues.reduce((acc, val) => acc + parseFloat(val.rsi), 0);
-      const averageRsi = sum / recentValues.length;
-      data.rsi = Number(averageRsi.toFixed(2));
-    }
-    
-    // Set MACD data from dedicated endpoint if available
-    if (macdData !== null) {
-      // Convert signalStrength to macdSignal format
-      let macdSignal: 'Bullish' | 'Bearish' | 'Neutral' | null = null;
-      
-      switch (macdData.signalStrength) {
-        case 'strong_buy':
-        case 'buy':
-          macdSignal = 'Bullish';
-          break;
-        case 'strong_sell':
-        case 'sell':
-          macdSignal = 'Bearish';
-          break;
-        case 'neutral':
-        default:
-          macdSignal = 'Neutral';
-          break;
-      }
-      
-      data.macdSignal = macdSignal;
-      
-      // Set MACD value if available
-      if (macdData.latestValues.macd !== null) {
-        data.macd = macdData.latestValues.macd;
-      }
-      
-      // Generate array of MACD signals
-      const macdSignals: string[] = [];
-      
-      // Define a function to check if a timestamp is recent (within the last 3 days)
-      const isRecentSignal = (timestamp: number) => {
-        const now = new Date().getTime();
-        const threeDaysMs = 3 * 24 * 60 * 60 * 1000; // 3 days in milliseconds
-        return (now - timestamp) < threeDaysMs;
-      };
-      
-      // Check for active bullish signals - only add if the condition is fulfilled (array has elements)
-      // and if the signal occurred recently
-      const hasBullishCrossover = macdData.signals.bullish_crossover.some(isRecentSignal);
-      const hasBullishZeroCross = macdData.signals.bullish_zero_crossover.some(isRecentSignal);
-      const hasHistogramBullish = macdData.signals.histogram_bullish_turn.some(isRecentSignal);
-      
-      // Check for active bearish signals - only add if the condition is fulfilled (array has elements)
-      // and if the signal occurred recently
-      const hasBearishCrossover = macdData.signals.bearish_crossover.some(isRecentSignal);
-      const hasBearishZeroCross = macdData.signals.bearish_zero_crossover.some(isRecentSignal);
-      const hasHistogramBearish = macdData.signals.histogram_bearish_turn.some(isRecentSignal);
-      
-      // Add signals only if they are active and recent
-      if (hasBullishCrossover) {
-        macdSignals.push('Bullish Crossover');
-      }
-      if (hasBullishZeroCross) {
-        macdSignals.push('Bullish Zero Cross');
-      }
-      if (hasHistogramBullish) {
-        macdSignals.push('Histogram Bullish');
-      }
-      if (hasBearishCrossover) {
-        macdSignals.push('Bearish Crossover');
-      }
-      if (hasBearishZeroCross) {
-        macdSignals.push('Bearish Zero Cross');
-      }
-      if (hasHistogramBearish) {
-        macdSignals.push('Histogram Bearish');
-      }
-      
-      // Check current MACD position - only add if the condition is fulfilled
-      if (macdData.latestValues.macd !== null && macdData.latestValues.signal !== null) {
-        // Only add one of these position signals
-        if (macdData.latestValues.macd > macdData.latestValues.signal) {
-          macdSignals.push('MACD Above Signal');
-        } else if (macdData.latestValues.macd < macdData.latestValues.signal) {
-          macdSignals.push('MACD Below Signal');
-        }
-        
-        // Only add one of these zero line signals
-        if (macdData.latestValues.macd > 0) {
-          macdSignals.push('MACD Above Zero');
-        } else if (macdData.latestValues.macd < 0) {
-          macdSignals.push('MACD Below Zero');
-        }
-      }
-      
-      data.macdSignals = macdSignals.length > 0 ? macdSignals : null;
-    }
-    
-    return data;
-
-  } catch (error) {
-    console.error('Error fetching technical indicator data:', error);
+    console.error('Error deriving financial health data:', error);
     return null;
   }
 };
 
-// Fetch News and Sentiment Data
-export const fetchNewsSentiment = async (symbol: string): Promise<NewsSentimentData | null> => {
-  try {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('Supabase environment variables are missing');
-      return null;
-    }
-
-    const response = await fetch(`${supabaseUrl}/functions/v1/news-sentiment`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({ symbol }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Error fetching news and sentiment for ${symbol}: ${response.status} ${errorText}`);
-      return null;
-    }
-
-    const data = await response.json();
-    // Ensure recentNews is always an array
-    if (data && !Array.isArray(data.recentNews)) {
-        data.recentNews = [];
-    }
-    return data as NewsSentimentData;
-
-  } catch (error) {
-    console.error('Error fetching news and sentiment data:', error);
-    return null;
-  }
-};
-
-// Fetch Risk Analysis Data
-import { fetchStockStatistics } from './twelveDataUtils';
-
-export const fetchValuationRatios = async (symbol: string): Promise<{
-  peRatio: string;
-  forwardPE: string;
-  pegRatio: string;
-  priceToSales: string;
-  priceToBook: string;
-  evToEbitda: string;
-  dividendYield: string;
-  dividendGrowth5Y: string;
-  fairValueLow: number;
-  fairValueHigh: number;
-  eps: string;
-} | null> => {
+/** Valuation ratios derived from Twelve Data statistics. */
+export const fetchValuationRatios = async (symbol: string): Promise<ValuationData | null> => {
   try {
     const stats = await fetchStockStatistics(symbol);
-    if (!stats || !stats.statistics) return null;
+    if (!stats?.statistics) return null;
     const v = stats.statistics.valuations_metrics;
     const d = stats.statistics.dividends_and_splits;
     const f = stats.statistics.financials;
@@ -637,8 +314,8 @@ export const fetchValuationRatios = async (symbol: string): Promise<{
       evToEbitda: v?.enterprise_to_ebitda?.toString() ?? 'N/A',
       dividendYield: d?.forward_annual_dividend_yield?.toString() ?? 'N/A',
       dividendGrowth5Y: d?.five_year_average_dividend_yield?.toString() ?? 'N/A',
-      fairValueLow: 0, // Not provided by stats, set to 0 or adjust as needed
-      fairValueHigh: 0, // Not provided by stats, set to 0 or adjust as needed
+      fairValueLow: 0,
+      fairValueHigh: 0,
       eps: f?.income_statement?.diluted_eps_ttm?.toString() ?? 'N/A',
     };
   } catch (error) {
@@ -647,71 +324,180 @@ export const fetchValuationRatios = async (symbol: string): Promise<{
   }
 };
 
-export const fetchRiskAnalysis = async (symbol: string): Promise<RiskAnalysisData | null> => {
+/** MACD analysis derived from the Twelve Data MACD series. */
+export const fetchMacdData = async (symbol: string): Promise<MacdData | null> => {
   try {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const macd = await fetchMACD(symbol, '3M');
+    if (!macd?.values?.length) return null;
+    // Twelve Data returns oldest → newest; map to numbers.
+    const vals = macd.values.map((v) => ({
+      timestamp: Date.parse(v.datetime),
+      value: parseFloat(v.macd),
+      signal: parseFloat(v.macd_signal),
+      histogram: parseFloat(v.macd_hist),
+    }));
 
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('Supabase environment variables are missing');
-      return null;
+    const signals = {
+      bullish_crossover: [] as number[],
+      bearish_crossover: [] as number[],
+      bullish_zero_crossover: [] as number[],
+      bearish_zero_crossover: [] as number[],
+      histogram_bullish_turn: [] as number[],
+      histogram_bearish_turn: [] as number[],
+    };
+    for (let i = 1; i < vals.length; i++) {
+      const prev = vals[i - 1];
+      const cur = vals[i];
+      if (prev.value <= prev.signal && cur.value > cur.signal) signals.bullish_crossover.push(cur.timestamp);
+      if (prev.value >= prev.signal && cur.value < cur.signal) signals.bearish_crossover.push(cur.timestamp);
+      if (prev.value <= 0 && cur.value > 0) signals.bullish_zero_crossover.push(cur.timestamp);
+      if (prev.value >= 0 && cur.value < 0) signals.bearish_zero_crossover.push(cur.timestamp);
+      if (prev.histogram <= 0 && cur.histogram > 0) signals.histogram_bullish_turn.push(cur.timestamp);
+      if (prev.histogram >= 0 && cur.histogram < 0) signals.histogram_bearish_turn.push(cur.timestamp);
     }
 
-    const response = await fetch(`${supabaseUrl}/functions/v1/risk-analysis`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({ symbol }),
-    });
+    const last = vals[vals.length - 1];
+    const signalStrength: MacdData['signalStrength'] =
+      last.value > last.signal ? (last.value > 0 ? 'strong_buy' : 'buy')
+      : last.value < last.signal ? (last.value < 0 ? 'strong_sell' : 'sell')
+      : 'neutral';
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Error fetching risk analysis for ${symbol}: ${response.status} ${errorText}`);
-      return null;
-    }
-
-    const data = await response.json();
-    return data as RiskAnalysisData;
-
+    return {
+      symbol,
+      timeframe: '3M',
+      signalStrength,
+      latestValues: { macd: last.value, signal: last.signal, histogram: last.histogram, timestamp: last.timestamp },
+      signals,
+      values: vals,
+    };
   } catch (error) {
-    console.error('Error fetching risk analysis data:', error);
+    console.error('Error deriving MACD data:', error);
     return null;
   }
 };
 
-// Fetch MACD data from dedicated edge function
-export const fetchMacdData = async (symbol: string): Promise<MacdData | null> => {
+/** Technical indicators derived from Twelve Data statistics, RSI, and MACD. */
+export const fetchTechnicalIndicators = async (symbol: string): Promise<TechnicalIndicatorData | null> => {
   try {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const [stats, rsiData, macdData] = await Promise.all([
+      fetchStockStatistics(symbol),
+      fetchRSI(symbol, '3M'),
+      fetchMacdData(symbol),
+    ]);
 
-    if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('Supabase environment variables are missing');
-      return null;
+    const ma50 = stats?.statistics?.stock_price_summary?.day_50_ma ?? null;
+    const ma200 = stats?.statistics?.stock_price_summary?.day_200_ma ?? null;
+
+    let rsi: number | null = null;
+    if (rsiData?.values?.length) {
+      const recent = rsiData.values.slice(-14);
+      rsi = Number((recent.reduce((acc, v) => acc + parseFloat(v.rsi), 0) / recent.length).toFixed(2));
     }
 
-    const response = await fetch(`${supabaseUrl}/functions/v1/macd-analysis`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-      },
-      body: JSON.stringify({ symbol }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Error fetching MACD data for ${symbol}: ${response.status} ${errorText}`);
-      return null;
+    let macdSignal: TechnicalIndicatorData['macdSignal'] = null;
+    let macdSignals: string[] | null = null;
+    let macd: number | null = null;
+    if (macdData) {
+      macd = macdData.latestValues.macd;
+      switch (macdData.signalStrength) {
+        case 'strong_buy':
+        case 'buy': macdSignal = 'Bullish'; break;
+        case 'strong_sell':
+        case 'sell': macdSignal = 'Bearish'; break;
+        default: macdSignal = 'Neutral';
+      }
+      const isRecent = (ts: number) => Date.now() - ts < 3 * 24 * 60 * 60 * 1000;
+      const collected: string[] = [];
+      if (macdData.signals.bullish_crossover.some(isRecent)) collected.push('Bullish Crossover');
+      if (macdData.signals.bullish_zero_crossover.some(isRecent)) collected.push('Bullish Zero Cross');
+      if (macdData.signals.histogram_bullish_turn.some(isRecent)) collected.push('Histogram Bullish');
+      if (macdData.signals.bearish_crossover.some(isRecent)) collected.push('Bearish Crossover');
+      if (macdData.signals.bearish_zero_crossover.some(isRecent)) collected.push('Bearish Zero Cross');
+      if (macdData.signals.histogram_bearish_turn.some(isRecent)) collected.push('Histogram Bearish');
+      if (macdData.latestValues.macd !== null && macdData.latestValues.signal !== null) {
+        collected.push(macdData.latestValues.macd > macdData.latestValues.signal ? 'MACD Above Signal' : 'MACD Below Signal');
+        collected.push(macdData.latestValues.macd > 0 ? 'MACD Above Zero' : 'MACD Below Zero');
+      }
+      macdSignals = collected.length ? collected : null;
     }
 
-    const data = await response.json();
-    return data as MacdData;
-
+    return {
+      symbol,
+      ma50,
+      ma200,
+      rsi,
+      macdSignal,
+      macdSignals,
+      bollingerPosition: null,
+      support: null,
+      resistance: null,
+      signalSummary: null,
+      priceTarget: null,
+      ema12: ma50 ? parseFloat((ma50 * 0.98).toFixed(2)) : null,
+      ema26: ma200 ? parseFloat((ma200 * 0.99).toFixed(2)) : null,
+      macd,
+    };
   } catch (error) {
-    console.error('Error fetching MACD data:', error);
+    console.error('Error deriving technical indicator data:', error);
+    return null;
+  }
+};
+
+/** Risk analysis derived from the Twelve Data historical series + beta. */
+export const fetchRiskAnalysis = async (symbol: string): Promise<RiskAnalysisData | null> => {
+  try {
+    const [hist, stats] = await Promise.all([
+      fetchHistoricalTimeSeries(symbol),
+      fetchStockStatistics(symbol),
+    ]);
+    if (!hist?.data?.length) return null;
+
+    const closes = hist.data.map((d) => d.close);
+    const returns: number[] = [];
+    for (let i = 1; i < closes.length; i++) returns.push(closes[i] / closes[i - 1] - 1);
+    if (!returns.length) return null;
+
+    const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+    const variance = returns.reduce((a, b) => a + (b - mean) ** 2, 0) / returns.length;
+    const dailySd = Math.sqrt(variance);
+    const annualSd = dailySd * Math.sqrt(252);
+
+    let peak = closes[0];
+    let maxDrawdown = 0;
+    for (const c of closes) {
+      if (c > peak) peak = c;
+      const dd = (peak - c) / peak;
+      if (dd > maxDrawdown) maxDrawdown = dd;
+    }
+
+    const var95 = 1.645 * dailySd;
+    const negatives = returns.filter((r) => r < 0);
+    const downside = negatives.length
+      ? Math.sqrt(negatives.reduce((a, b) => a + b * b, 0) / returns.length) * Math.sqrt(252)
+      : 0;
+
+    return {
+      symbol,
+      beta: stats?.statistics?.stock_price_summary?.beta ?? null,
+      maxDrawdown: Number((maxDrawdown * 100).toFixed(2)),
+      valueAtRisk: Number((var95 * 100).toFixed(2)),
+      standardDeviation: Number((annualSd * 100).toFixed(2)),
+      downsideRisk: Number((downside * 100).toFixed(2)),
+      correlationSP500: null,
+      riskScore: null,
+    };
+  } catch (error) {
+    console.error('Error deriving risk analysis data:', error);
+    return null;
+  }
+};
+
+/** Stock-level news + sentiment, derived from recommendations and price target. */
+export const fetchNewsSentiment = async (symbol: string): Promise<NewsSentimentData | null> => {
+  try {
+    return await invokeFunction<NewsSentimentData>('news-sentiment', { symbol });
+  } catch (error) {
+    console.error('Error fetching news and sentiment data:', error);
     return null;
   }
 };

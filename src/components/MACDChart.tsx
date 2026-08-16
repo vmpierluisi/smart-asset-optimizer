@@ -44,7 +44,6 @@ export const MACDChart: React.FC<MACDChartProps> = ({
   const handleTimeframeChange = (value: string) => {
     if (value === selectedTimeframe) return; // Avoid unnecessary updates
     
-    console.log(`Changing timeframe from ${selectedTimeframe} to ${value}`);
     setSelectedTimeframe(value);
     setIsLoading(true); // Set loading state to show spinner
     
@@ -57,7 +56,6 @@ export const MACDChart: React.FC<MACDChartProps> = ({
   // Sync with parent component's timeframe prop
   useEffect(() => {
     if (timeframe !== selectedTimeframe) {
-      console.log(`Timeframe prop changed from ${selectedTimeframe} to ${timeframe}`);
       setSelectedTimeframe(timeframe);
       setIsLoading(true);
     }
@@ -77,7 +75,6 @@ export const MACDChart: React.FC<MACDChartProps> = ({
       setError(null);
       
       try {
-        console.log(`Fetching price data for ${data.symbol} with timeframe ${selectedTimeframe.toLowerCase()}`);
         
         // Convert UI timeframe format to API format (3M -> 3month, 1Y -> 1year)
         let apiTimeframe = selectedTimeframe.toLowerCase();
@@ -86,7 +83,6 @@ export const MACDChart: React.FC<MACDChartProps> = ({
         if (apiTimeframe === '1y') apiTimeframe = '1year';
         
         const timeSeries = await fetchTimeSeries(data.symbol, apiTimeframe);
-        console.log(`Received ${timeSeries.data.length} price data points`);
         setPriceData(timeSeries);
       } catch (error) {
         console.error('Error fetching price data:', error);
@@ -119,9 +115,6 @@ export const MACDChart: React.FC<MACDChartProps> = ({
       timeframe: selectedTimeframe
     };
     
-    console.log(`Processing MACD data for timeframe ${selectedTimeframe}`);
-    console.log('MACD Data:', data);
-    console.log('Price Data:', priceData);
 
     // Create maps of dates to MACD values
     const macdMap = new Map();
@@ -166,7 +159,6 @@ export const MACDChart: React.FC<MACDChartProps> = ({
       };
     }).filter(item => item.macd !== null && item.macd !== undefined);
 
-    console.log(`Combined data points: ${combined.length}`);
     
     if (combined.length === 0) {
       setError('No matching data between price and MACD');

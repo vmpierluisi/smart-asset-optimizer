@@ -1,17 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { RSIData } from '@/utils/twelveDataUtils';
-import {
-  XAxis,
-  YAxis,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  ComposedChart,
-  Line,
-  Bar,
-  ReferenceLine,
-  Brush
-} from 'recharts';
+import { XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, ComposedChart, Line, Bar, ReferenceLine, Brush } from 'recharts';
 import { fetchTimeSeries, TimeSeriesData } from '@/utils/twelveDataUtils';
 import { cn } from "@/lib/utils";
 
@@ -44,7 +33,6 @@ export const RSIChart: React.FC<RSIChartProps> = ({
   const handleTimeframeChange = (value: string) => {
     if (value === selectedTimeframe) return; // Avoid unnecessary updates
     
-    console.log(`Changing timeframe from ${selectedTimeframe} to ${value}`);
     setSelectedTimeframe(value);
     setIsLoading(true); // Set loading state to show spinner
     
@@ -57,7 +45,6 @@ export const RSIChart: React.FC<RSIChartProps> = ({
   // Sync with parent component's timeframe prop
   useEffect(() => {
     if (timeframe !== selectedTimeframe) {
-      console.log(`Timeframe prop changed from ${selectedTimeframe} to ${timeframe}`);
       setSelectedTimeframe(timeframe);
       setIsLoading(true);
     }
@@ -77,7 +64,6 @@ export const RSIChart: React.FC<RSIChartProps> = ({
       setError(null);
       
       try {
-        console.log(`Fetching price data for ${data.symbol} with timeframe ${selectedTimeframe.toLowerCase()}`);
         
         // Convert UI timeframe format to API format (3M -> 3month, 1Y -> 1year)
         let apiTimeframe = selectedTimeframe.toLowerCase();
@@ -86,7 +72,6 @@ export const RSIChart: React.FC<RSIChartProps> = ({
         if (apiTimeframe === '1y') apiTimeframe = '1year';
         
         const timeSeries = await fetchTimeSeries(data.symbol, apiTimeframe);
-        console.log(`Received ${timeSeries.data.length} price data points`);
         setPriceData(timeSeries);
       } catch (error) {
         console.error('Error fetching price data:', error);
@@ -119,9 +104,6 @@ export const RSIChart: React.FC<RSIChartProps> = ({
       timeframe: selectedTimeframe
     };
     
-    console.log(`Processing RSI data for timeframe ${selectedTimeframe}`);
-    console.log('RSI Data:', data);
-    console.log('Price Data:', priceData);
 
     try {
       // Create map of dates to RSI values
@@ -159,7 +141,6 @@ export const RSIChart: React.FC<RSIChartProps> = ({
         };
       }).filter(item => item.rsi !== null && item.rsi !== undefined);
 
-      console.log(`Combined data points: ${combined.length}`);
       
       if (combined.length === 0) {
         setError('No matching data between price and RSI');
@@ -292,18 +273,6 @@ export const RSIChart: React.FC<RSIChartProps> = ({
     return 'neutral';
   };
 
-  // Get color for RSI value
-  const getRSIColor = (rsi: number) => {
-    const category = getRSICategory(rsi);
-    switch (category) {
-      case 'overbought':
-        return '#ef4444'; // Red for overbought
-      case 'oversold':
-        return '#10b981'; // Green for oversold
-      default:
-        return '#6b7280'; // Gray for neutral
-    }
-  };
 
   return (
     <div className="w-full h-full flex flex-col">
@@ -363,7 +332,7 @@ export const RSIChart: React.FC<RSIChartProps> = ({
                 type="number"
                 tick={{ fontSize: 12 }}
               domain={[
-                (dataMin) => {
+                (dataMin: number) => {
                   // Find the minimum of low values
                   const minValues = combinedData.map(item => item.low);
                   const minPrice = Math.min(...minValues);
@@ -385,7 +354,7 @@ export const RSIChart: React.FC<RSIChartProps> = ({
                   // Calculate a nice round number below the minimum with buffer
                   return Math.floor((minPrice - buffer) * 20) / 20; // Round down to nearest 0.05
                 }, 
-                (dataMax) => {
+                (dataMax: number) => {
                   // Find the maximum of high values
                   const maxValues = combinedData.map(item => item.high);
                   const maxPrice = Math.max(...maxValues);
