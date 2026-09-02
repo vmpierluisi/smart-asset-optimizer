@@ -1,9 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
-
-// Define your Supabase URL and anon key
-// Make sure to add these to your .env file in production
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-
-// Create a single supabase client for interacting with your database
-export const supabase = createClient(supabaseUrl, supabaseAnonKey); 
+// Re-export the Lovable Cloud generated client so all imports share a single,
+// correctly-configured Supabase instance (env vars are injected automatically).
+export { supabase } from '@/integrations/supabase/client';

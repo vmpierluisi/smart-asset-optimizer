@@ -43,7 +43,7 @@ export default function Settings() {
       const { data, error } = await supabase
         .from('user_preferences')
         .select('*')
-        .eq('user_id', user?.id)
+        .eq('user_id', user!.id)
         .single();
         
       if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
@@ -76,11 +76,11 @@ export default function Settings() {
       const { data, error } = await supabase
         .from('user_preferences')
         .upsert({
-          user_id: user?.id,
+          user_id: user!.id,
           email_notifications: prefs.email,
           market_alerts: prefs.marketAlerts,
           portfolio_updates: prefs.portfolioUpdates,
-          updated_at: new Date()
+          updated_at: new Date().toISOString()
         })
         .select();
         
@@ -185,8 +185,9 @@ export default function Settings() {
         return;
       }
       
-      if (!data.success) {
-        toast.error(data.error || "Failed to delete account");
+      const result = data as { success?: boolean; error?: string } | null;
+      if (!result?.success) {
+        toast.error(result?.error || "Failed to delete account");
         setIsDeletingAccount(false);
         setShowDeleteConfirmation(false);
         return;
